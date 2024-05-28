@@ -65,5 +65,3 @@ tools/gdb/__pycache__
 /build
 .ccls-cache
 compile_commands.json
-custom_apps/.kconfig
-custom_apps/Kconfig
