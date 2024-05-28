@@ -175,9 +175,9 @@ int stm32_bringup(void)
   spi2 = stm32_spibus_initialize(2);
   if (!spi2)
   {
-    printf("[BRINGUP] Failed to initialize SPI Port 2.\n");
+    syslog(LOG_ERR,"[BRINGUP] Failed to initialize SPI Port 2.\n");
   } else {
-    printf("[BRINGUP] Successfully Initalized SPI Port 2.\n");
+    syslog(LOG_INFO,"[BRINGUP] Successfully Initalized SPI Port 2.\n");
     adc0.dev.spi = spi2;
     SPI_SETFREQUENCY(spi2, 1000000);
     SPI_SETBITS(spi2, 8);
@@ -186,9 +186,9 @@ int stm32_bringup(void)
   ret = ads7953_register(EXT_ADC_PATH, adc0.dev.spi, adc0.dev.spi_devid);
   if (ret < 0)
   {
-    printf("[BRINGUP] ads7953 register failed.\n");
+    syslog(LOG_ERR,"[BRINGUP] ads7953 register failed.\n");
   } else {
-    printf("[BRINGUP] Registered ads7953.\n");
+    syslog(LOG_INFO,"[BRINGUP] Registered ads7953.\n");
   }
 #endif  // CONFIG_ADC_ADS7953
 
@@ -211,16 +211,12 @@ int stm32_bringup(void)
   /* Get the SPI port */
 
   syslog(LOG_INFO, "Initializing SPI port 3\n");
-  printf("Initalizaing SPI PORT 3.\n");
-  
   spi3 = stm32_spibus_initialize(3);
   if (!spi3)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize SPI port 3\n");
-      printf("Error initialzing SPI PORT 3\n");
     } else {
       syslog(LOG_INFO, "Successfully initialized SPI port 3\n");
-      printf("SPI PORT 3 Successfully Initalized.\n");
     }
 
   cubus_mft_configure(board_get_manifest());
@@ -251,7 +247,7 @@ int stm32_bringup(void)
 //                        (unsigned long)((uintptr_t)&geo));
 //       if (ret < 0)
 //         {
-//           printf("ERROR: mtd->ioctl failed: %d\n", ret);
+//           syslog("ERROR: mtd->ioctl failed: %d\n", ret);
 //         }
 
 // #ifdef CONFIG_STM32F427A_FLASH_PART
@@ -287,7 +283,7 @@ int stm32_bringup(void)
 
 //               if (partszbytes < erasesize)
 //                 {
-//                   printf("ERROR: Partition size is lesser than erasesize!\n");
+//                   syslog("ERROR: Partition size is lesser than erasesize!\n");
 //                   return -1;
 //                 }
 
@@ -295,7 +291,7 @@ int stm32_bringup(void)
 
 //               if ((partszbytes % erasesize) != 0)
 //                 {
-//                   printf("ERROR: Partition size is not multiple of"
+//                   syslog("ERROR: Partition size is not multiple of"
 //                        " erasesize!\n");
 //                   return -1;
 //                 }
@@ -405,9 +401,9 @@ int stm32_bringup(void)
   spi5 = stm32_spibus_initialize(5);
   if (!spi5)
   {
-    printf("[BRING_UP] ERROR: Failed to Initialize SPI 5 bus.\n");
+    syslog(LOG_ERR,"[BRING_UP] ERROR: Failed to Initialize SPI 5 bus.\n");
   } else {
-    printf("[BRING_UP] Initialized bus on SPI port 5.\n");
+    syslog(LOG_INFO,"[BRING_UP] Initialized bus on SPI port 5.\n");
 
     SPI_SETFREQUENCY(spi5, 1000000);
     SPI_SETBITS(spi5, 8);
@@ -417,9 +413,9 @@ int stm32_bringup(void)
   ret = lis3mdl_register("/dev/mag0", spi5, &mag0.dev);
   if (ret < 0)
   {
-    printf("[BRING_UP] Error: Failed to register LIS3MDL driver.\n");
+    syslog(LOG_INFO,"[BRING_UP] Error: Failed to register LIS3MDL driver.\n");
   } else {
-    printf("[BRING_UP] LIS3MDL registered on SPI 5.\n");
+    syslog(LOG_INFO,"[BRING_UP] LIS3MDL registered on SPI 5.\n");
   }
 #endif  // CONFIG_SENSORS_LIS3MDL
 
