@@ -21,6 +21,7 @@ config ARCH_BOARD_CUSTOM_NAME
 	string "name of board"
 	default "cubus_bbm"
 	---help---
+		Name of the custom board defined by user
 
 config ARCH_BOARD_CUSTOM_HIGHPRI
 	bool "High priority interrupt test"
