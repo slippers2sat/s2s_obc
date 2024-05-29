@@ -32,7 +32,7 @@
 #include <nuttx/analog/ioctl.h>
 #include <nuttx/analog/ads7953.h>
 
-int16_t mag_data[4];
+float mag_data[4];
 
 #define IOCTL_MODE  1
 // #define READ_MODE   1
@@ -58,7 +58,7 @@ int  main(int argc, FAR char *argv[])
   if (data_size > 0)
   {
     printf("read sensor data from Mag. Len %i \n", data_size);
-    printf("read data %d %d %d %d\n", mag_data[0], mag_data[1], mag_data[2],
+    printf("read data %0.3f %0.3f %0.3f %0.3f\n", mag_data[0], mag_data[1], mag_data[2],
              mag_data[3]);
   } else  {
     printf("Failed to read from sensor.\n");

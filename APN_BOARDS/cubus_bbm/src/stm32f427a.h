@@ -178,13 +178,6 @@
 
 #define GPIO_EXT_ADC1_CS		    (GPIO_OUTPUT|GPIO_PULLUP|GPIO_SPEED_2MHz|GPIO_OUTPUT_SET|GPIO_PORTD|GPIO_PIN9)
 
-// #define MFMROOTDIR			"/mnt/fs/mfm"
-// #define BRDMFM_PARAM		"/fs/mfm/mtd_params"
-// #define BRDMFM_HKDIR        MFMROOTDIR "/mtd_mainstorage"
-
-// #define SFMROOTDIR			"/mnt/fs/sfm"
-// #define BRDSFM_PARAM		"/fs/sfm/mtd_params"
-// #define BRDSFM_HKDIR        SFMROOTDIR "/mtd_mainstorage"
 
 
 /* PWM
