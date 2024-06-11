@@ -26,8 +26,19 @@
 #include <stdio.h>
 #include "cushello.h"
 
+<<<<<<< HEAD
 
 static bool g_cushello_daemon_started;
+=======
+#include <nuttx/mtd/mtd.h>
+
+#include <nuttx/progmem.h>
+
+#include <string.h>
+
+#include <fcntl.h>
+
+>>>>>>> d7074c0 (internal flash memory working ... Look at Cubus application to see how it is used...)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -58,7 +69,11 @@ ORB_DEFINE(orb_mag_scaled, struct orb_mag_scaled_s, print_orb_mag_scaled_msg);
 
 int  cushello_daemon(int argc, FAR char *argv[])
 {
+  uint8_t read_buf[100];
+  char write_buf[100] = "Hello everybody ....";
+  int size = 100;
   
+<<<<<<< HEAD
   g_cushello_daemon_started = true;
   syslog(LOG_INFO, "Hello World application for writing data to flash.\n");
 
@@ -137,6 +152,27 @@ int  cushello_daemon(int argc, FAR char *argv[])
   }
   
   return 0;
+=======
+  int fd  = open("/dev/intflash",O_RDONLY);
+      if(fd < 0){
+        printf("Error opening internal flash device\n");
+      }else{
+        printf("Opened internal flash device successfully\n");
+      }
+// #ifdef CONFIG_ARCH_HAVE_PROGMEM
+      up_progmem_write(0x081C0000, write_buf, 30);
+
+      up_progmem_read(0x081C0000, read_buf, 100);
+      
+      // printf("File read size: %d \n", size);
+      for(int i=0;i<size;i++){
+        printf("%x ", read_buf[i]);
+      // }
+// #endif
+      printf("\n");
+
+      close(fd);
+>>>>>>> d7074c0 (internal flash memory working ... Look at Cubus application to see how it is used...)
 }
 
 
