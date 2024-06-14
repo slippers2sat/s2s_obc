@@ -130,8 +130,9 @@ static struct mag_priv_s mag0 =
 {
   .dev.attach = stm32_attach_mag_irq,
   .dev.spi_devid = SPIDEV_USER(0),
+  .dev.irq  = 0,
   .handler = NULL,
-  .intcfg = GPIO_LIS3MDL_INT,
+  .intcfg = GPIO_LIS3MDL_DRDY,
 };
 #endif
 
@@ -222,7 +223,8 @@ int stm32_bringup(void)
     SPI_SETMODE(spi5, SPIDEV_MODE0);
   }
 
-  ret = lis3mdl_register(MAG_1_PATH, spi5, &mag0.dev);
+  ret = lis3mdl_register(0, spi5, &mag0.dev);
+  // ret - lis3mdl_activate()
   if (ret < 0)
   {
     syslog(LOG_INFO,"[BRING_UP] Error: Failed to register LIS3MDL driver.\n");
