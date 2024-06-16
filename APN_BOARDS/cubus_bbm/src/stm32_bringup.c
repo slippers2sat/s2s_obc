@@ -64,6 +64,10 @@
 #include <nuttx/sensors/lis3mdl.h>
 #endif
 
+#ifdef CONFIG_SENSORS_MPU60X0
+  #include <nuttx/sensors/mpu60x0.h>
+#endif
+
 // #ifdef CONFIG_ADC_ADS7953
 #include <nuttx/analog/ads7953.h>
 #include "../../../../drivers/analog/ads7953.c"
@@ -229,15 +233,15 @@ int stm32_bringup(void)
 
 #endif /* CONFIG_STM32_SPI3 */
 
+
+
 #ifdef CONFIG_STM32_SPI5
-#ifdef CONFIG_SENSORS_LIS3MDL
-  spi5 = stm32_spibus_initialize(5);
+spi5 = stm32_spibus_initialize(5);
   if (!spi5)
   {
     syslog(LOG_ERR,"[BRING_UP] ERROR: Failed to Initialize SPI 5 bus.\n");
   } else {
     syslog(LOG_INFO,"[BRING_UP] Initialized bus on SPI port 5.\n");
-
     SPI_SETFREQUENCY(spi5, 1000000);
     SPI_SETBITS(spi5, 8);
     SPI_SETMODE(spi5, SPIDEV_MODE0);
@@ -387,12 +391,7 @@ stm32_wwdginitialize("/dev/wwdg0");
 
   UNUSED(ret);
 
-syslog(LOG_INFO, "INFO: Going to enter progmem: \n");
-
-printf("Going to enter progmem... \r\n");
-
 #if defined(CONFIG_MTD) && defined(CONFIG_MTD_PROGMEM)
-printf("Inside the progmem ifdef functions...\r\n");
   mtd = progmem_initialize();
   if (mtd == NULL)
     {
