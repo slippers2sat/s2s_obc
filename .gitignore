@@ -71,3 +71,4 @@ compile_commands.json
 .vscode-ctags
 
 >>>>>>> 98ecc3e (created new branch, modified gitignore)
+nuttx
