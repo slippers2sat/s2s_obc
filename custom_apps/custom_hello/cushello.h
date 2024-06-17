@@ -3,12 +3,15 @@
 #define __CUSTOM_APPS_SPI_DRIVER_TEST_SPI_DRIVER_TEST_H
 
 #include <uORB/uORB.h>
+#include <sched.h>
+#include <errno.h>
+#include <unistd.h>
 #include <time.h>
 #include <poll.h>
 #include <sensor/mag.h>
 #include <nuttx/sensors/sensor.h>
 
-struct orb_mag_s
+struct orb_mag_scaled_s
 {
   uint64_t timestamp;
   float x;
@@ -16,5 +19,7 @@ struct orb_mag_s
   float z;
   float temperature;
 };
+
+ORB_DECLARE(orb_mag_scaled);
 
 #endif //__CUSTOM_APPS_SPI_DRIVER_TEST_SPI_DRIVER_TEST_H
