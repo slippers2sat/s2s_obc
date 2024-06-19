@@ -1,0 +1,30 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config CUSTOM_APPS_UART_APP
+	tristate "UART APP"
+	default n
+	---help---
+		Enable the \"UART APP \". The UART app deals with receiving of data
+
+if CUSTOM_APPS_UART_APP
+
+config CUSTOM_APPS_UART_APP_PROGNAME
+	string "Program name"
+	default "uart"
+	---help---
+		This is the name of the program that will be used when the NSH ELF
+		program is installed.
+
+
+config CUSTOM_APPS_UART_APP_PRIORITY
+	int "UART app task priority"
+	default 100
+
+config CUSTOM_APPS_UART_APP_STACKSIZE
+	int "UART_APP stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif
