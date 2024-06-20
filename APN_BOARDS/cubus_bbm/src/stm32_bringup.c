@@ -37,9 +37,11 @@
 #include <nuttx/kmalloc.h>
 
 
-#if defined(CONFIG_STM32_IWDG) 
+#if defined(CONFIG_STM32_IWDG) | defined(CONFIG_STM32_WWDG)
 // #include <nuttx/timers/watchdog.h>
 #include <nuttx/wdog.h>
+// #include <nuttx/arch/arm/src/stm32/stm32_wdg.h>
+
 // #include <nuttx/arch/arm/src/stm32/stm32_wdg.h>
 #endif
 
@@ -378,6 +380,7 @@ stm32_iwdginitialize("/dev/iwdg0", 20000000);
 // write();
 #ifdef CONFIG_STM32_WWDG
 stm32_wwdginitialize("/dev/wwdg0");
+
 #endif
 
   UNUSED(ret);
