@@ -1,90 +1,140 @@
-/****************************************************************************
- * apps/examples/uart_app/uart_app_main.c
- *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.  The
- * ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the
- * License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
- * License for the specific language governing permissions and limitations
- * under the License.
- *
- ****************************************************************************/
+#include <nuttx/config.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include <pthread.h>
 
-/****************************************************************************
- * Included Files
- ****************************************************************************/
+// Signal handler function for user-defined signal (e.g., SIGUSR1)
+void user_signal_handler(int signo) {
+    if (signo == SIGUSR1) {
+        printf("Received user-defined signal SIGUSR1.\n");
+    }
+}
 
-#include "uart_app_main.h"
+// Function declarations
+void function1(void) {
+    for(;;)
+   {
+        printf("Function 1 is called.\n");
+        sleep(1); // Simulate some work
+    }
+}
 
+void function2(void) {
+    printf("Function 2 is called.\n");
+    sleep(1); // Simulate some work
+}
 
-/****************************************************************************
- * Public Functions
- ****************************************************************************/
+void function3(void) {
+    printf("Function 3 is called.\n");
+    sleep(1); // Simulate some work
+}
 
+void function4(void) {
+for(;;)
+   {
+    printf("Function 4 is called.\n");
+    sleep(1); // Simulate some work
+   }
+}
 
-/****************************************************************************
- * Private Data
- ****************************************************************************/
+// Thread function wrappers
+void* thread_func1(void* arg) {
+    function1();
+    return NULL;
+}
 
-/****************************************************************************
- * Name: main
- ****************************************************************************/
+void* thread_func2(void* arg) {
+    function2();
+    return NULL;
+}
 
-void cmd_com();
-void cmd_epdm();
-void cmd_adcs();
-void cmd_cam();
+void* thread_func3(void* arg) {
+    function3();
+    return NULL;
+}
 
-int main(int argc, FAR char *argv[])
-{
-    printf("uart main is working");
+void* thread_func4(void* arg) {
+    function4();
+    return NULL;
+}
+
+// Main task function
+void* main_task(void* arg) {
+    pthread_t threads[4];
     int ret;
-    // ret = task_create("UART COM",10,2048,cmd_com,NULL);
-    // ret = task_create("UART EPDM",10,2048,cmd_epdm,NULL);
-    // ret = task_create("UART ADCS",10,2048,cmd_adcs,NULL);
-    // ret = task_create("UART CAM",10,2048,cmd_cam,NULL);
-    while(1){
-        cmd_epdm();
-        usleep(10000);
+
+    // Create threads
+    ret = pthread_create(&threads[0], NULL, thread_func1, NULL);
+    if (ret != 0) {
+        printf("Failed to create thread 1\n");
+        return NULL;
+    }
+    
+    ret = pthread_create(&threads[1], NULL, thread_func2, NULL);
+    if (ret != 0) {
+        printf("Failed to create thread 2\n");
+        return NULL;
+    }
+    
+    ret = pthread_create(&threads[2], NULL, thread_func3, NULL);
+    if (ret != 0) {
+        printf("Failed to create thread 3\n");
+        return NULL;
+    }
+    
+    ret = pthread_create(&threads[3], NULL, thread_func4, NULL);
+    if (ret != 0) {
+        printf("Failed to create thread 4\n");
+        return NULL;
     }
 
+    // Simulate some condition to send the signal
+    sleep(2); // Wait for a while before sending the signal
+    if (0) { // Replace with your condition
+        printf("Sending SIGUSR1 to self.\n");
+        kill(getpid(), SIGUSR1);
+    }
 
-}
+    // Wait for threads to complete
+    for (int i = 0; i < 4; i++) {
+        pthread_join(threads[i], NULL);
+    }
 
-void cmd_com(){
-    printf("COM Receiving mode in command\n");
-    
-}
-
-void cmd_epdm(){
-    printf("EPDM Receiving mode in command\n");
-    int fd,ret,rxBuff[5];
-    int data = 0x23;
-    fd = open("/dev/ttyS4",O_RDWR);
-    write(fd, data, sizeof(data));
-    
-    while(1){
-        ret = read(fd,rxBuff, sizeof(rxBuff));
-        if(ret > 0){
-            printf("got data from epdm: %02x \n %s\n",rxBuff,rxBuff);
-            write(fd, data, sizeof(data));
-        }
-        usleep(10000);
+    printf("All threads completed.\n");
+     while(1){
+        usleep(1000);
     }
 }
 
-void cmd_adcs(){
-    printf("ADCS Receiving mode in command\n");
-}
+// Main application
+int main(int argc, FAR char *argv[]) {
+    // pthread_t task,task1;
+    int ret;
 
-void cmd_cam(){
-    printf("CAM Receiving mode in command\n");
+    // Set up the user-defined signal handler for SIGUSR1
+    if (signal(SIGUSR1, user_signal_handler) == SIG_ERR) {
+        printf("Error setting up user-defined signal handler.\n");
+        return -1;
+    }
+
+    // Create the main task
+    ret = task_create("main task",1, 2048, thread_func1, NULL);
+    if (ret != 0) {
+        printf("Failed to create the main task\n");
+        return -1;
+    }
+   ret = task_create("sub task",100, 2048, thread_func4, NULL);
+    if (ret != 0) {
+        printf("Failed to create the main task\n");
+        return -1;
+    }
+   
+    // Wait for the main task to complete
+    // pthread_join(task, NULL);
+    while(1){
+
+    }
+    return 0;
 }
