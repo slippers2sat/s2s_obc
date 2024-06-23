@@ -13,7 +13,7 @@ if CUSTOM_APPS_COM_APP
 
 config CUSTOM_APPS_COM_APP_PROGNAME
 	string "Program name"
-	default "COM"
+	default "com"
 	---help---
 		This is the name of the program that will be used when the NSH ELF
 		program is installed.

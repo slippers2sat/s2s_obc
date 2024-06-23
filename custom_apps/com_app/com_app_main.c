@@ -35,7 +35,7 @@ void send_data_uart(char *dev_path, int *data){
                 receive_data_uart(dev_path, data1);
                 if(data[0] == data1[0] && data[1] == data1[1] && data[2] == data1[2]  && data[3] == data1[3] && data[4] == data1[4] && data[5] == data1[5])
                 {
-                  printf("\n***Acknowledgement received for %s*******\n",dev_path);
+                  printf("\n******Acknowledgement received for %s*******\n",dev_path);
                   break;   
                 }
                 else
@@ -82,29 +82,6 @@ void send_data_uart_char(char *dev_path, uint8_t *data){
     close(fd);
 }   
 
-/*
-Handshake command is to be provided 6bytes with a header 0x53 and footer 0x7e
-*/
-void handshake(int choice, uint8_t ack[7]){
-    switch(choice){
-        case COM: printf("COM uart");
-                send_data_uart(COM_UART, ack);
-                break;
-        case EPDM: printf("COM epdm");
-                send_data_uart("/dev/ttyS3", ack);
-                break;
-        case ADCS:printf("ADCS uart"); 
-                send_data_uart("/dev/ttyS3", ack); 
-                break;
-        case CAM: printf("CAM uart");
-                send_data_uart("/dev/ttyS3", ack);
-                break;
-        default: send_data_uart_char("/dev/ttyS4", "\nCaught on default\n");
-                break;
-    };
-    
-}
-
 // void send_data
 
 /*
@@ -120,7 +97,7 @@ for(int i=3;i<83;i++){
 }
 data[83] = 0x73;
 data[84] =  "\0";
-write(COM_UART,data, sizeoof(data));
+write(COM_UART,data, sizeof(data));
 }
 
 /*
@@ -150,30 +127,93 @@ void receive_telecommand_rx(){
 /*
 COM will be in digipeater mode till a digipeating message is received and digipeated
 */
-void digipeater_mode(){
-    uint8_t *data;
+void digipeater_mode(uint8_t *data){
+    
     receive_data_uart(COM_UART,data);
 }
+
+void myPrintf(uint8_t *data){
+    printf("The data is :\n");
+    for(int i =0; i<sizeof(data) ;i++){
+        printf("%d",data[i]);
+    }
+    printf("\n");
+}
+
+/*
+Handshake command is to be provided 6bytes with a header 0x53 and footer 0x7e
+*/
+void handshake(int choice, uint8_t ack[7]){
+    float counter=0,expected = 90000*1000;
+    uint8_t data[100];
+    printf("handshake fun called choice is %d\n",choice);
+
+    switch(choice){
+        case COM: printf("COM uart");
+                send_data_uart(COM_UART, ack);
+                beacon_type_1();
+                // usleep(90000*1000);
+                while(counter< expected){
+                    receive_data_uart(COM_UART, data);
+                    usleep(10000);
+                    printf("COM uart here");
+                }
+                myPrintf(data);
+                beacon_type_2();
+                memset(data, '\0', sizeof(data));
+                do{
+                 digipeater_mode(data);
+                 
+                }while(data[0]!=0 & data[1]!=0);
+                myPrintf(data);
+                
+                break;
+        case EPDM: printf("COM epdm");
+                send_data_uart("/dev/ttyS3", ack);
+                break;
+        case ADCS:printf("ADCS uart"); 
+                send_data_uart("/dev/ttyS3", ack); 
+                break;
+        case CAM: printf("CAM uart");
+                send_data_uart("/dev/ttyS3", ack);
+                break;
+        default: send_data_uart_char("/dev/ttyS4", "\nCaught on default\n");
+                break;
+    };
+    
+}
+
 
 /****************************************************************************
  * custom_hello_thread
  ****************************************************************************/
 int main(int argc, FAR char *argv[])
-{   uint8_t ack[7]={0x53, 0x01, 0x02, 0x03, 0x04, 0x7e};
+{   printf("Custom com cmd %d",argc);
+    uint8_t ack[7]={0x53, 0x01, 0x02, 0x03, 0x04, 0x7e};
     if (argc>1){
-        if(!strcmp(argv[1],"com"))
+        printf("\nArgument is %s\nCOM\n", argv[1]);
+        printf("%02x",strcmp(argv[1],"com"));
+        printf("\nCam :");
+        printf("%02x",strcmp(argv[1],"cam"));
+        printf("\nEPDM :");
+        printf("%02x",strcmp(argv[1],"epdm"));
+        printf("\nADCS:");
+        printf("%02x",strcmp(argv[1],"adcs"));
+        printf("\n");
+
+        if(strcmp(argv[1],"com")==0x00)
         {
             handshake(COM,ack);
         }
-        else if(!strcmp(argv[1],"epdm"))
+        else if(strcmp(argv[1],"epdm")==0x00)
         {
             handshake(EPDM,ack);
         }
-        else if(!strcmp(argv[1],"cam"))
+        else if(strcmp(argv[1],"cam")==0x00)
         {
             handshake(CAM,ack);
         }
-        else if(!strcmp(argv[1],"adcs"))
+        else if(strcmp(argv[1],"adcs")==0x00)
         {
             handshake(ADCS,ack);
         }
@@ -184,15 +224,16 @@ int main(int argc, FAR char *argv[])
 
     }
     else {
-        handshake(COM, ack);
+        // handshake(COM, ack);
 
-        handshake(EPDM, ack);
+        // handshake(EPDM, ack);
 
-        handshake(CAM, ack);
+        // handshake(CAM, ack);
 
-        handshake(ADCS, ack);
+        // handshake(ADCS, ack);
 
         handshake(77,ack);
+        printf("Com app finished\n");
     }
 
     return 0;
