@@ -1,5 +1,5 @@
-#ifndef __APPS_CUSTOM_APPS_UART_APP_H
-#define __APPS_CUSTOM_APPS_UART_APP_H
+#ifndef __APPS_CUSTOM_APPS_COM_APP_H
+#define __APPS_CUSTOM_APPS_COM_APP_H
 
 
 #include <nuttx/config.h>

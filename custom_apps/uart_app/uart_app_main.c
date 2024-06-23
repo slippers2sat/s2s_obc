@@ -133,8 +133,6 @@ int main(int argc, FAR char *argv[]) {
    
     // Wait for the main task to complete
     // pthread_join(task, NULL);
-    while(1){
-
-    }
+    
     return 0;
 }
