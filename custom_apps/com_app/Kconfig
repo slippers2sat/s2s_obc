@@ -3,28 +3,28 @@
 # see the file kconfig-language.txt in the NuttX tools repository.
 #
 
-config CUSTOM_APPS_EKF_APP
-	tristate "EKF APP"
+config CUSTOM_APPS_COM_APP
+	tristate "COM APP"
 	default n
 	---help---
-		Enable the \"EKF APP \". The EKF app deals with receiving of data
+		Enable the \"COM APP \". The COM app deals with receiving of data
 
-if CUSTOM_APPS_EKF_APP
+if CUSTOM_APPS_COM_APP
 
-config CUSTOM_APPS_EKF_APP_PROGNAME
+config CUSTOM_APPS_COM_APP_PROGNAME
 	string "Program name"
-	default "ekf"
+	default "COM"
 	---help---
 		This is the name of the program that will be used when the NSH ELF
 		program is installed.
 
 
-config CUSTOM_APPS_EKF_APP_PRIORITY
-	int "EKF app task priority"
+config CUSTOM_APPS_COM_APP_PRIORITY
+	int "COM app task priority"
 	default 100
 
-config CUSTOM_APPS_EKF_APP_STACKSIZE
-	int "EKF_APP stack size"
+config CUSTOM_APPS_COM_APP_STACKSIZE
+	int "COM_APP stack size"
 	default DEFAULT_TASK_STACKSIZE
 
 endif

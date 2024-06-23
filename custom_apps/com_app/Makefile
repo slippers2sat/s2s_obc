@@ -1,5 +1,5 @@
 ############################################################################
-# apps/custom_apps/ekf_app_main/Makefile
+# apps/custom_apps/cubus_app/Makefile
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -22,13 +22,13 @@ include $(APPDIR)/Make.defs
 
 # Cubus app built-in application info
 
-PROGNAME  = $(CONFIG_CUSTOM_APPS_EKF_APP_PROGNAME)
-PRIORITY  = $(CONFIG_CUSTOM_APPS_EKF_APP_PRIORITY)
-STACKSIZE = $(CONFIG_CUSTOM_APPS_EKF_APP_STACKSIZE)
-MODULE    = $(CONFIG_CUSTOM_APPS_EKF_APP)
+PROGNAME  = $(CONFIG_CUSTOM_APPS_UART_APP_PROGNAME)
+PRIORITY  = $(CONFIG_CUSTOM_APPS_UART_APP_PRIORITY)
+STACKSIZE = $(CONFIG_CUSTOM_APPS_UART_APP_STACKSIZE)
+MODULE    = $(CONFIG_CUSTOM_APPS_UART_APP)
 
 # Cubus app Example
 
-MAINSRC = ekf_app_main.c
+MAINSRC = com_app_main.c
 
 include $(APPDIR)/Application.mk

@@ -19,5 +19,5 @@
 ############################################################################
 
 ifneq ($(CONFIG_CUSTOM_APPS_UART_APP),)
-CONFIGURED_APPS += $(APPDIR)/custom_apps/uart_app
+CONFIGURED_APPS += $(APPDIR)/custom_apps/com_app
 endif

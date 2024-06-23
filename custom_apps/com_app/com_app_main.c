@@ -1,3 +1,4 @@
+
 #include <nuttx/config.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,13 +40,13 @@ Handshake command is to be provided 6bytes with a header 0x53 and footer 0x7e
 */
 void handshake(int choice, uint8_t ack[7]){
     switch(choice){
-        case COM:
+        case COM: send_data_uart("/dev/ttyS0", ack);
                 break;
-        case EPDM: 
+        case EPDM: send_data_uart("/dev/ttyS1", ack);
                 break;
-        case ADCS: 
+        case ADCS: send_data_uart("/dev/ttyS2", ack); 
                 break;
-        case CAM: 
+        case CAM: send_data_uart("/dev/ttyS3", ack);
                 break;
         default: 
                 break;
@@ -84,6 +85,15 @@ void digipeater_mode(){
  * custom_hello_thread
  ****************************************************************************/
 int main(int argc, FAR char *argv[])
-{
+{   uint8_t ack[7]={0x53, 0x01, 0x02, 0x03, 0x04, 0x7e};
+    
+    handshake(COM, ack);
+
+    handshake(EPDM, ack);
+
+    handshake(CAM, ack);
+
+    handshake(ADCS, ack);
+
     return 0;
 }
