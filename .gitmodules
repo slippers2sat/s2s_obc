@@ -1,8 +1,8 @@
-[submodule "nuttx"]
-	path = nuttx
-	url = https://github.com/Jaddu-jd/nuttx.git
-	branch = cubus-v1
-[submodule "nuttx-apps"]
-	path = nuttx-apps
-	url = https://github.com/Jaddu-jd/nuttx-apps.git
-	branch = apn
+# [submodule "nuttx"]
+# 	path = nuttx
+# 	url = https://github.com/Jaddu-jd/nuttx.git
+# 	branch = cubus-v1
+# [submodule "nuttx-apps"]
+# 	path = nuttx-apps
+# 	url = https://github.com/Jaddu-jd/nuttx-apps.git
+# 	branch = apn

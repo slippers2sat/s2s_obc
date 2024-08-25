@@ -65,10 +65,5 @@ tools/gdb/__pycache__
 /build
 .ccls-cache
 compile_commands.json
-<<<<<<< HEAD
 .vscode-ctags
-=======
-.vscode-ctags
-
->>>>>>> 98ecc3e (created new branch, modified gitignore)
 nuttx
