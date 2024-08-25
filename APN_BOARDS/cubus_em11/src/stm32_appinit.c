@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/sim/sim/sim/src/etc/init.d/rcS
+ * boards/arm/stm32/stm32f427a-minimal/src/stm32_appinit.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,8 +18,27 @@
  *
  ****************************************************************************/
 
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
 #include <nuttx/config.h>
 
-#ifdef CONFIG_FS_HOSTFS
-mount -t hostfs -o fs=. /data
-#endif
+#include <sys/types.h>
+
+#include <nuttx/board.h>
+
+#include <stdio.h>
+#include <string.h>
+#include <syslog.h>
+#include <nuttx/spi/spi.h>
+#include <stm32_spi.h>
+
+
+#include "stm32f427a.h"
+
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
