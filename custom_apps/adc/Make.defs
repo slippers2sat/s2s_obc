@@ -1,5 +1,5 @@
 ############################################################################
-# apps/custom_apps/cubus_app/Makefile
+# custom_apps/adc/Make.defs
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -18,17 +18,6 @@
 #
 ############################################################################
 
-include $(APPDIR)/Make.defs
-
-# Cubus app built-in application info
-
-PROGNAME  = $(CONFIG_CUSTOM_APPS_UART_APP_PROGNAME)
-PRIORITY  = $(CONFIG_CUSTOM_APPS_UART_APP_PRIORITY)
-STACKSIZE = $(CONFIG_CUSTOM_APPS_UART_APP_STACKSIZE)
-MODULE    = $(CONFIG_CUSTOM_APPS_UART_APP)
-
-# Cubus app Example
-
-MAINSRC = uart_app_main.c
-
-include $(APPDIR)/Application.mk
+ifneq ($(CONFIG_CUSTOM_APPS_INT_ADC),)
+CONFIGURED_APPS += $(APPDIR)/custom_apps/adc
+endif

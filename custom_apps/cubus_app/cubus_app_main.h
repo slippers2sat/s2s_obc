@@ -37,6 +37,41 @@
 #include <nuttx/fs/fs.h>
 #include "imu_mag.h"
 #include "gpio_definitions.h"
+#include "mission_operations.h"
+#include "com_app_main.h"
+
+#include <uORB/uORB.h>
+#include <sensor/mag.h>
+
+struct orb_mag_s
+{
+  uint64_t timestamp;
+  float x;
+  float y;
+  float z;
+  float temperature;
+};
+
+
+struct data
+{
+    void *data_struct;
+    uint16_t data_size;
+};
+// struct mpu6500_imu_msg
+// {
+//   int16_t acc_x;
+//   int16_t acc_y;
+//   int16_t acc_z;
+//   int16_t temp;
+//   int16_t gyro_x;
+//   int16_t gyro_y;
+//   int16_t gyro_z;
+//   int16_t mag_x;
+//   int16_t mag_y;
+//   int16_t mag_z;
+// };
+
 
 void make_satellite_health();
 void RUN_HK();
@@ -48,6 +83,5 @@ void read_lis3mdl(int fd_mag, struct mpu6500_imu_msg *raw_imu, int16_t mag_data[
 
 
 #endif  //__APPS_CUSTOM_APPS_CUBUS_APP_MAIN_H
-
 
 
