@@ -218,7 +218,6 @@ int send_beacon_data()
   case 0:
 
     serialize_beacon_a(beacon_data);
-
     beacon_data[1] = 0xb1;
     beacon_data[2] = 0x51;
     beacon_data[83] = 0x7e;
@@ -402,49 +401,61 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
     syslog(LOG_SYSLOG, "File named %s reading mode failed fd:%d\n", file_operations->filepath, fd);
     return;
   }
-  uint32_t address = file_operations->address[3] << 24 | file_operations->address[2] << 16 | file_operations->address[1] << 8 | file_operations->address[0];
-  ssize_t read_bytes;
-  int size_of_file = file_seek(&file_ptr, 0, SEEK_END);
-  int off ;//= file_seek(&file_ptr, address, SEEK_SET);
-  printf("\nSize of file is %d %d\n", size_of_file, address);
-
-  // uint8_t data_retrieved[412];
-  // data_retrieved1 = data_retrieved;
-  // (file_operations->address[3] << 24) |
-  //                    (file_operations->address[2] << 16) |
-  //                    (file_operations->address[1] << 8)  |
-  //                    (file_operations->address[0] & 0xFF);
-
-  if (size_of_file > address)
+  else
   {
-   off = file_seek(&file_ptr, address, SEEK_SET); // Set file pointer to the calculated address
-    read_bytes = file_read(&file_ptr, data_retrieved, size_of_buffer);
-    if (read_bytes >= 0)
+    uint32_t address = file_operations->address[3] << 24 | file_operations->address[2] << 16 | file_operations->address[1] << 8 | file_operations->address[0] & 0xff;
+    uint16_t number_of_packets = file_operations->number_of_packets[1] << 8 | file_operations->number_of_packets[0] & 0xff;
+    ssize_t read_bytes;
+    int size_of_file = file_seek(&file_ptr, 0, SEEK_END);
+    int off; //= file_seek(&file_ptr, address, SEEK_SET);
+    printf("\nSize of file is %d %d\n", size_of_file, address);
+
+    // uint8_t data_retrieved[412];
+    // data_retrieved1 = data_retrieved;
+    // (file_operations->address[3] << 24) |
+    //                    (file_operations->address[2] << 16) |
+    //                    (file_operations->address[1] << 8)  |
+    //                    (file_operations->address[0] & 0xFF);
+    int loop1 = 0;
+    // for (int loop1 = 1; loop1 < number_of_packets; loop1++)
+    do
     {
-      syslog(LOG_SYSLOG, "Data retrieved from the flash address %d\n", address);
-      
-      printf("\n--------------------**************Read size = %zd\n", read_bytes);
-      printf("\n\n--------------------------Data received----\n");
-      for (int j = 0; j < size_of_buffer; j++)
+      if (size_of_file > 0 & size_of_file > address)
       {
-        printf("%02x|%c ", data_retrieved[j], data_retrieved[j]); // Print in hexadecimal format
+        off = file_seek(&file_ptr, address, SEEK_SET); // Set file pointer to the calculated address
+        read_bytes = file_read(&file_ptr, data_retrieved, size_of_buffer);
+        if (read_bytes >= 0)
+        {
+          syslog(LOG_SYSLOG, "Data retrieved from the flash address %d\n", address);
+
+          printf("\n--------------------**************Read size = %zd\n", read_bytes);
+          printf("\n\n--------------------------Data received----\n");
+          for (int j = 0; j < size_of_buffer; j++)
+          {
+            printf("%02x|%c ", data_retrieved[j], data_retrieved[j]); // Print in hexadecimal format
+          }
+          if (number_of_packets > 0)
+            number_of_packets -= 1;
+          loop1 += 1;
+          address += size_of_buffer;
+        }
+        else
+        {
+          syslog(LOG_SYSLOG, "Failed to read data from the flash address %d\n", address);
+          break;
+        }
       }
-    }
-    else
-    {
+    } while (number_of_packets > 1); // loop1 < number_of_packets |
 
-      syslog(LOG_SYSLOG, "Failed to read data from the flash address %d\n", address);
-    }
+    file_close(&file_ptr);
+    // data_retrieved[read_bytes]= '\0';
+    // printf("\n\n--------------------------Data received----\n");
+    // for (int j = 0; j < sizeof(data_retrieved); j++)
+    // {
+    //   printf("%02x|%c ", data_retrieved[j],data_retrieved1[j]); // Print in hexadecimal format
+    // }
+    printf("\n--------------------**************Size = %zu\n", sizeof(data_retrieved));
   }
-
-  file_close(&file_ptr);
-  // data_retrieved[read_bytes]= '\0';
-  // printf("\n\n--------------------------Data received----\n");
-  // for (int j = 0; j < sizeof(data_retrieved); j++)
-  // {
-  //   printf("%02x|%c ", data_retrieved[j],data_retrieved1[j]); // Print in hexadecimal format
-  // }
-  printf("\n--------------------**************Size = %zu\n", sizeof(data_retrieved));
 }
 
 /*
@@ -635,47 +646,47 @@ void parse_command(uint8_t COM_RX_DATA[30])
 
       // __file_operations.num
     }
-    /* Clear or empty or truncate file in external flash memory */
-    if (cmds[0] == 0xCA || cmds[0] == 0xCA)
-    {
+    // /* Clear or empty or truncate file in external flash memory */
+    // if (cmds[0] == 0xCA || cmds[0] == 0xCA)
+    // {
 
-      // flag data text file
-      if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF1)
-      {
-      }
+    //   // flag data text file
+    //   if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF1)
+    //   {
+    //   }
 
-      // sat_health data text file
-      if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF2)
-      {
-      }
+    //   // sat_health data text file
+    //   if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF2)
+    //   {
+    //   }
 
-      // sat_log data text file
-      if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF3)
-      {
-      }
+    //   // sat_log data text file
+    //   if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF3)
+    //   {
+    //   }
 
-      // Reservation table data text file
-      if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF4)
-      {
-      }
-    }
+    //   // Reservation table data text file
+    //   if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF4)
+    //   {
+    //   }
+    // }
 
-    /* Delete text file in external flash memory */
-    else if (cmds[0] == 0xDE)
-    {
-      enum SELECT_FLASH select_flash;
-      enum SELECT_FILE select_file;
-      if (cmds[1] == 0xd1 || cmds[1] == 0xd3)
-      {
-        select_flash = MAIN_FLASH_MEMORY;
-      }
-      else if (cmds[1] == 0xd2 || cmds[1] == 0xd4)
-      {
-        select_flash = SHARED_FLASH_MEMORY;
-      }
+    // /* Delete text file in external flash memory */
+    // else if (cmds[0] == 0xDE)
+    // {
+    //   enum SELECT_FLASH select_flash;
+    //   enum SELECT_FILE select_file;
+    //   if (cmds[1] == 0xd1 || cmds[1] == 0xd3)
+    //   {
+    //     select_flash = MAIN_FLASH_MEMORY;
+    //   }
+    //   else if (cmds[1] == 0xd2 || cmds[1] == 0xd4)
+    //   {
+    //     select_flash = SHARED_FLASH_MEMORY;
+    //   }
 
-      delete_text_file(select_flash, select_file);
-    }
+    //   delete_text_file(select_flash, select_file);
+    // }
 
     /*
     Command for Enabling status of KILL SWITCH
@@ -745,7 +756,6 @@ void parse_command(uint8_t COM_RX_DATA[30])
       if (cmds[0] == 0xAC && cmds[1] == 0xCF && cmds[2] == 0xCF)
       {
         printf("----------------EPDM MCU ID has been activated\n");
-        uint8_t x = 0;
       }
     }
     /* code */
@@ -788,85 +798,93 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x7e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
   printf("waiting for telecommands from COM\n");
   int ret;
-  ret = 1;
+  // ret = 1;
   // TODO remove the comment line below and comment the upper line to int ret
-  //  ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
+   ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
+  printf("Received ret as %d and value :%s\n", ret, COM_RX_DATA);
   if (ret < 0)
   {
     printf("data not received from COM\n NACK sending\n");
     send_data_uart(COM_UART, NACK, 7);
-    printf("data not received from COM\n NACK 1s55 ent\n");
+    printf("data not received from COM\n NACK Sent\n");
     return ret;
   }
   else
   {
-    uint8_t commands[30] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
-    printf("parse command 22starting\n");
-    for (int j = 0; j < sizeof(commands); j++)
-    {
-      printf("%02x|%c ,", commands[j], commands[j]);
-    }
+    parse_command(COM_RX_DATA);
 
-    // Check whether the received data in uart_com has initial 0x00 value or not if the initial is 0x00 then MCU_ID is supposed to be there at index 16, otherwise it is in index 17
-    parse_command(commands);
+    // uint8_t commands[30] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
+    // printf("parse command 22starting\n");
 
-    commands[16] = 0x01;
-    commands[17] = 0x1d;
-    commands[18] = 0xd2;
-    commands[19] = 0xf5;
+    // // Check whether the received data in uart_com has initial 0x00 value or not if the initial is 0x00 then MCU_ID is supposed to be there at index 16, otherwise it is in index 17
+    // parse_command(commands);
 
-    parse_command(commands);
+    // commands[16] = 0x01;
+    // commands[17] = 0x1d;
+    // commands[18] = 0xd2;
+    // commands[19] = 0xf5;
+    // for (int i = 0; i < 9; i++)
+    //   sleep(1);
+    // parse_command(commands);
 
-    commands[16] = 0x01;
-    commands[17] = 0xca;
-    commands[18] = 0xd2;
-    commands[19] = 0xf5;
+    // commands[16] = 0x01;
+    // commands[17] = 0xca;
+    // commands[18] = 0xd2;
+    // commands[19] = 0xf5;
+    // for (int i = 0; i < 9; i++)
+    //   sleep(1);
+    // parse_command(commands);
+    // commands[16] = 0x02;
+    // commands[17] = 0xdf;
+    // commands[18] = 0xab;
+    // commands[19] = 0xd1;
+    // for (int i = 0; i < 9; i++)
+    //   sleep(1);
+    // parse_command(commands);
+    // commands[16] = 0x01;
+    // commands[17] = 0xee;
+    // commands[18] = 0xee;
+    // commands[19] = 0xee;
+    // for (int i = 0; i < 9; i++)
+    //   sleep(1);
+    // parse_command(commands);
 
-    parse_command(commands);
-    commands[16] = 0x02;
-    commands[17] = 0xdf;
-    commands[18] = 0xab;
-    commands[19] = 0xd1;
+    // commands[16] = 0x01;
+    // commands[17] = 0xee;
+    // commands[18] = 0xaa;
+    // commands[19] = 0xaa;
+    // for (int i = 0; i < 9; i++)
+    //   sleep(1);
+    // parse_command(commands);
 
-    parse_command(commands);
-    commands[16] = 0x01;
-    commands[17] = 0xee;
-    commands[18] = 0xee;
-    commands[19] = 0xee;
+    // commands[16] = 0x01;
+    // commands[17] = 0x1a;
+    // commands[18] = 0xe0;
+    // commands[19] = 0x1e;
+    // for (int i = 0; i < 9; i++)
+    //   sleep(1);
+    // parse_command(commands);
+    // commands[16] = 0x03;
+    // commands[17] = 0x0e;
+    // commands[18] = 0x53;
+    // commands[19] = 0xce;
+    // for (int i = 0; i < 9; i++)
+    //   sleep(1);
+    // parse_command(commands);
+    // commands[16] = 0x04;
+    // commands[17] = 0xcc;
+    // commands[18] = 0x5e;
+    // commands[19] = 0xbd;
+    // for (int i = 0; i < 9; i++)
+    //   sleep(1);
+    // parse_command(commands);
+    // commands[16] = 0x05;
+    // commands[17] = 0xac;
+    // commands[18] = 0xcf;
+    // commands[19] = 0xcf;
+    // parse_command(commands);
 
-    parse_command(commands);
-
-    commands[16] = 0x01;
-    commands[17] = 0xee;
-    commands[18] = 0xaa;
-    commands[19] = 0xaa;
-
-    parse_command(commands);
-
-    commands[16] = 0x01;
-    commands[17] = 0x1a;
-    commands[18] = 0xe0;
-    commands[19] = 0x1e;
-
-    parse_command(commands);
-    commands[16] = 0x03;
-    commands[17] = 0x0e;
-    commands[18] = 0x53;
-    commands[19] = 0xce;
-
-    parse_command(commands);
-    commands[16] = 0x04;
-    commands[17] = 0xcc;
-    commands[18] = 0x5e;
-    commands[19] = 0xbd;
-    parse_command(commands);
-    commands[16] = 0x05;
-    commands[17] = 0xac;
-    commands[18] = 0xcf;
-    commands[19] = 0xcf;
-    parse_command(commands);
-
-    return 0; // todo remove this part
+    // return 0; // todo remove this part
   }
   printf("Value of digipeating is %d %d\n", digipeating, COM_RX_DATA[HEADER]);
 
@@ -878,129 +896,129 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   // ret = send_data_uart(COM_UART, ACK, 7); // ack send
 
   // print_rx_telecommand(COM_RX_DATA); // printing the received telecommand
-  for (int i = 0; i < 12; i++)
-  {
-    useful_command[i] = COM_RX_DATA[i + 8]; // extracting useful commands
-  }
-  if (useful_command[6] != 0xff || useful_command[6] != 0x00 | useful_command[7] != 0xff || useful_command[7] != 0x00)
-  {
-    int x;
-    printf("Reservation command received\n"); // if reservation command is received then store the reservation command (do not execute)
-    // send_data_uart(COM_UART, ack, BEACON_DATA_SIZE);
-    int fd = open(COM_UART, O_WRONLY);
-    if (fd < 0)
-    {
-      printf("unable to open: %s\n", COM_UART);
-      return -1;
-    }
-    printf("Turning on 4v  dcdc  line..\n");
-    gpio_write(GPIO_DCDC_4V_EN, 1);
-    printf("Turning on 4v RF line..\n");
+  // for (int i = 0; i < 12; i++)
+  // {
+  //   useful_command[i] = COM_RX_DATA[i + 8]; // extracting useful commands
+  // }
+  // if (useful_command[6] != 0xff || useful_command[6] != 0x00 | useful_command[7] != 0xff || useful_command[7] != 0x00)
+  // {
+  //   int x;
+  //   printf("Reservation command received\n"); // if reservation command is received then store the reservation command (do not execute)
+  //   // send_data_uart(COM_UART, ack, BEACON_DATA_SIZE);
+  //   int fd = open(COM_UART, O_WRONLY);
+  //   if (fd < 0)
+  //   {
+  //     printf("unable to open: %s\n", COM_UART);
+  //     return -1;
+  //   }
+  //   printf("Turning on 4v  dcdc  line..\n");
+  //   gpio_write(GPIO_DCDC_4V_EN, 1);
+  //   printf("Turning on 4v RF line..\n");
 
-    gpio_write(GPIO_COM_4V_EN, 1);
+  //   gpio_write(GPIO_COM_4V_EN, 1);
 
-    int ret = write(fd, ack, BEACON_DATA_SIZE);
-    for (int i = 0; i < 85; i++)
-    {
-      printf("%02x ", ack[i]);
-    }
-    close(fd);
-    x = 0;
-    printf("\nACK sent success\n******Sleeping*******\n");
-    while (x < 300000)
-    {
-      x += 70;
-      usleep(70);
-    }
+  //   int ret = write(fd, ack, BEACON_DATA_SIZE);
+  //   for (int i = 0; i < 85; i++)
+  //   {
+  //     printf("%02x ", ack[i]);
+  //   }
+  //   close(fd);
+  //   x = 0;
+  //   printf("\nACK sent success\n******Sleeping*******\n");
+  //   while (x < 300000)
+  //   {
+  //     x += 70;
+  //     usleep(70);
+  //   }
 
-    printf("Turning off  4v RF switch line..\n");
-    gpio_write(GPIO_COM_4V_EN, 0);
+  //   printf("Turning off  4v RF switch line..\n");
+  //   gpio_write(GPIO_COM_4V_EN, 0);
 
-    printf("Turning off  4v DCDC line..\n");
-    gpio_write(GPIO_DCDC_4V_EN, 0);
+  //   printf("Turning off  4v DCDC line..\n");
+  //   gpio_write(GPIO_DCDC_4V_EN, 0);
 
-    printf("Turning on  4v DCDC line..\n");
-    ack[0] = 0x53;
-    ack[1] = 0x0e;
-    ack[2] = 0x51;
-    for (int i = 3; i < 83; i++)
-    {
-      ack[i] = i;
-    }
-    ack[83] = 0x7e;
-    int j;
-    // sleep(2);
+  //   printf("Turning on  4v DCDC line..\n");
+  //   ack[0] = 0x53;
+  //   ack[1] = 0x0e;
+  //   ack[2] = 0x51;
+  //   for (int i = 3; i < 83; i++)
+  //   {
+  //     ack[i] = i;
+  //   }
+  //   ack[83] = 0x7e;
+  //   int j;
+  //   // sleep(2);
 
-    for (j = 0; j < 10; j++)
-    {
-      printf("\n EPDM data packet no %d\n", j + 1);
-      ack[82] = j + 1;
-      ack[81] = j + 1;
+  //   for (j = 0; j < 10; j++)
+  //   {
+  //     printf("\n EPDM data packet no %d\n", j + 1);
+  //     ack[82] = j + 1;
+  //     ack[81] = j + 1;
 
-      fd = open(COM_UART, O_WRONLY);
-      if (fd < 0)
-      {
-        printf("unable to open: %s\n", COM_UART);
-        return -1;
-      }
-      // send_data_uart(COM_UART, ack, sizeof(ack));
-      // gpio_write(GPIO_COM_4V_EN, 1);
-      /*printf("Turning on 4V dcdc  line..\n");
-      gpio_write(GPIO_DCDC_4V_EN, 1);
-      printf("Turning on 4v RF line..\n");
+  //     fd = open(COM_UART, O_WRONLY);
+  //     if (fd < 0)
+  //     {
+  //       printf("unable to open: %s\n", COM_UART);
+  //       return -1;
+  //     }
+  //     // send_data_uart(COM_UART, ack, sizeof(ack));
+  //     // gpio_write(GPIO_COM_4V_EN, 1);
+  //     /*printf("Turning on 4V dcdc  line..\n");
+  //     gpio_write(GPIO_DCDC_4V_EN, 1);
+  //     printf("Turning on 4v RF line..\n");
 
-      gpio_write(GPIO_COM_4V_EN, 1);
-      // COM_BUSY =1;
-      ret = write(fd, ack, BEACON_DATA_SIZE);
-      x = 0;
-      while (x < 500000)
-      {
-        x += 200;
-        usleep(200);
-      }
-      for (int i = 0; i < 85; i++)
-      {
-        printf("%02x ", ack[i]);
-      }
-      close(fd);
-      printf("Turning off 4v RF line..\n");
+  //     gpio_write(GPIO_COM_4V_EN, 1);
+  //     // COM_BUSY =1;
+  //     ret = write(fd, ack, BEACON_DATA_SIZE);
+  //     x = 0;
+  //     while (x < 500000)
+  //     {
+  //       x += 200;
+  //       usleep(200);
+  //     }
+  //     for (int i = 0; i < 85; i++)
+  //     {
+  //       printf("%02x ", ack[i]);
+  //     }
+  //     close(fd);
+  //     printf("Turning off 4v RF line..\n");
 
-      gpio_write(GPIO_COM_4V_EN, 0);
-      printf("Turning off 4v dcdc EN line..\n");
+  //     gpio_write(GPIO_COM_4V_EN, 0);
+  //     printf("Turning off 4v dcdc EN line..\n");
 
-      gpio_write(GPIO_DCDC_4V_EN, 0);
+  //     gpio_write(GPIO_DCDC_4V_EN, 0);
 
-      x = 0;
-      while (x < 100000)
-      {
-        x += 100;
-        usleep(100);
-      }
-      // sleep(3);
-      */
+  //     x = 0;
+  //     while (x < 100000)
+  //     {
+  //       x += 100;
+  //       usleep(100);
+  //     }
+  //     // sleep(3);
+  //     */
 
-      // send_data_uart(COM_UART, ack, BEACON_DATA_SIZE);
-      // send_beacon_data();
-      printf("\n EPDM data sent success\n ******Sleeping *******\n ");
-    }
-    sleep(3);
-  }
-  else
-  {
-    switch (useful_command[0])
-    {
-    case 1:
-      printf("command received for OBC\n");
-      OBC_CMD_EXE(useful_command);
-      break;
-    case 2:
-      printf("command received for CAM\n");
-      break;
-    default:
-      printf("unknown command\n");
-      break;
-    }
-  }
+  //     // send_data_uart(COM_UART, ack, BEACON_DATA_SIZE);
+  //     // send_beacon_data();
+  //     printf("\n EPDM data sent success\n ******Sleeping *******\n ");
+  //   }
+  //   sleep(3);
+  // }
+  // else
+  // {
+  //   switch (useful_command[0])
+  //   {
+  //   case 1:
+  //     printf("command received for OBC\n");
+  //     // OBC_CMD_EXE(useful_command);
+  //     break;
+  //   case 2:
+  //     printf("command received for CAM\n");
+  //     break;
+  //   default:
+  //     printf("unknown command\n");
+  //     break;
+  //   }
+  // }
   return ret;
 }
 
@@ -1113,11 +1131,11 @@ static int COM_TASK(int argc, char *argv[])
 
     digipeater_mode(rx_data);
   }
-  for (;;)
-  {
-    receive_telecommand_rx(rx_data);
-    usleep(1000);
-  }
+  // for (;;)
+  // {
+  //   receive_telecommand_rx(rx_data);
+  //   usleep(1000);
+  // }
 }
 
 /****************************************************************************
@@ -1450,21 +1468,33 @@ Declaring structure necessary for collecting HK data
 int main(int argc, FAR char *argv[])
 {
 
-  // if(argc > 2)
-  {
-    uint8_t data_received[400];
-    struct FILE_OPERATIONS file_operations;
-    file_operations.cmd = 0x1d;
-    file_operations.address[0] = 10;
-    file_operations.address[1] = 0;
-    file_operations.address[2] = 0;
-    file_operations.address[3] = 0;
-    strcpy(file_operations.filepath, "/mnt/fs/mfm/mtd_mission/test.txt");
-    //  file_operations.=;
-    download_file_from_flash(&file_operations, &data_received, 112);
+  // Setup();
+  // RUN_HK();
+  COM_TASK(argc, argv);
 
-    return 0;
-  }
+  // {
+  //   uint8_t data_received[400];
+  //   struct FILE_OPERATIONS file_operations;
+  //   file_operations.cmd = 0x1d;
+  //   file_operations.address[0] = 10;
+  //   file_operations.address[1] = 0;
+  //   file_operations.address[2] = 0;
+  //   file_operations.address[3] = 0;
+
+  //   file_operations.number_of_packets[0] = 6;
+  //   file_operations.number_of_packets[1] = 0;
+  //   strcpy(file_operations.filepath, "/mnt/fs/mfm/mtd_mission/test.txt");
+  //   //  file_operations.=;
+  //   download_file_from_flash(&file_operations, &data_received, 112);
+
+  //   file_operations.number_of_packets[0] = 1;
+  //   file_operations.number_of_packets[1] = 0;
+  //   strcpy(file_operations.filepath, "/mnt/fs/mfm/mtd_mission/test.txt");
+  //   //  file_operations.=;
+  // download_file_from_flash(&file_operations, &data_received, 112);
+
+  //   return 0;
+  // }
 
   {
     // int retval = task_create("task1", 100, 1024, COM_TASK, NULL);
@@ -1644,26 +1674,26 @@ void serialize_beacon_b(uint8_t beacon_data[BEACON_DATA_SIZE])
   beacon_data[11] = s2s_beacon_type_b.SOL_P4_C;
   beacon_data[12] = 0x00;
 
-  beacon_data[13] = (s2s_beacon_type_b.GYRO_X >> 8) & 0xff;
-  beacon_data[14] = (s2s_beacon_type_b.GYRO_X) & 0xff;
-  beacon_data[15] = (s2s_beacon_type_b.GYRO_Y >> 8) & 0xff;
-  beacon_data[16] = (s2s_beacon_type_b.GYRO_Y) & 0xff;
-  beacon_data[17] = s2s_beacon_type_b.GYRO_Z >> 8 & 0xff;
-  beacon_data[18] = s2s_beacon_type_b.GYRO_Z & 0xff;
+  beacon_data[13] = ((s2s_beacon_type_b.GYRO_X >> 8) & 0xff) * 100;
+  beacon_data[14] = ((s2s_beacon_type_b.GYRO_X) & 0xff) * 100;
+  beacon_data[15] = ((s2s_beacon_type_b.GYRO_Y >> 8) & 0xff) * 100;
+  beacon_data[16] = ((s2s_beacon_type_b.GYRO_Y) & 0xff) * 100;
+  beacon_data[17] = (s2s_beacon_type_b.GYRO_Z >> 8 & 0xff) * 100;
+  beacon_data[18] = (s2s_beacon_type_b.GYRO_Z & 0xff) * 100;
 
-  beacon_data[19] = (s2s_beacon_type_b.ACCL_X >> 8) & 0xff;
-  beacon_data[20] = (s2s_beacon_type_b.ACCL_X) & 0xff;
-  beacon_data[21] = (s2s_beacon_type_b.ACCL_Y >> 8) & 0xff;
-  beacon_data[22] = (s2s_beacon_type_b.ACCL_Y) & 0xff;
-  beacon_data[23] = s2s_beacon_type_b.ACCL_Z >> 8 & 0xff;
-  beacon_data[24] = s2s_beacon_type_b.ACCL_Z & 0xff;
+  beacon_data[19] = ((s2s_beacon_type_b.ACCL_X >> 8) & 0xff) * 100;
+  beacon_data[20] = ((s2s_beacon_type_b.ACCL_X) & 0xff) * 100;
+  beacon_data[21] = ((s2s_beacon_type_b.ACCL_Y >> 8) & 0xff) * 100;
+  beacon_data[22] = ((s2s_beacon_type_b.ACCL_Y) & 0xff) * 100;
+  beacon_data[23] = (s2s_beacon_type_b.ACCL_Z >> 8 & 0xff) * 100;
+  beacon_data[24] = (s2s_beacon_type_b.ACCL_Z & 0xff) * 100;
 
-  beacon_data[25] = (s2s_beacon_type_b.MAG_X >> 8) & 0xff;
-  beacon_data[26] = (s2s_beacon_type_b.MAG_X) & 0xff;
-  beacon_data[27] = (s2s_beacon_type_b.MAG_Y >> 8) & 0xff;
-  beacon_data[28] = (s2s_beacon_type_b.MAG_Y) & 0xff;
-  beacon_data[29] = s2s_beacon_type_b.MAG_Z >> 8 & 0xff;
-  beacon_data[30] = s2s_beacon_type_b.MAG_Z & 0xff;
+  beacon_data[25] = ((s2s_beacon_type_b.MAG_X >> 8) & 0xff) * 100;
+  beacon_data[26] = ((s2s_beacon_type_b.MAG_X) & 0xff) * 100;
+  beacon_data[27] = ((s2s_beacon_type_b.MAG_Y >> 8) & 0xff) * 100;
+  (beacon_data[28] = (s2s_beacon_type_b.MAG_Y) & 0xff) * 100;
+  beacon_data[29] = (s2s_beacon_type_b.MAG_Z >> 8 & 0xff) * 100;
+  beacon_data[30] = (s2s_beacon_type_b.MAG_Z & 0xff) * 100;
   beacon_data[31] = s2s_beacon_type_b.CHK_CRC; // TODO::  last rst
 }
 
