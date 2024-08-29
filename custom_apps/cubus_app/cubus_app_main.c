@@ -354,6 +354,22 @@ struct FILE_OPERATIONS
   uint8_t address[4];
   uint8_t number_of_packets[2];
 };
+
+typedef struct
+{
+  uint8_t SATELLITE_HEALTH_1; // SAT HEALTH POINTER status
+  uint8_t SATELLITE_HEALTH_2; // SAT HEALTH POINTER status
+
+  uint8_t MSN1_DATA_1; // MSN1 DATA POINTER status
+  uint8_t MSN1_DATA_2; // MSN1 DATA POINTER status
+
+  uint8_t MSN2_DATA_1; // MSN2 DATA POINTER status
+  uint8_t MSN2_DATA_2; // MSN2 DATA POINTER status
+
+  uint8_t MSN3_DATA_1; // MSN3 DATA POINTER status
+  uint8_t MSN3_DATA_2; // MSN3 DATA POINTER status
+                       // to make sure data is stored in internal flash
+} SEEK_POINTER;
 /*
 @breif:
 The function was created to perform delete operation of text file in littlefs, although the function seems to be unapplicable.
@@ -391,6 +407,60 @@ void truncate_text_file(struct FILE_OPERATIONS *file_operations)
   close(fd);
   return 0;
 }
+void write_internal_flash()
+{
+}
+void write_external_flash()
+{
+}
+
+void track_read_seek_pointer(struct FILE_OPERATIONS *file_pointer, int8_t seek_pointer[16])
+{
+  printf("track read seek pointer called \n");
+  // SEEK_POINTER seek_pointer;
+  int fd, index = 0;
+  struct file fptr;
+  // char file_name[200];
+  // switch(file_pointer->)
+  uint32_t address = file_pointer->address[3] << 24 | file_pointer->address[2] << 16 | file_pointer->address[1] << 8 | file_pointer->address[0] & 0xff;
+  // if (address != 0)
+    fd = open_file_flash(&fptr, "", file_pointer->filepath, O_RDWR);
+  // ssize_t readBytes = file_read(&fptr, seek_pointer, sizeof(seek_pointer));
+  // if (readBytes > 0)
+  {
+    if (file_pointer->filepath == "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt")
+      index = 0;
+    else if (file_pointer->filepath == "/mnt/fs/mfm/mtd_mission/cam.txt")
+      index = 4;
+
+    else if (file_pointer->filepath == "/mnt/fs/mfm/mtd_mission/epdm.txt")
+      index = 4 * 2;
+
+    else if (file_pointer->filepath == "/mnt/fs/mfm/mtd_mission/adcs.txt")
+      index = 3 * 4;
+
+    else
+      syslog(LOG_SYSLOG, "Some error while updating flags data\n");
+  }
+  seek_pointer[index] = file_pointer->address[0];
+  seek_pointer[index + 1] = file_pointer->address[1];
+  seek_pointer[index + 2] = file_pointer->address[2];
+  seek_pointer[index + 3] = file_pointer->address[3];
+  ssize_t writeBytes = file_write(&fptr, seek_pointer, sizeof(seek_pointer));
+  if(writeBytes > 0){
+    syslog(LOG_SYSLOG, "Upadated seek pointer data saved to mfm\n");
+     file_close(&fptr);
+     fd = file_open(&fptr, file_pointer->filepath, O_CREAT| O_WRONLY);
+     if(fd > 0){
+      writeBytes = file_write(&fptr, seek_pointer, sizeof(seek_pointer));
+      if(writeBytes > 0 ){
+        syslog(LOG_SYSLOG, "updated seek pointer data to sfm\n");
+      }
+     }
+  }
+  file_close(&fptr);
+}
+
 void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *data_retrieved, uint8_t size_of_buffer)
 {
   // printf("Sizzeof data-retrieved is %d %d\n", sizeof(data_retrieved1), strlen(data_retrieved1));
@@ -403,12 +473,30 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
   }
   else
   {
+    int8_t seek_pointer[16];
     uint32_t address = file_operations->address[3] << 24 | file_operations->address[2] << 16 | file_operations->address[1] << 8 | file_operations->address[0] & 0xff;
     uint16_t number_of_packets = file_operations->number_of_packets[1] << 8 | file_operations->number_of_packets[0] & 0xff;
     ssize_t read_bytes;
     int size_of_file = file_seek(&file_ptr, 0, SEEK_END);
     int off; //= file_seek(&file_ptr, address, SEEK_SET);
     printf("\nSize of file is %d %d\n", size_of_file, address);
+    uint8_t update_address = 0;
+    if (address == 0)
+    {
+      update_address = 1;
+      // todo read the address from the text file
+      struct file fl1;
+      int fd2 = file_open(&fl1, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_WRONLY);
+      if (fd2 >= 0)
+      {
+        ssize_t readBytes2 = file_read(&fl1, seek_pointer, sizeof(seek_pointer));
+        if (readBytes2 < 0)
+        {
+          syslog(LOG_SYSLOG, "Error while reading the seek_pointer.txt in mfm\n");
+          file_close(&fl1);
+        }
+      }
+    }
 
     // uint8_t data_retrieved[412];
     // data_retrieved1 = data_retrieved;
@@ -438,24 +526,34 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
             number_of_packets -= 1;
           loop1 += 1;
           address += size_of_buffer;
+          file_close(&file_ptr);
         }
         else
         {
           syslog(LOG_SYSLOG, "Failed to read data from the flash address %d\n", address);
+          file_close(&file_ptr);
           break;
         }
       }
     } while (number_of_packets > 1); // loop1 < number_of_packets |
-
-    file_close(&file_ptr);
-    // data_retrieved[read_bytes]= '\0';
-    // printf("\n\n--------------------------Data received----\n");
-    // for (int j = 0; j < sizeof(data_retrieved); j++)
-    // {
-    //   printf("%02x|%c ", data_retrieved[j],data_retrieved1[j]); // Print in hexadecimal format
-    // }
-    printf("\n--------------------**************Size = %zu\n", sizeof(data_retrieved));
+    // todo : add seekpointer read index in internal and external flash memories
+    if (update_address == 1)
+    {
+      file_operations->address[3] = (uint8_t)address >> 24 & 0xff;
+      file_operations->address[2] = (uint8_t)address >> 16 & 0xff;
+      file_operations->address[1] = (uint8_t)address >> 8 & 0xff;
+      file_operations->address[0] = (uint8_t)address & 0xff;
+      track_read_seek_pointer(file_operations, seek_pointer);
+    }
   }
+  file_close(&file_ptr);
+  // data_retrieved[read_bytes]= '\0';
+  // printf("\n\n--------------------------Data received----\n");
+  // for (int j = 0; j < sizeof(data_retrieved); j++)
+  // {
+  //   printf("%02x|%c ", data_retrieved[j],data_retrieved1[j]); // Print in hexadecimal format
+  // }
+  printf("\n--------------------**************Size = %zu\n", sizeof(data_retrieved));
 }
 
 /*
@@ -524,7 +622,11 @@ void parse_command(uint8_t COM_RX_DATA[30])
 
   printf("**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
          HEADER, COM_RX_DATA[HEADER], COM_RX_DATA[HEADER + 1], COM_RX_DATA[HEADER + 2]);
+uint8_t ack[85]={0x53,0xac,0x05,0x01,0x62,0x63,0x7e};
+ack[83]=0x7e;
+ack[82]=0x7e;
 
+    
   uint8_t cmds[3];
 
   cmds[0] = (uint8_t)COM_RX_DATA[HEADER + 1];
@@ -543,7 +645,7 @@ void parse_command(uint8_t COM_RX_DATA[30])
 
     return 33;
   }
-  if (cmds[0] == 0xdf & cmds[1] == 0xab & cmds[2] == 0xd1)
+  else if (cmds[0] == 0xdf & cmds[1] == 0xab & cmds[2] == 0xd1)
   {
     printf("\n ********************Digipeater mode turned off********************\n");
     digipeating = 0;
@@ -639,61 +741,25 @@ void parse_command(uint8_t COM_RX_DATA[30])
       //    __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
       //    __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
       //    __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
-
+      send_data_uart(COM_UART , ack,  sizeof(ack));
       perform_file_operations(&__file_operations);
+
 
       // __file_operations.filepath = ;
 
       // __file_operations.num
     }
-    // /* Clear or empty or truncate file in external flash memory */
-    // if (cmds[0] == 0xCA || cmds[0] == 0xCA)
-    // {
-
-    //   // flag data text file
-    //   if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF1)
-    //   {
-    //   }
-
-    //   // sat_health data text file
-    //   if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF2)
-    //   {
-    //   }
-
-    //   // sat_log data text file
-    //   if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF3)
-    //   {
-    //   }
-
-    //   // Reservation table data text file
-    //   if ((cmds[1] == 0xD1 || cmds[1] == 0xD3) && cmds[2] == 0xF4)
-    //   {
-    //   }
-    // }
-
-    // /* Delete text file in external flash memory */
-    // else if (cmds[0] == 0xDE)
-    // {
-    //   enum SELECT_FLASH select_flash;
-    //   enum SELECT_FILE select_file;
-    //   if (cmds[1] == 0xd1 || cmds[1] == 0xd3)
-    //   {
-    //     select_flash = MAIN_FLASH_MEMORY;
-    //   }
-    //   else if (cmds[1] == 0xd2 || cmds[1] == 0xd4)
-    //   {
-    //     select_flash = SHARED_FLASH_MEMORY;
-    //   }
-
-    //   delete_text_file(select_flash, select_file);
-    // }
+  
 
     /*
     Command for Enabling status of KILL SWITCH
     */
     else if (cmds[0] == 0xee && cmds[1] == 0xaa && cmds[2] == 0xaa)
     {
+      send_data_uart(COM_UART , ack,  sizeof(ack));
+
       printf("---------Enable kill switch\n");
+      
     }
 
     /*
@@ -701,6 +767,8 @@ void parse_command(uint8_t COM_RX_DATA[30])
     */
     else if (cmds[0] == 0xee && cmds[1] == 0xee && cmds[2] == 0xee)
     {
+      send_data_uart(COM_UART , ack,  sizeof(ack));
+
       printf("---------Disable  kill switch\n");
     }
   }
@@ -713,6 +781,7 @@ void parse_command(uint8_t COM_RX_DATA[30])
       printf("COM MCU ID has been received\n");
       if (cmds[0] == 0xDF && cmds[1] == 0xAB && cmds[2] == 0xD1)
       {
+
         printf("--------Disable  digipeater mission\n");
       }
 
@@ -729,6 +798,8 @@ void parse_command(uint8_t COM_RX_DATA[30])
     // Command to DISABLE adcs(MSN1) misison
     {
       printf("ADCS MCU ID has been received\n");
+      send_data_uart(COM_UART , ack,  sizeof(ack));
+
       if (cmds[0] == 0xFD && cmds[1] == 0xBA && cmds[2] == 0xD0)
       {
         printf("------------ENable  adcs mission\n");
@@ -755,6 +826,8 @@ void parse_command(uint8_t COM_RX_DATA[30])
       printf("EPDM MCU ID has been received\n");
       if (cmds[0] == 0xAC && cmds[1] == 0xCF && cmds[2] == 0xCF)
       {
+      send_data_uart(COM_UART , ack,  sizeof(ack));
+
         printf("----------------EPDM MCU ID has been activated\n");
       }
     }
@@ -762,6 +835,11 @@ void parse_command(uint8_t COM_RX_DATA[30])
     break;
 
   default:
+    ack[3]=63;
+    ack[4]=62;
+    send_data_uart(COM_UART , ack,  sizeof(ack));
+    printf("The supplied command is incorrect");
+    return;
     break;
   }
 
@@ -800,7 +878,7 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   int ret;
   // ret = 1;
   // TODO remove the comment line below and comment the upper line to int ret
-   ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
+  ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
   printf("Received ret as %d and value :%s\n", ret, COM_RX_DATA);
   if (ret < 0)
   {
@@ -812,7 +890,7 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   else
   {
     parse_command(COM_RX_DATA);
-
+    
     // uint8_t commands[30] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
     // printf("parse command 22starting\n");
 
@@ -1095,8 +1173,10 @@ static int COM_TASK(int argc, char *argv[])
   int ret = -1;
   uint8_t rx_data[COM_RX_CMD_SIZE] = {'\0'};
   printf("Turning on COM MSN...\n");
+  gpio_write(GPIO_3V3_COM_EN, 0);
+  sleep(1);
   gpio_write(GPIO_3V3_COM_EN, 1);
-  usleep(2000000);
+  sleep(2);
   ret = handshake_COM(data); // tx rx data is flushed before closing the file
   usleep(PRINT_DELAY * 100);
   if (ret == 0)
@@ -1125,17 +1205,17 @@ static int COM_TASK(int argc, char *argv[])
     receive_telecommand_rx(rx_data);
   }
   sleep(2);
-  if (digipeating)
-  {
-    printf("Starting digipeating mode:\n");
-
-    digipeater_mode(rx_data);
-  }
-  // for (;;)
+  // if (digipeating)
   // {
-  //   receive_telecommand_rx(rx_data);
-  //   usleep(1000);
+  //   printf("Starting digipeating mode:\n");
+
+  //   digipeater_mode(rx_data);
   // }
+  for (;;)
+  {
+    receive_telecommand_rx(rx_data);
+    usleep(1000);
+  }
 }
 
 /****************************************************************************
