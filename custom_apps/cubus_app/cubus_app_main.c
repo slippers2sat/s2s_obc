@@ -424,7 +424,7 @@ void track_read_seek_pointer(struct FILE_OPERATIONS *file_pointer, int8_t seek_p
   // switch(file_pointer->)
   uint32_t address = file_pointer->address[3] << 24 | file_pointer->address[2] << 16 | file_pointer->address[1] << 8 | file_pointer->address[0] & 0xff;
   // if (address != 0)
-    fd = open_file_flash(&fptr, "", file_pointer->filepath, O_RDWR);
+  fd = open_file_flash(&fptr, "", file_pointer->filepath, O_RDWR);
   // ssize_t readBytes = file_read(&fptr, seek_pointer, sizeof(seek_pointer));
   // if (readBytes > 0)
   {
@@ -447,16 +447,19 @@ void track_read_seek_pointer(struct FILE_OPERATIONS *file_pointer, int8_t seek_p
   seek_pointer[index + 2] = file_pointer->address[2];
   seek_pointer[index + 3] = file_pointer->address[3];
   ssize_t writeBytes = file_write(&fptr, seek_pointer, sizeof(seek_pointer));
-  if(writeBytes > 0){
+  if (writeBytes > 0)
+  {
     syslog(LOG_SYSLOG, "Upadated seek pointer data saved to mfm\n");
-     file_close(&fptr);
-     fd = file_open(&fptr, file_pointer->filepath, O_CREAT| O_WRONLY);
-     if(fd > 0){
+    file_close(&fptr);
+    fd = file_open(&fptr, file_pointer->filepath, O_CREAT | O_WRONLY);
+    if (fd > 0)
+    {
       writeBytes = file_write(&fptr, seek_pointer, sizeof(seek_pointer));
-      if(writeBytes > 0 ){
+      if (writeBytes > 0)
+      {
         syslog(LOG_SYSLOG, "updated seek pointer data to sfm\n");
       }
-     }
+    }
   }
   file_close(&fptr);
 }
@@ -593,6 +596,7 @@ void perform_file_operations(struct FILE_OPERATIONS *file_operations)
            file_operations->number_of_packets[0], file_operations->number_of_packets[1]);
 
     printf("-------Data download function has been called\n");
+
     break;
   default:
     break;
@@ -622,11 +626,10 @@ void parse_command(uint8_t COM_RX_DATA[30])
 
   printf("**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
          HEADER, COM_RX_DATA[HEADER], COM_RX_DATA[HEADER + 1], COM_RX_DATA[HEADER + 2]);
-uint8_t ack[85]={0x53,0xac,0x05,0x01,0x62,0x63,0x7e};
-ack[83]=0x7e;
-ack[82]=0x7e;
+  uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x7e};
+  ack[83] = 0x7e;
+  ack[82] = 0x7e;
 
-    
   uint8_t cmds[3];
 
   cmds[0] = (uint8_t)COM_RX_DATA[HEADER + 1];
@@ -741,25 +744,81 @@ ack[82]=0x7e;
       //    __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
       //    __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
       //    __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
-      send_data_uart(COM_UART , ack,  sizeof(ack));
+      send_data_uart(COM_UART, ack, sizeof(ack));
       perform_file_operations(&__file_operations);
+     if (cmds[0] == 0x1D)
+      {
+        int x, ack[85], fd, ret;
+        printf("Data download command received\n"); // if reservation command is received then store the reservation command (do not execute)
 
+        ack[0] = 0x53;
+        // ack[1] = 0x0e;
+        if (cmds[2] == 0xf6)
+        {
+          ack[1] = 0x0b;
+        }
+        else if (cmds[2] == 0xf7)
+        {
+          ack[1] = 0x0d;
+        }
+        else if (cmds[2] == 0xf5)
+        {
+          ack[1] = 0x0c;
+        }
 
-      // __file_operations.filepath = ;
+        ack[2] = 0x51;
+        for (int i = 3; i < 83; i++)
+        {
+          ack[i] = i;
+        }
+        ack[83] = 0x7e;
+        int j;
+        // sleep(2);
 
-      // __file_operations.num
+        for (j = 0; j < 10; j++)
+        {
+          printf("\n  Data download packet no %d\n", j + 1);
+          ack[82] = j + 1;
+          ack[81] = j + 1;
+
+          fd = open(COM_UART, O_WRONLY);
+          if (fd < 0)
+          {
+            printf("unable to open: %s\n", COM_UART);
+            return -1;
+          }
+          // send_data_uart(COM_UART, ack, sizeof(ack));
+          gpio_write(GPIO_COM_4V_EN, 1);
+          printf("Turning on 4V dcdc  line..\n");
+          gpio_write(GPIO_DCDC_4V_EN, 1);
+          printf("Turning on 4v RF line..\n");
+          sleep(1);
+          ret = write(fd, ack, BEACON_DATA_SIZE);
+          x = 0;
+          for (int i = 0; i < 85; i++)
+          {
+            printf("%02x ", ack[i]);
+          }
+          close(fd);
+          printf("Turning off 4v RF line..\n");
+          gpio_write(GPIO_COM_4V_EN, 0);
+          printf("Turning off 4v dcdc EN line..\n");
+          gpio_write(GPIO_DCDC_4V_EN, 0);
+          printf("\n EPDM data o %d sent success\n ******Sleeping *******\n ", j + 1);
+        }
+        sleep(1);
+      }
+    
     }
-  
 
     /*
     Command for Enabling status of KILL SWITCH
     */
     else if (cmds[0] == 0xee && cmds[1] == 0xaa && cmds[2] == 0xaa)
     {
-      send_data_uart(COM_UART , ack,  sizeof(ack));
+      send_data_uart(COM_UART, ack, sizeof(ack));
 
       printf("---------Enable kill switch\n");
-      
     }
 
     /*
@@ -767,7 +826,7 @@ ack[82]=0x7e;
     */
     else if (cmds[0] == 0xee && cmds[1] == 0xee && cmds[2] == 0xee)
     {
-      send_data_uart(COM_UART , ack,  sizeof(ack));
+      send_data_uart(COM_UART, ack, sizeof(ack));
 
       printf("---------Disable  kill switch\n");
     }
@@ -798,7 +857,7 @@ ack[82]=0x7e;
     // Command to DISABLE adcs(MSN1) misison
     {
       printf("ADCS MCU ID has been received\n");
-      send_data_uart(COM_UART , ack,  sizeof(ack));
+      send_data_uart(COM_UART, ack, sizeof(ack));
 
       if (cmds[0] == 0xFD && cmds[1] == 0xBA && cmds[2] == 0xD0)
       {
@@ -826,7 +885,7 @@ ack[82]=0x7e;
       printf("EPDM MCU ID has been received\n");
       if (cmds[0] == 0xAC && cmds[1] == 0xCF && cmds[2] == 0xCF)
       {
-      send_data_uart(COM_UART , ack,  sizeof(ack));
+        send_data_uart(COM_UART, ack, sizeof(ack));
 
         printf("----------------EPDM MCU ID has been activated\n");
       }
@@ -835,9 +894,11 @@ ack[82]=0x7e;
     break;
 
   default:
-    ack[3]=63;
-    ack[4]=62;
-    send_data_uart(COM_UART , ack,  sizeof(ack));
+    ack[1] = 0xac;
+    ack[2] = 0x04;
+    ack[4] = 0x63;
+    ack[5] = 0x62;
+    send_data_uart(COM_UART, ack, sizeof(ack));
     printf("The supplied command is incorrect");
     return;
     break;
@@ -890,7 +951,7 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   else
   {
     parse_command(COM_RX_DATA);
-    
+
     // uint8_t commands[30] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
     // printf("parse command 22starting\n");
 
