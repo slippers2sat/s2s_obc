@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <fcntl.h>
+#include <syslog.h>
 
 #define QUEUE_NAME "/gpio"
 #define MAX_SIZE 1024
@@ -32,16 +33,16 @@ void reader_mq_2()
 
   // Open the message queue
   mq = mq_open(QUEUE_NAME, O_RDONLY);
-  // printf("mq : %d",mq);
+  // syslog(LOG_DEBUG, "mq : %d",mq);
   if (mq == (mqd_t)-1)
   {
-    // perror("mq_open");
+    perror("mq_open");
     // exit(1);
   }
 
   else
   {
-    printf("Waiting for messages...\n");
+    syslog(LOG_DEBUG, "Waiting for messages...\n");
 
     // while(1)
 
@@ -55,7 +56,9 @@ void reader_mq_2()
 
     buffer[bytes_read] = '\0'; // Null-terminate the string
 
-    printf("Received: %s \n", buffer);
+    syslog(LOG_DEBUG, "Received: %s \n", buffer);
+    syslog(LOG_DEBUG, "Received: %s \n", buffer);
+
     handle_gpio(&buffer);
     // Cleanup
     if (mq_close(mq) == -1)
@@ -73,26 +76,26 @@ void reader_mq_2()
 }
 void handle_gpio(char *gpio_name_1)
 {
-
+  
   if (!strcmp(gpio_name_1, "COM"))
   {
-    printf("Enabling com\n");
+    syslog(LOG_DEBUG, "Enabling com\n");
     // gpio_write(GPIO_3V3_COM_EN, pin_mode_1);
   }
   else if (!strcmp(gpio_name_1, "GPIO_COM_4V_EN"))
   {
-    printf("Enaling GPIO_COM_4V_EN\n");
+    syslog(LOG_DEBUG, "Enaling GPIO_COM_4V_EN\n");
   }
   else if (!strcmp(gpio_name_1, "ADCS"))
   { // ADCS
-    printf("Enabling ADCS\n");
+    syslog(LOG_DEBUG, "Enabling ADCS\n");
 
     // gpio_write(GPIO_MSN_3V3_EN, pin_mode_1);
     // gpio_write(GPIO_MSN1_EN, pin_mode_1);
   }
   else if (!strcmp(gpio_name_1, "CAM"))
   { // CAM
-    printf("Enabling CAM\n");
+    syslog(LOG_DEBUG, "Enabling CAM\n");
 
     // gpio_write(GPIO_MSN_3V3_EN, pin_mode_1);
     // gpio_write(GPIO_MSN2_EN, pin_mode_1);
@@ -109,7 +112,7 @@ void handle_gpio(char *gpio_name_1)
   }
   else if (!strcmp(gpio_name_1, "ANT"))
   {
-    printf("Starting antenna deployment sequence..\n Turning Burner EN line: %d\n Turning Unreg line: %d\n", pin_mode_1, pin_mode_1);
+    syslog(LOG_DEBUG, "Starting antenna deployment sequence..\n Turning Burner EN line: %d\n Turning Unreg line: %d\n", pin_mode_1, pin_mode_1);
     // gpio_write(GPIO_BURNER_EN, pin_mode_1);
     // gpio_write(GPIO_UNREG_EN, pin_mode_1);
   }
@@ -120,16 +123,16 @@ void CHECK_GPIO_1()
 
   while (1)
   {
-    // printf("called check gpio\n");
+    // syslog(LOG_DEBUG, "called check gpio\n");
     reader_mq_2();
 
     // else
     // { // keep on adding other gpio pins as you go
-    //     printf("Unknown command \n");
+    //     syslog(LOG_DEBUG, "Unknown command \n");
     //     // return;
     // }
     // usleep(1000000);
-    sleep(2);
+    sleep(40);
   }
   // work_queue(HPWORK, &work_gpio12, CHECK_GPIO_1, NULL, SEC2TICK(2));
 }
@@ -140,24 +143,24 @@ void first()
   int ret = work_queue(HPWORK, &work_gpio1, first, NULL, SEC2TICK(20));
   if (ret < 0)
   {
-    printf("Failed to queue work\n");
+    syslog(LOG_DEBUG, "Failed to queue work\n");
     // return -1;
   }
-  printf("First\n");
+  syslog(LOG_DEBUG, "First\n");
 }
 
 int main()
 {
   int ret;
   // second();
-  // printf("here in spi_driver_test\n");
+  // syslog(LOG_DEBUG, "here in spi_driver_test\n");
   // first();
   ret = task_create("data reader", 100, 1500, CHECK_GPIO_1, NULL);
   if (ret < 0)
   {
-    printf("Unable to create task data reader\n");
+    syslog(LOG_DEBUG, "Unable to create task data reader\n");
   }
-  printf("SPi daemon running\n");
+  syslog(LOG_DEBUG, "SPi daemon running\n");
   // CHECK_GPIO_1();
 }
 
@@ -227,13 +230,13 @@ int main()
 
 //     int mag_afd, mag_sfd;
 
-//     printf("SPI device LIS3MDL uorb test, World!\n");
+//     syslog(LOG_DEBUG, "SPI device LIS3MDL uorb test, World!\n");
 
 //     /* Open SPI device driver */
 //     mag_fd = open("/dev/uorb/sensor_mag0", O_RDONLY | O_NONBLOCK);
 //     if (mag_fd < 0)
 //     {
-//         printf("Failed to open mag sensor\n");
+//         syslog(LOG_DEBUG, "Failed to open mag sensor\n");
 //         return -1;
 //     }
 
@@ -271,7 +274,7 @@ int main()
 //         seconds -= 3;
 //     }
 
-//     printf("Timestamp = %lli\n"
+//     syslog(LOG_DEBUG, "Timestamp = %lli\n"
 //            "Temperature [c] = %f\n"
 //            "mag x axis = %f\n"
 //            "mag y axis = %f\n"
@@ -283,7 +286,7 @@ int main()
 //     // mag_afd = orb_advertise(ORB_ID(sensor_mag),&mag);
 //     // if (mag_afd < 0)
 //     // {
-//     //   printf("advertise failed: %d\n", errno);
+//     //   syslog(LOG_DEBUG, "advertise failed: %d\n", errno);
 //     // }
 
 //     // orb_publish(ORB_ID(sensor_mag), mag_afd, &mag);
@@ -291,17 +294,17 @@ int main()
 //     // mag_sfd = orb_subscribe(ORB_ID(sensor_mag));
 //     // if (mag_sfd < 0)
 //     // {
-//     //   printf("subscribe failed: %d\n", errno);
+//     //   syslog(LOG_DEBUG, "subscribe failed: %d\n", errno);
 //     // }
 
 //     // if (OK != orb_copy(ORB_ID(sensor_mag), mag_sfd, &mag_sub))
 //     // {
-//     //   printf("copy failed: %d\n", errno);
+//     //   syslog(LOG_DEBUG, "copy failed: %d\n", errno);
 //     // }
 
 //     // if(mag_sub.timestamp != mag.timestamp)
 //     // {
-//     //   printf("mismatch adv val: %lli subb val: %lli\n", mag.timestamp, mag_sub.timestamp);
+//     //   syslog(LOG_DEBUG, "mismatch adv val: %lli subb val: %lli\n", mag.timestamp, mag_sub.timestamp);
 //     // }
 
 //     return 0;
