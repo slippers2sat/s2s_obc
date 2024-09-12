@@ -17,8 +17,8 @@
  * under the License.
  *
  ****************************************************************************/
-#ifndef __APPS_CUSTOM_APPS_STORAGE_MANAGER_FILE_OPERATIONS_H
-#define __APPS_CUSTOM_APPS_STORAGE_MANAGER_FILE_OPERATIONS_H
+#ifndef __APPS_CUSTOM_APPS_FILE_OPERATIONS_H
+#define __APPS_CUSTOM_APPS_FILE_OPERATIONS_H
 
 #include <nuttx/config.h>
 

@@ -27,7 +27,6 @@
 #include "mag_main.h"
 #include <syslog.h>
 
-
 #include <time.h>
 #include <fcntl.h>
 
@@ -42,7 +41,9 @@
 #define DEVNAME_SIZE 32
 // #include
 static bool g_mag_daemon_started;
-
+#ifndef CONFIG_MPU_PATH
+#define CONFIG_MPU_PATH "/dev/mpu6500"
+#endif
 struct mpu6500_imu_msg
 {
   uint64_t timestamp;
@@ -57,7 +58,6 @@ struct mpu6500_imu_msg
 };
 
 ORB_DECLARE(mpu6500_imu_msg);
-
 
 static bool g_mpu6500_daemon_started;
 /****************************************************************************
@@ -125,8 +125,9 @@ int mag_daemon(int argc, FAR char *argv[])
   fds.events = POLLIN;
   for (;;)
   {
-     //IMU
-    fd_mpu = open(CONFIG_IMU0_PATH, O_RDONLY);
+    // IMU
+
+    fd_mpu = open(CONFIG_MPU_PATH, O_RDONLY);
     if (fd_mpu < 0)
     {
       syslog(LOG_ERR, "[mpu6500] failed to open mpu6500.");
@@ -182,18 +183,16 @@ int mag_daemon(int argc, FAR char *argv[])
       // }
     }
 
-   
-
-   if (OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
-      {
-        syslog(LOG_ERR, "Orb Publish failed\n");
-      }
+    if (OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
+    {
+      syslog(LOG_ERR, "Orb Publish mag failed\n");
+    }
   }
 
   ret = orb_unadvertise(afd);
   if (ret < 0)
   {
-    syslog(LOG_ERR, "Orb Unadvertise failed.\n");
+    syslog(LOG_ERR, "Orb Unadvertise mag failed.\n");
   }
 
   ret = orb_unsubscribe(fd);

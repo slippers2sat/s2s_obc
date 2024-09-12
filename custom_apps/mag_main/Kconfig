@@ -26,4 +26,10 @@ config CUSTOM_APPS_MAG_MAIN_STACKSIZE
 	int "mag main stack size"
 	default DEFAULT_TASK_STACKSIZE
 
+config CONFIG_MPU_PATH
+  string "path of first external ADC device"
+  default "/dev/mpu6500"
+  ---help---
+    This is the device location of first External ADC device
+
 endif
