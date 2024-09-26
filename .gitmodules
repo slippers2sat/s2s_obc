@@ -1,8 +1,8 @@
 [submodule "nuttx"]
 	path = nuttx
 	url = git@github.com:sangam11a/nuttx.git
-	branch = cubus-v1
+	branch = main
 [submodule "nuttx-apps"]
 	path = nuttx-apps
 	url = git@github.com:sangam11a/nuttx-apps.git
-	branch = apn
+	branch = main
