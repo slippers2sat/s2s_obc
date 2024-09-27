@@ -38,6 +38,8 @@
 static struct work_s work_storage;
 static int8_t count = 0;
 static bool g_storage_manager_started;
+void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname);
+
 int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filename, int open_mode);
 void read_and_print_mag_data(void)
 {
@@ -48,21 +50,21 @@ void read_and_print_mag_data(void)
   //  struct sat_volts_msg sat_volts;
   //  int ads,sat_temp,sat_volt;
   //
-  if (work_queue(HPWORK, &work_storage, read_and_print_mag_data, NULL, SEC2TICK(30)) >= 0)
-  {
-    syslog(LOG_DEBUG, "Workqueue running\n");
-  }
-  else
-  {
-    if (work_queue(HPWORK, &work_storage, read_and_print_mag_data, NULL, SEC2TICK(30)) >= 0)
-    {
-      syslog(LOG_DEBUG, "Workqueue running\n");
-    }
-    else
-    {
-      syslog(LOG_DEBUG, "workqueue failled\n");
-    }
-  }
+  // if (work_queue(HPWORK, &work_storage, read_and_print_mag_data, NULL, SEC2TICK(30)) >= 0)
+  // {
+  //   syslog(LOG_DEBUG, "Workqueue running\n");
+  // }
+  // else
+  // {
+  //   if (work_queue(HPWORK, &work_storage, read_and_print_mag_data, NULL, SEC2TICK(30)) >= 0)
+  //   {
+  //     syslog(LOG_DEBUG, "Workqueue running\n");
+  //   }
+  //   else
+  //   {
+  //     syslog(LOG_DEBUG, "workqueue failled\n");
+  //   }
+  // }
   // if (count == 0)
   // {
   //   Setup();
@@ -81,7 +83,7 @@ void read_and_print_mag_data(void)
     return;
   }
 
-  // while (1)
+  while (1)
   {
     orb_check(sub_fd, &updated);
     if (updated)
@@ -108,9 +110,11 @@ void read_and_print_mag_data(void)
       satellite_health.mag_y = mag_data.mag_y;
       satellite_health.mag_z = mag_data.mag_z;
 
-      store_sat_health_data(&satellite_health);
+      store_sat_health_data(&satellite_health, MFM_MAIN_STRPATH);
+      store_sat_health_data(&satellite_health, SFM_MAIN_STRPATH);
+
     }
-    // sleep(20); // Sleep for 500 ms
+    sleep(20); // Sleep for 500 ms
   }
 
   orb_unsubscribe(sub_fd);
@@ -148,11 +152,17 @@ int main(int argc, FAR char *argv[])
   return EXIT_SUCCESS;
 }
 
-void store_sat_health_data(satellite_health_s *sat_health_data)
+void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
 {
   struct file file_p;
+  int ret;
+  // if(strcmp(pathname, SFM_MAIN_STRPATH) == 1){
+  //   gpio_write(GPIO_MUX_EN, false);
+
+  //   gpio_write(GPIO_SFM_MODE, false);
+  // }
   // TODO: discuss and figure out if we need to set limit to size of file and truncate contents once the file size limit is reached ...
-  if (open_file_flash(&file_p, MFM_MAIN_STRPATH, file_name_sat_health, O_RDWR | O_APPEND) >= 0)
+  if (open_file_flash(&file_p, pathname, file_name_sat_health, O_CREAT| O_RDWR | O_APPEND) >= 0)
   {
     ssize_t bytes_written = file_write(&file_p, sat_health_data, sizeof(satellite_health_s));
     if (bytes_written > 0)
@@ -164,9 +174,9 @@ void store_sat_health_data(satellite_health_s *sat_health_data)
     {
       syslog(LOG_INFO, "Write Failure.\n");
     }
-    if (file_syncfs(&file_p) < 0)
+    if (ret = file_syncfs(&file_p) < 0)
     {
-      syslog(LOG_DEBUG, "some issue while synfs closing\n");
+      syslog(LOG_DEBUG, "some issue while synfs closing: %d\n",ret);
       file_syncfs(&file_p);
     }
     if (file_close(&file_p) < 0)
@@ -181,6 +191,11 @@ void store_sat_health_data(satellite_health_s *sat_health_data)
     syslog(LOG_ERR, "Error opening file to write satellite health data..\n");
   }
   file_close(&file_p);
+  
+  // if(strcmp(pathname, SFM_MAIN_STRPATH) == 1){
+
+  //   gpio_write(GPIO_SFM_MODE, true);
+  // }
 }
 
 int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filename, int open_mode)

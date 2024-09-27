@@ -163,10 +163,10 @@ int mag_daemon(int argc, FAR char *argv[])
           return ret;
         }
 
-        syslog(LOG_INFO, "Copied data from orb_object.\n");
+        // syslog(LOG_INFO, "Copied data from orb_object.\n");
 
-        // printf("Timestamp: %lli \t", mag0.timestamp);
-        syslog(LOG_DEBUG, "Temperature: %0.02f \t", mag0.temperature);
+        printf("Timestamp: %lli \t", mag0.timestamp);
+        syslog(LOG_DEBUG, "Temperature: %0.02f \t||", mag0.temperature);
         // printf("X : %0.02f \t", mag0.mag_x);
         // printf("Y : %0.02f \t", mag0.mag_y);
         // printf("Z : %0.02f \t\n", mag0.mag_z);

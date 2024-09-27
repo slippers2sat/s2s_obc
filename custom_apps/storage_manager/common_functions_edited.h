@@ -225,7 +225,9 @@ typedef enum _RSV_CMD_STATE {
 
 extern CRITICAL_FLAGS critic_flags;
 // void Setup();
-void store_sat_health_data(satellite_health_s *sat_health_data);
+// void store_sat_health_data(satellite_health_s *sat_health_data);
+void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname);
+
 void retrieve_latest_sat_health_data(satellite_health_s *sat_health_buf);
 void retrieve_sat_health_data(satellite_health_s sat_health_buf[], int times);
 
