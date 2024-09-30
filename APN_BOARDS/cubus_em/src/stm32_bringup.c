@@ -190,7 +190,7 @@ int stm32_bringup(void)
   stm32_gpiowrite(GPIO_MSN_3V3_EN, true);
   stm32_gpiowrite(GPIO_DCDC_MSN_3V3_2_EN, true);
   stm32_gpiowrite(GPIO_MSN3_EN, true);//epdm
-  stm32_gpiowri`te(GPIO_MSN2_EN, true); //cam
+  stm32_gpiowrite(GPIO_MSN2_EN, true); //cam
   /* Configure SPI-based devices */
 
 #ifdef CONFIG_ADC_ADS7953
