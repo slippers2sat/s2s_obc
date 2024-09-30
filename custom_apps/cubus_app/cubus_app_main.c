@@ -191,6 +191,7 @@ void serialize_beacon_b(uint8_t beacon_data[BEACON_DATA_SIZE]);
 void serialize_beacon_a(uint8_t beacon_data[BEACON_DATA_SIZE]);
 void digipeater_mode(uint8_t *data);
 void parse_command(uint8_t COM_RX_DATA[30]);
+int turn_msn_on_off(uint8_t subsystem, uint8_t state);
 /*Private function prototypes declaration end */
 int receive_telecommand_rx(uint8_t *COM_RX_DATA)
 { // TODO sth to do with parsing
@@ -808,7 +809,12 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
     return -1;
   }
 
-  int wr1 = write(fd, data, 6); // writing handshake data
+  int wr1 ;
+  // = write(fd, ack, strlen(ack)); // writing handshake data
+  for(i=0;i<=strlen(ack);i++){
+    write(fd, &ack[i],1);
+    usleep(3000);
+  }
   if (wr1 < 0)
   {
     printf("Unable to send data through %d UART", devpath);
@@ -835,6 +841,7 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
     printf("\n******Acknowledgement received******\n");
     usleep(PRINT_DELAY);
   }
+  else return 1;
   printf("handshake complete\n");
   usleep(PRINT_DELAY);
   printf("\n");
@@ -1434,97 +1441,145 @@ Declaring structure necessary for collecting HK data
  * Name: main
  ****************************************************************************/
 int main(int argc, FAR char *argv[])
-{
+{ int hand=5;
 
-  Setup();//TODO this setup is used to create a text file first if not created. the process will be handled by storage app
+  // Setup();//TODO this setup is used to create a text file first if not created. the process will be handled by storage app
   // RUN_HK();
 
   /*TODO : REMOVE LATER Independent testing*/
   if(strcmp(argv[1],"epdm") == 0){
-    
-  }
+    int fd;
+    char *dev_path = EPDM_UART;
+   turn_msn_on_off(3, 1);
+   hand = handshake_MSN(3, data);
+   uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
+   sleep(1);
+   sleep(1);
+   sleep(1);
+   sleep(1);
+   sleep(1);
+sleep(1);
+   sleep(1);
+   sleep(1);
+   sleep(1);
+   sleep(1);
+sleep(1);
+   sleep(1);
+   sleep(1);
+   sleep(1);
+   sleep(1);
 
+   hand = handshake_MSN(3,data2);
+   if(hand == 0){
+    syslog(LOG_DEBUG, "EPDMON sent\n");
+   }
+  //  if(hand == 0){
+  //   fd = open(dev_path, O_WRONLY);
+
+  //   if (fd < 0)
+  //   {
+  //     printf("error opening %s\n", dev_path);
+  //     return fd;
+  //   }
+  //   int wr1 = write(fd, "EPDMON", sizeof("EPDMON"));
+  //   if (wr1 < 0)
+  //   {
+  //     printf("Unable to write data\n");
+  //     return wr1;
+  //   }
+  //   printf("\n%d bytes written || Data is EPDMON\n", wr1);
+  //  }
+  //  close(fd);
+  }
+  else if(strcmp(argv[1],"cam") == 0){
+    turn_msn_on_off(2, 1);
+    hand = handshake_MSN(2, data);
+  }
+  else if(strcmp(argv[1],"adcs") == 0){
+    turn_msn_on_off(1, 1);
+    hand = handshake_MSN( 1, data);
+  }
 
 
   /*TODO : REMOVE LATER Independent testing*/
+  else{
 
 
-
-  if (g_commander_task_started)
-  {
-    printf("[COMMANDER TASK] Task already started.\n");
-    return EXIT_SUCCESS;
-  }
-  else
-  {
-    int retval = task_create("COMMANDER_TASK_APP", 100, 4096, COM_TASK, NULL);
-    if (retval < 0)
+    if (g_commander_task_started)
     {
-      printf("unable to create COMMANDER_TASK_APP task\n");
-      for (int i = 0; i < 4; i++)
-      {
-        retval = task_create("COMMANDER_TASK_APP", 100, 4096, COM_TASK, NULL);
-        if (retval >= 0)
-        {
-          break;
-          return 0;
-        }
-      }
-      return -1;
+      printf("[COMMANDER TASK] Task already started.\n");
+      return EXIT_SUCCESS;
     }
-  }
-  // COM_TASK(argc, argv);
+    else
+    {
+      int retval = task_create("COMMANDER_TASK_APP", 100, 4096, COM_TASK, NULL);
+      if (retval < 0)
+      {
+        printf("unable to create COMMANDER_TASK_APP task\n");
+        for (int i = 0; i < 4; i++)
+        {
+          retval = task_create("COMMANDER_TASK_APP", 100, 4096, COM_TASK, NULL);
+          if (retval >= 0)
+          {
+            break;
+            return 0;
+          }
+        }
+        return -1;
+      }
+    }
+    // COM_TASK(argc, argv);
 
-  // {
-  //   uint8_t data_received[400];
-  //   struct FILE_OPERATIONS file_operations;
-  //   file_operations.cmd = 0x1d;
-  //   file_operations.address[0] = 10;
-  //   file_operations.address[1] = 0;
-  //   file_operations.address[2] = 0;
-  //   file_operations.address[3] = 0;
-
-  //   file_operations.number_of_packets[0] = 6;
-  //   file_operations.number_of_packets[1] = 0;
-  //   strcpy(file_operations.filepath, "/mnt/fs/mfm/mtd_mission/test.txt");
-  //   //  file_operations.=;
-  //   download_file_from_flash(&file_operations, &data_received, 112);
-
-  //   file_operations.number_of_packets[0] = 1;
-  //   file_operations.number_of_packets[1] = 0;
-  //   strcpy(file_operations.filepath, "/mnt/fs/mfm/mtd_mission/test.txt");
-  //   //  file_operations.=;
-  // download_file_from_flash(&file_operations, &data_received, 112);
-
-  //   return 0;
-  // }
-
-  {
-    // int retval = task_create("task1", 100, 1024, COM_TASK, NULL);
-    // if (retval < 0)
     // {
-    //   printf("unable to create COM task\n");
-    //   return -1;
+    //   uint8_t data_received[400];
+    //   struct FILE_OPERATIONS file_operations;
+    //   file_operations.cmd = 0x1d;
+    //   file_operations.address[0] = 10;
+    //   file_operations.address[1] = 0;
+    //   file_operations.address[2] = 0;
+    //   file_operations.address[3] = 0;
+
+    //   file_operations.number_of_packets[0] = 6;
+    //   file_operations.number_of_packets[1] = 0;
+    //   strcpy(file_operations.filepath, "/mnt/fs/mfm/mtd_mission/test.txt");
+    //   //  file_operations.=;
+    //   download_file_from_flash(&file_operations, &data_received, 112);
+
+    //   file_operations.number_of_packets[0] = 1;
+    //   file_operations.number_of_packets[1] = 0;
+    //   strcpy(file_operations.filepath, "/mnt/fs/mfm/mtd_mission/test.txt");
+    //   //  file_operations.=;
+    // download_file_from_flash(&file_operations, &data_received, 112);
+
+    //   return 0;
     // }
+
+    {
+      // int retval = task_create("task1", 100, 1024, COM_TASK, NULL);
+      // if (retval < 0)
+      // {
+      //   printf("unable to create COM task\n");
+      //   return -1;
+      // }
+    }
+    printf("************************************************\n");
+
+    //   if(critic_flags.ANT_DEP_STAT == UNDEPLOYED && critic_flags.UL_STATE == UL_NOT_RX){
+    //     //TODO: add work queue to perform antenna deployment after 30 minutes
+    //     work_queue(HPWORK, &work_ant_dep, Antenna_Deployment, NULL, SEC2TICK(ANT_DEP_DELAY));
+    //   }else{
+    //     printf("Antenna in Deployed State...\n Not entering antenna deployment sequence\n");
+    //   }
+    //   // work_queue(HPWORK, &work_hk, collect_hk, NULL, MSEC2TICK(HK_DELAY));
+    // #if defined(CONFIG_CUSTOM_APPS_CUBUS_USE_EXT_ADC) || defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1) || defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC3)
+    //   RUN_HK();
+    //   work_queue(HPWORK, &work_hk, RUN_HK, NULL, SEC2TICK(HK_DELAY));
+
+    // #endif
+    printf("************************************************\n");
+    // }
+    // TODO: after checking flags data are being written/read correctly, we'll enable satellite health things as well and have a basic complete work queue functions except UART
   }
-  printf("************************************************\n");
-
-  //   if(critic_flags.ANT_DEP_STAT == UNDEPLOYED && critic_flags.UL_STATE == UL_NOT_RX){
-  //     //TODO: add work queue to perform antenna deployment after 30 minutes
-  //     work_queue(HPWORK, &work_ant_dep, Antenna_Deployment, NULL, SEC2TICK(ANT_DEP_DELAY));
-  //   }else{
-  //     printf("Antenna in Deployed State...\n Not entering antenna deployment sequence\n");
-  //   }
-  //   // work_queue(HPWORK, &work_hk, collect_hk, NULL, MSEC2TICK(HK_DELAY));
-  // #if defined(CONFIG_CUSTOM_APPS_CUBUS_USE_EXT_ADC) || defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1) || defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC3)
-  //   RUN_HK();
-  //   work_queue(HPWORK, &work_hk, RUN_HK, NULL, SEC2TICK(HK_DELAY));
-
-  // #endif
-  printf("************************************************\n");
-  // }
-  // TODO: after checking flags data are being written/read correctly, we'll enable satellite health things as well and have a basic complete work queue functions except UART
-
   return 0;
 }
 
@@ -1855,28 +1910,28 @@ int main(int argc, FAR char *argv[])
 // //COM_APP
 
 // //COM
-// int turn_msn_on_off(uint8_t subsystem, uint8_t state)
-// {
-//   switch (subsystem)
-//   {
-//   case 1:
-//     printf("turning ADCS mission state: %d\n", state);
-//     // gpio_write(GPIO_MSN1_EN, state);
-//     break;
-//   case 2:
-//     printf("Turning CAM mission state: %d\n", state);
-//     // gpio_write(GPIO_MSN2_EN, state);
-//     break;
-//   case 3:
-//     printf("Turning EPDM mission state: %d\n", state);
-//     // gpio_write(GPIO_MSN3_EN, state);
-//     break;
-//   default:
-//     printf("Wrong subsystem selected\n");
-//     break;
-//   }
-// }
-// // #include
+int turn_msn_on_off(uint8_t subsystem, uint8_t state)
+{
+  switch (subsystem)
+  {
+  case 1:
+    printf("turning ADCS mission state: %d\n", state);
+    gpio_write(GPIO_MSN1_EN, state);
+    break;
+  case 2:
+    printf("Turning CAM mission state: %d\n", state);
+    gpio_write(GPIO_MSN2_EN, state);
+    break;
+  case 3:
+    printf("Turning EPDM mission state: %d\n", state);
+    gpio_write(GPIO_MSN3_EN, state);
+    break;
+  default:
+    printf("Wrong subsystem selected\n");
+    break;
+  }
+}
+// #include
 
 // //COM & HK
 //
