@@ -340,6 +340,18 @@ int main(int argc, FAR char *argv[]) {
     // // Combine both restored numbers into one 8-bit number
     // int combined_number = (restored_number1 << 4) | restored_number2;
     // printf("Combined 8-bit Number: %d\n", combined_number);
+    printf("enabling msn 3v3 em\n");
+    gpio_write(GPIO_MSN_3V3_EM_EN, 1);//3v3 msn enable
+    printf("enabling msn dcdc 3v3 em\n");
+    gpio_write(GPIO_DCDC_MSN_3V3_2_EN, 1);//dcdc msn
+    printf("enabling msn1 em\n");
+    gpio_write(GPIO_MSN1_EM_EN,1);//cs enableGPIO_MSN1_EM_EN
+    printf("enabling msn2 em\n");
+    gpio_write(GPIO_MSN2_EN,1);//cs enableGPIO_MSN2_EN
+    printf("enabling msn2 em\n");
+    gpio_write(GPIO_MSN3_EN,1);//cs enableGPIO_MSN1_EM_EN
+
+
     gpio_write(GPIO_MUX_EN, false);
     gpio_write(GPIO_SFM_MODE, false);
     // gpio_write(GPIO_)

@@ -35,7 +35,7 @@
 #include <time.h>
 #include <malloc.h> 
 
-#include "com_app_main.h"
+// #include "com_app_main.h"
 #include "gpio_definitions.h"
 
 #include <nuttx/sensors/sensor.h>
@@ -1436,8 +1436,20 @@ Declaring structure necessary for collecting HK data
 int main(int argc, FAR char *argv[])
 {
 
-  // Setup();//TODO this setup is used to create a text file first if not created. the process will be handled by storage app
+  Setup();//TODO this setup is used to create a text file first if not created. the process will be handled by storage app
   // RUN_HK();
+
+  /*TODO : REMOVE LATER Independent testing*/
+  if(strcmp(argv[1],"epdm") == 0){
+    
+  }
+
+
+
+  /*TODO : REMOVE LATER Independent testing*/
+
+
+
   if (g_commander_task_started)
   {
     printf("[COMMANDER TASK] Task already started.\n");

@@ -228,8 +228,10 @@ int stm32_bringup(void)
   {
     syslog(LOG_INFO, "Successfully initialized SPI port 3\n");
   }
-
+					stm32_gpiowrite(GPIO_SFM_MODE , true);
+  
   cubus_mft_configure(board_get_manifest());
+					stm32_gpiowrite(GPIO_SFM_MODE , false);
 
 #endif /* CONFIG_STM32_SPI3 */
 

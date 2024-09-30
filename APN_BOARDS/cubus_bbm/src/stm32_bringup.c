@@ -182,7 +182,9 @@ int stm32_bringup(void)
 {
 
 // TODO:REMOVE later
-stm32_gpiowrite(GPIO_3V3_COM_EN,true);
+// stm32_gpiowrite(GPIO_3V3_COM_EN,true);
+  stm32_gpiowrite(GPIO_MUX_EN,  false);
+  stm32_gpiowrite(GPIO_SFM_MODE, false);
   int ret;
 
   /* Configure SPI-based devices */
