@@ -185,12 +185,11 @@ int stm32_bringup(void)
   int ret;
   stm32_gpiowrite(GPIO_MUX_EN,  false);
   stm32_gpiowrite(GPIO_SFM_MODE, false);
-
-  //TODO remove later
+  // stm32_gpiowrite(GPIO_3V3_COM_EN,true);
+  stm32_gpiowrite(GPIO_MSN3_EN, true);
+    // gpio_write(GPIO_MSN2_EN, 1);
   stm32_gpiowrite(GPIO_MSN_3V3_EN, true);
   stm32_gpiowrite(GPIO_DCDC_MSN_3V3_2_EN, true);
-  stm32_gpiowrite(GPIO_MSN3_EN, true);//epdm
-  stm32_gpiowrite(GPIO_MSN2_EN, true); //cam
   /* Configure SPI-based devices */
 
 #ifdef CONFIG_ADC_ADS7953
@@ -234,10 +233,8 @@ int stm32_bringup(void)
   {
     syslog(LOG_INFO, "Successfully initialized SPI port 3\n");
   }
-					stm32_gpiowrite(GPIO_SFM_MODE , true);
-  
+
   cubus_mft_configure(board_get_manifest());
-					stm32_gpiowrite(GPIO_SFM_MODE , false);
 
 #endif /* CONFIG_STM32_SPI3 */
 

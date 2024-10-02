@@ -2,7 +2,7 @@
  * apps/examples/cubus_app/cubus_app_main.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
+ * contributor license agreements.  See the NOTICE file distributed withEPDMEPDM_
  * this work for additional information regarding copyright ownership.  The
  * ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the
@@ -48,8 +48,8 @@
 #define BEACON_DELAY 90
 #define BEACON_DATA_SIZE 85
 #define ACK_DATA_SIZE 6 + 1
-#define COM_RX_CMD_SIZE 29
-#define COM_DG_MSG_SIZE 30
+#define COM_RX_CMD_SIZE 43
+#define COM_DG_MSG_SIZE 44
 #define NB_LOWERHALFS 1
 // #define DELAY_ADC 4000
 // #define ADC_DELAY 6000
@@ -615,6 +615,39 @@ void parse_command(uint8_t COM_RX_DATA[30])
         send_data_uart(COM_UART, ack, sizeof(ack));
 
         printf("----------------EPDM MCU ID has been activated\n");
+         int fd;
+        char *dev_path = EPDM_UART;
+        turn_msn_on_off(3, 1);
+        int hand = handshake_MSN(3, data);
+        uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
+        sleep(1);
+        sleep(1);
+        sleep(1);
+        sleep(1);
+        sleep(1);
+      sleep(1);
+        sleep(1);
+        sleep(1);
+        sleep(1);
+        sleep(1);
+      sleep(1);
+        sleep(1);
+        sleep(1);
+        sleep(1);
+        sleep(1);
+        uint8_t data[90], ret;
+        hand = handshake_MSN(3,data2);
+        if(hand == 0){
+          syslog(LOG_DEBUG, "Command %s sent\n", data2);
+          fd = open(EPDM_UART, O_RDONLY);
+          ret = read(fd, data, sizeof(data));
+          if(ret >=0){
+            syslog(LOG_DEBUG, "Data received : %s\n",data);
+          }
+          close(fd);
+        // gpio_write(GPIO_MSN3_EN, true);
+
+        }
       }
       else{
         incorrect_command(ack);
@@ -785,7 +818,7 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
     break;
   case 2:
     strcpy(devpath, CAM_UART);
-    // gpio_write(GPIO_MSN2_EN, 1);
+    gpio_write(GPIO_MSN2_EN, 1);
     printf("Turned on power line for CAM\n");
     break;
   case 3:
@@ -1452,6 +1485,12 @@ int main(int argc, FAR char *argv[])
     char *dev_path = EPDM_UART;
    turn_msn_on_off(3, 1);
    hand = handshake_MSN(3, data);
+   hand = handshake_MSN(2, data);
+    sleep(1);
+   sleep(1);
+   sleep(1);
+   sleep(1);
+   sleep(1);
    uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
    sleep(1);
    sleep(1);
@@ -1469,10 +1508,25 @@ sleep(1);
    sleep(1);
    sleep(1);
 
-   hand = handshake_MSN(3,data2);
-   if(hand == 0){
-    syslog(LOG_DEBUG, "EPDMON sent\n");
-   }
+  //  hand = handshake_MSN(3,data2);
+  //  if(hand == 0){
+  //   syslog(LOG_DEBUG, "EPDMON sent\n");
+  //  }
+   uint8_t data[240], ret;
+        hand = handshake_MSN(3,data2);
+        if(hand == 0){
+          syslog(LOG_DEBUG, "Command %s sent\n", data2);
+          for(int i =0;i<60;i++){
+              fd = open(EPDM_UART, O_RDONLY);
+              ret = read(fd, data, sizeof(data));
+              if(ret >=0){
+                syslog(LOG_DEBUG, "Data received : %s\n",data);
+              }
+              close(fd);
+          }
+        // gpio_write(GPIO_MSN3_EN, true);
+
+        }
   //  if(hand == 0){
   //   fd = open(dev_path, O_WRONLY);
 
@@ -1492,8 +1546,33 @@ sleep(1);
   //  close(fd);
   }
   else if(strcmp(argv[1],"cam") == 0){
+    turn_msn_on_off(2, 0);
+    
+    
+     sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
     turn_msn_on_off(2, 1);
+
+    uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
     hand = handshake_MSN(2, data);
+    uint8_t data[240], ret, fd;
+        hand = handshake_MSN(3,data2);
+        if(hand == 0){
+          syslog(LOG_DEBUG, "Command %s sent\n", data2);
+          for(int i =0;i<60;i++){
+              fd = open(EPDM_UART, O_RDONLY);
+              ret = read(fd, data, sizeof(data));
+              if(ret >=0){
+                syslog(LOG_DEBUG, "Data received : %s\n",data);
+              }
+              close(fd);
+          }
+        // gpio_write(GPIO_MSN3_EN, true);
+
+        }
   }
   else if(strcmp(argv[1],"adcs") == 0){
     turn_msn_on_off(1, 1);
@@ -1911,7 +1990,11 @@ sleep(1);
 
 // //COM
 int turn_msn_on_off(uint8_t subsystem, uint8_t state)
-{
+{ 
+  // gpio_write(GPIO_MSN2_EN, true);
+
+  // gpio_write(GPIO_DCDC_MSN_3V3_2_EN, true);
+
   switch (subsystem)
   {
   case 1:

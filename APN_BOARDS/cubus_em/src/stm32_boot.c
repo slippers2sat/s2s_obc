@@ -78,7 +78,6 @@
 
 	// setting MSN control Pin
 	stm32_gpiowrite(GPIO_MSN1_EN, 0);	//Disable MSN 1 activation
-	stm32_gpiowrite(GPIO_MSN1_EM_EN, 0);	//Disable MSN 1 activation
 	stm32_gpiowrite(GPIO_MSN2_EN, 0);	//Disable MSN 2 activation
 	stm32_gpiowrite(GPIO_MSN3_EN, 0);	//Disable MSN 3 activation
 
@@ -133,8 +132,6 @@ void stm32_boardinitialize(void)
 
 	// Configure MSN Control Pins
 	stm32_configgpio(GPIO_MSN1_EN);
-	stm32_configgpio(GPIO_MSN1_EM_EN);
-
 	stm32_configgpio(GPIO_MSN2_EN);
 	stm32_configgpio(GPIO_MSN3_EN);
 

@@ -185,6 +185,9 @@ int stm32_bringup(void)
 // stm32_gpiowrite(GPIO_3V3_COM_EN,true);
   stm32_gpiowrite(GPIO_MUX_EN,  false);
   stm32_gpiowrite(GPIO_SFM_MODE, false);
+  
+  stm32_gpiowrite(GPIO_3V3_COM_EN,true);
+  
   int ret;
 
   /* Configure SPI-based devices */
@@ -486,5 +489,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_STM32_WWDG
   stm32_wwdginitialize("/dev/wwdg0");
 #endif
+  stm32_gpiowrite(GPIO_SFM_MODE, true);
+
   return 0;
 }

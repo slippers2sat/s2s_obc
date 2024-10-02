@@ -345,42 +345,42 @@ int main(int argc, FAR char *argv[]) {
     printf("enabling msn dcdc 3v3 em\n");
     gpio_write(GPIO_DCDC_MSN_3V3_2_EN, 1);//dcdc msn
     printf("enabling msn1 em\n");
-    gpio_write(GPIO_MSN1_EM_EN,1);//cs enableGPIO_MSN1_EM_EN
+    gpio_write(GPIO_MSN1_EM_EN,0);//cs enableGPIO_MSN1_EM_EN
     printf("enabling msn2 em\n");
     gpio_write(GPIO_MSN2_EN,1);//cs enableGPIO_MSN2_EN
     printf("enabling msn2 em\n");
-    gpio_write(GPIO_MSN3_EN,1);//cs enableGPIO_MSN1_EM_EN
+    gpio_write(GPIO_MSN3_EN,0);//cs enableGPIO_MSN1_EM_EN
 
 
     gpio_write(GPIO_MUX_EN, false);
-    gpio_write(GPIO_SFM_MODE, false);
+    gpio_write(GPIO_SFM_MODE, true);
     // gpio_write(GPIO_)
-    fd = file_open(&file_p, file_path, O_CREAT | O_RDWR | O_APPEND);
-    if(fd < 0) 
-    {
-        syslog(LOG_ERR, "Error opening file in mainstorage of MFM.\n");
-        // close(fd);
-        file_close(&file_p);
-    } else {
-        const char *write_data = "Camera, ";
-        // ssize_t bytes_written = write(fd, write_data, strlen(write_data));
-        ssize_t bytes_written = file_write(&file_p, write_data, strlen(write_data));
-        if(bytes_written > 0)
-        {
-            syslog(LOG_INFO, "Flash Write Successful.\n Data Len: %d\n", bytes_written);
-            // close(fd);
-            file_close(&file_p);
-        } else {
-            syslog(LOG_INFO, "Write Failure.\n");
-        }
-        // int size_file = file_seek(&file_p, 0, SEEK_END);
+    // fd = file_open(&file_p, file_path, O_CREAT | O_RDWR | O_APPEND);
+    // if(fd < 0) 
+    // {
+    //     syslog(LOG_ERR, "Error opening file in mainstorage of MFM.\n");
+    //     // close(fd);
+    //     file_close(&file_p);
+    // } else {
+    //     const char *write_data = "Camera, ";
+    //     // ssize_t bytes_written = write(fd, write_data, strlen(write_data));
+    //     ssize_t bytes_written = file_write(&file_p, write_data, strlen(write_data));
+    //     if(bytes_written > 0)
+    //     {
+    //         syslog(LOG_INFO, "Flash Write Successful.\n Data Len: %d\n", bytes_written);
+    //         // close(fd);
+    //         file_close(&file_p);
+    //     } else {
+    //         syslog(LOG_INFO, "Write Failure.\n");
+    //     }
+    //     // int size_file = file_seek(&file_p, 0, SEEK_END);
       
-        file_syncfs(&file_p);
-        file_close(&file_p);
+    //     file_syncfs(&file_p);
+    //     file_close(&file_p);
     gpio_write(GPIO_SFM_MODE, true);
         
 
-    }
+    // }
     }
     return 0;
 }
