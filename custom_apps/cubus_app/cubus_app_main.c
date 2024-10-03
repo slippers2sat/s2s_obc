@@ -542,14 +542,12 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         //TODO check for number of packets here
         __file_operations.number_of_packets[0] = COM_RX_DATA[HEADER + 10] ;
         __file_operations.number_of_packets[1] = COM_RX_DATA[HEADER + 11];
-        __file_operations.number_of_packets[2] = COM_RX_DATA[HEADER + 12];
-        __file_operations.number_of_packets[3] = COM_RX_DATA[HEADER + 13];
-
+     
 
         printf("mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
           __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
           __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
-          __file_operations.number_of_packets[0], __file_operations.number_of_packets[1],  __file_operations.number_of_packets[2], __file_operations.number_of_packets[3]);
+          __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
         send_data_uart(COM_UART, ack, sizeof(ack));
         perform_file_operations(&__file_operations);
       //  if (cmds[0] == 0x1D)// download from flash
@@ -1439,7 +1437,7 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
     int8_t seek_pointer[16];
     uint8_t flash_data[BEACON_DATA_SIZE];
     uint32_t address = file_operations->address[0] << 24 | file_operations->address[1] << 16 | file_operations->address[2] << 8 | file_operations->address[3] & 0xff;
-    uint32_t number_of_packets = file_operations->number_of_packets[0] << 24 | file_operations->number_of_packets[1] << 16 | file_operations->number_of_packets[2] << 8 | file_operations->number_of_packets[3] & 0xff;
+    uint16_t number_of_packets = file_operations->number_of_packets[0] << 8 | file_operations->number_of_packets[1] & 0xff;
     ssize_t read_bytes;
     int size_of_file = file_seek(&file_ptr, 0, SEEK_END);
     printf("---------------------------------------\n");
@@ -1505,7 +1503,7 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
           flash_data[2] = 0x51;
           flash_data[BEACON_DATA_SIZE-2]=0x7e;
           flash_data[BEACON_DATA_SIZE-1]= '\0';
-
+          // printf("data sent is %s \n", flash_data);
           send_flash_data(flash_data);
           if (number_of_packets > 0)
             number_of_packets -= 1;
@@ -2240,9 +2238,10 @@ void send_flash_data(uint8_t *beacon_data){
     if (ret < 0)
     {
       printf("unable to send data\n");
-      for (int i = 0; i < BEACON_DATA_SIZE; i++)
+      for (int i = 0; i < BEACON_DATA_SIZE -1; i++)
       {
         ret = write(fd, &beacon_data[i], 1);
+        syslog(LOG_DEBUG,"%02x ", beacon_data[i]);
         usleep(1000);
       }
       if (ret < 0)
@@ -2355,10 +2354,12 @@ int send_beacon_data()
     if (beacon_status == 0)
     {
       printf("\nbeacon 1:\n");
+      digipeating = 0;
     }
     else
     {
       printf("\nbeacon 2:\n");
+      digipeating = 1;
     }
     beacon_type = !beacon_type;
 
