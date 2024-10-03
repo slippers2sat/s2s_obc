@@ -111,7 +111,7 @@ void read_and_print_mag_data(void)
       satellite_health.mag_z = mag_data.mag_z;
 
       store_sat_health_data(&satellite_health, MFM_MAIN_STRPATH);
-      store_sat_health_data(&satellite_health, SFM_MAIN_STRPATH);
+      // store_sat_health_data(&satellite_health, SFM_MAIN_STRPATH);
 
     }
     sleep(20); // Sleep for 500 ms

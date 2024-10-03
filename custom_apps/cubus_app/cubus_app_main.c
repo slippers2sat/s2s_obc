@@ -45,6 +45,7 @@
  ****************************************************************************/
 
 // Macro Definition
+#define COM_DATA_SIZE 44
 #define BEACON_DELAY 90
 #define BEACON_DATA_SIZE 85
 #define ACK_DATA_SIZE 6 + 1
@@ -155,6 +156,7 @@ struct FILE_OPERATIONS
   char filepath[200];
   uint8_t address[4];
   uint8_t number_of_packets[2];
+  uint8_t mcu_id;
 };
 
 typedef struct
@@ -190,7 +192,7 @@ void Make_Beacon_Data(uint8_t type);
 void serialize_beacon_b(uint8_t beacon_data[BEACON_DATA_SIZE]);
 void serialize_beacon_a(uint8_t beacon_data[BEACON_DATA_SIZE]);
 void digipeater_mode(uint8_t *data);
-void parse_command(uint8_t COM_RX_DATA[30]);
+void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE]);
 int turn_msn_on_off(uint8_t subsystem, uint8_t state);
 /*Private function prototypes declaration end */
 int receive_telecommand_rx(uint8_t *COM_RX_DATA)
@@ -205,9 +207,9 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x7e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
   printf("waiting for telecommands from COM\n");
   int ret;
-  ret = 1;
+  // ret = 1;
   // TODO remove the comment line below and comment the upper line to int ret
-  // ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
+  ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
   printf("Received ret as %d and value :%s\n", ret, COM_RX_DATA);
   if (ret < 0)
   {
@@ -222,19 +224,37 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
     syslog(LOG_SYSLOG,"COmmand received %s\n",COM_RX_DATA);
     parse_command(COM_RX_DATA);
 
-    // uint8_t commands[30] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
-    // printf("parse command 22starting\n");
+    uint8_t commands[COM_DATA_SIZE] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
+    printf("-------------parse command starting-------------\n");
 
     // // Check whether the received data in uart_com has initial 0x00 value or not if the initial is 0x00 then MCU_ID is supposed to be there at index 16, otherwise it is in index 17
     // parse_command(commands);
 
-    commands[16] = 0x01;
-    commands[17] = 0x1d;
-    commands[18] = 0xd1;
-    commands[19] = 0xf2;
-    for (int i = 0; i < 9; i++)
-      sleep(1);
-    parse_command(commands);
+    // commands[16] = 0x01;
+    // commands[17] = 0x1d;
+    // commands[18] = 0xd1;
+    // commands[19] = 0xf2;
+
+    // commands[20] = 0x00;
+    // commands[21] = 0x00;
+    
+    // commands[22] = 0x00;
+    // commands[23] = 0x00;
+    // commands[24] = 0x00;
+    // commands[25] = 0x05;
+    
+    // commands[26] = 0x00;
+    // commands[27] = 0x00;
+    // commands[28] = 0x00;
+
+    // commands[29] = 0x05;
+
+
+
+
+    // for (int i = 0; i < 9; i++)
+    //   sleep(1);
+    // parse_command(commands);
 
     // commands[16] = 0x01;
     // commands[17] = 0xca;
@@ -313,371 +333,460 @@ void incorrect_command(uint8_t *ack){
     return;
 }
 
-void parse_command(uint8_t COM_RX_DATA[30])
+void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
 {
-  printf("parse command starting\n");
-  for (int j = 0; j < sizeof(COM_RX_DATA); j++)
-  {
-    printf("%02x|%c ,", COM_RX_DATA[j], COM_RX_DATA[j]);
-  }
-
-  uint8_t HEADER = 0, MCU_ID = 0;
-  if (COM_RX_DATA[16] >= 0x01 && COM_RX_DATA[16] <= 0x05)
-  {
-    HEADER = 16;
-    MCU_ID = COM_RX_DATA[HEADER];
-  }
-  else if (COM_RX_DATA[17] >= 0x01 && COM_RX_DATA[17] <= 0x05)
-  {
-    HEADER = 17;
-    MCU_ID = COM_RX_DATA[HEADER];
-  }
-
-  printf("**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
-         HEADER, COM_RX_DATA[HEADER], COM_RX_DATA[HEADER + 1], COM_RX_DATA[HEADER + 2]);
   uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x7e};
-  ack[83] = 0x7e;
-  ack[82] = 0x7e;
-
-  // uint nack
-
-  uint8_t cmds[3];
-
-  cmds[0] = (uint8_t)COM_RX_DATA[HEADER + 1];
-  cmds[1] = (uint8_t)COM_RX_DATA[HEADER + 2];
-  cmds[2] = (uint8_t)COM_RX_DATA[HEADER + 3];
-  printf("**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
-         HEADER, cmds[0], cmds[0 + 1], cmds[0 + 2]);
-
-  if (cmds[0] == 0xfd & cmds[1] == 0xba & cmds[2] == 0xd0)
-  {
-    // gpio_write(GPIO_COM_4V_EN, 1);
-    printf("\n ********************Digipeater mode turned on********************\n");
-    digipeating = 1;
-    // sleep(3);
-    // gpio_write(GPIO_COM_4V_EN, 0);
-
-    return 33;
-  }
-  else if (cmds[0] == 0xdf & cmds[1] == 0xab & cmds[2] == 0xd1)
-  {
-    printf("\n ********************Digipeater mode turned off********************\n");
-    digipeating = 0;
-    return 33;
-  }
-  printf("MCU ID %d |%02x\n", cmds[0]);
-  switch (MCU_ID)
-  {
-  case OBC_MCU: /*
-                Command to perform flash operations by the OBC
-                */
-
-  { // __file_operations.cmd = COM_RX_DATA[HEADER + 1];
-    printf("OBC MCU ID has been received\n");
-    // break; // TO remove this later
-    if (cmds[0] == 0xCA | cmds[0] == 0x1D)
+    ack[83] = 0x7e;
+    ack[82] = 0x7e;
+  if(COM_RX_DATA[0] == 0x53){//SEND 85 BYTES BACK
+    if (COM_RX_DATA[0] == 0x53 & COM_RX_DATA[1] == 0xac & COM_RX_DATA[2] == 0x04)
     {
-      struct FILE_OPERATIONS __file_operations = {
-          .cmd = 0x00,
-          .number_of_packets = {0}, // Initialize all elements to 0
-          .filepath = {'\0'},       // Initialize as an empty string
-          .address = {0},           // Initialize all elements to 0
-          .rsv_table = {0}          // Initialize all elements to 0
-      };
-
-      __file_operations.cmd = cmds[0];
-      // __file_operations.select_file = ;
-      if ((COM_RX_DATA[HEADER + 2] == 0xD1) || (COM_RX_DATA[HEADER + 2] == 0xD2))
+      // gpio_write(GPIO_COM_4V_EN, 1);
+      if(COM_RX_DATA[4] ==0x00  & COM_RX_DATA[5] == 0xdd)
       {
-        __file_operations.select_flash = MAIN_FLASH_MEMORY;
-        if ((COM_RX_DATA[HEADER + 2] == 0xD2))
-          strcpy(__file_operations.filepath, MFM_MSN_STRPATH);
-        else
-          strcpy(__file_operations.filepath, MFM_MAIN_STRPATH);
+      printf("\n ********************Digipeater mode turned off********************\n");
+      digipeating = 0;
       }
-      if ((COM_RX_DATA[HEADER + 2] == 0xD3) || (COM_RX_DATA[HEADER + 2] == 0xD4))
-      {
-        __file_operations.select_flash = SHARED_FLASH_MEMORY;
-        if ((COM_RX_DATA[HEADER + 2] == 0xD3))
-          strcpy(__file_operations.filepath, SFM_MAIN_STRPATH);
-        else
-          strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
+      else if(COM_RX_DATA[4] ==0x01  & COM_RX_DATA[5] == 0xdd){
+      printf("\n ********************Digipeater mode turned on********************\n");
+      digipeating = 1;
       }
-      char filename[7][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam.txt", "/epdm.txt", "/adcs.txt"};
-
-      if ((cmds[2] == 0xF1))
       {
-        __file_operations.select_file = FLAGS;
-        strcat(__file_operations.filepath, "/flags.txt");
-        printf("Selected file is %s\n", __file_operations.select_file);
-      }
-      else if ((cmds[2] == 0xF2))
-      {
-        __file_operations.select_file = SATELLITE_HEALTH;
-        strcat(__file_operations.filepath, "/satHealth.txt");
-        printf("Selected file is %s\n", __file_operations.select_file);
-      }
-      else if ((cmds[2] == 0xF3))
-      {
-        __file_operations.select_file = SATELLITE_LOG;
-        strcat(__file_operations.filepath, "/satHealth.txt");
-      }
-      else if ((cmds[2] == 0xF4))
-      {
-        __file_operations.select_file = RESERVATION_TABLE;
-        strcat(__file_operations.filepath, "/reservation_table.txt");
-      }
-      else if ((cmds[2] == 0xF5))
-      {
-        strcat(__file_operations.filepath, "/cam.txt");
-
-        __file_operations.select_file = CAMERA_TXT;
-      }
-      else if ((cmds[2] == 0xF6))
-      {
-        __file_operations.select_file = EPDM_TXT;
-        strcat(__file_operations.filepath, "/epdm.txt");
-      }
-      else if ((cmds[2] == 0xF7))
-      {
-        __file_operations.select_file = ADCS_TXT;
-        strcat(__file_operations.filepath, "/adcs.txt");
-      }
-
-      __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
-      __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
-
-      __file_operations.address[0] = COM_RX_DATA[HEADER + 6];
-      __file_operations.address[1] = COM_RX_DATA[HEADER + 7];
-      __file_operations.address[2] = COM_RX_DATA[HEADER + 8];
-      __file_operations.address[3] = COM_RX_DATA[HEADER + 9];
-      // printf("cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
-      //    __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
-      //    __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
-      //    __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
-      send_data_uart(COM_UART, ack, sizeof(ack));
-      perform_file_operations(&__file_operations);
-     if (cmds[0] == 0x1D)// download from flash
-      {
-        int x, ack[85], fd, ret;
-        printf("Data download command received\n"); // if reservation command is received then store the reservation command (do not execute)
-
-        ack[0] = 0x53;
-        // ack[1] = 0x0e;
-        if (cmds[2] == 0xf6)
-        {
-          ack[1] = 0x0b;
+        for(int loop1=0; loop1 < 43; loop1++){
+          ack[loop1] = COM_RX_DATA[loop1];
         }
-        else if (cmds[2] == 0xf7)
-        {
-          ack[1] = 0x0d;
-        }
-        else if (cmds[2] == 0xf5)
-        {
-          ack[1] = 0x0c;
-        }
-
-        ack[2] = 0x51;
-        for (int i = 3; i < 83; i++)
-        {
-          ack[i] = i;
-        }
-        ack[83] = 0x7e;
-        int j;
-        // sleep(2);
-        struct file download_file;
-        char pathname[]= "/mnt/fs/fm/";
-        char filename[]="mtd_mainstorage.txt";
-        open_file_flash(download_file, pathname, filename, O_RDONLY);
-        int file_size = get_file_size(pathname, filename);
-        if()
-
-        for (j = 0; j < 10; j++)
-        {
-          printf("\n  Data download packet no %d\n", j + 1);
-          ack[82] = j + 1;
-          ack[81] = j + 1;
-
-          fd = open(COM_UART, O_WRONLY);
-          if (fd < 0)
-          {
-            printf("unable to open: %s\n", COM_UART);
-            return -1;
-          }
-          // send_data_uart(COM_UART, ack, sizeof(ack));
-          gpio_write(GPIO_COM_4V_EN, 1);
-          printf("Turning on 4V dcdc  line..\n");
-          gpio_write(GPIO_DCDC_4V_EN, 1);
-          printf("Turning on 4v RF line..\n");
-          sleep(1);
-          ret = write(fd, ack, BEACON_DATA_SIZE);
-          x = 0;
-          for (int i = 0; i < 85; i++)
-          {
-            printf("%02x ", ack[i]);
-          }
-          close(fd);
-          printf("Turning off 4v RF line..\n");
-          gpio_write(GPIO_COM_4V_EN, 0);
-          printf("Turning off 4v dcdc EN line..\n");
-          gpio_write(GPIO_DCDC_4V_EN, 0);
-          printf("\n EPDM data o %d sent success\n ******Sleeping *******\n ", j + 1);
-        }
-        sleep(1);
-      }
-    
-    }
-
-    /*
-    Command for disabling status of KILL SWITCH
-    */
-    else if (cmds[0] == 0xee && cmds[1] == 0xaa && cmds[2] == 0xaa)
-    {
-      send_data_uart(COM_UART, ack, sizeof(ack));
-
-      printf("--------- kill switch deactivated\n");
-    }
-
-    /*
-    Command for enabling status of KILL SWITCH
-    */
-    else if (cmds[0] == 0xee && cmds[1] == 0xee && cmds[2] == 0xee)
-    {
-      send_data_uart(COM_UART, ack, sizeof(ack));
-
-      printf("---------kill switch activated\n");
-    }
-  }
-  /* code */
-  break;
-
-  case COM_MCU:
-    // Command to ENABLE Digipeater misison
-    {
-      printf("COM MCU ID has been received\n");
-      if (cmds[0] == 0xDF && cmds[1] == 0xAB && cmds[2] == 0xD1)
-      {
-
-        printf("--------Enabled  digipeater mission\n");
-      }
-
-      // Command to DISABLE Digipeater misison
-      else if (cmds[0] == 0xFD && cmds[1] == 0xBA && cmds[2] == 0xD0)
-      {
-        incorrect_command(ack);
-        printf("-----------------------Disabled digipeater mission\n");
-      }
-    }
-    /* code */
-    break;
-
-  case ADCS_MCU:
-    // Command to DISABLE adcs(MSN1) misison
-    {
-      printf("ADCS MCU ID has been received\n");      
-
-      if (cmds[0] == 0xA0 && cmds[1] == 0x53 && cmds[2] == 0xCE)
-      {
-        send_data_uart(COM_UART, ack, sizeof(ack));
-        printf("------------ENable  adcs mission\n");
-      }
-      else{
-        incorrect_command(ack);
-        ack[1] = ack[1] >> 4 | (ack[1] << 4 &0xf0);
-        send_data_uart(COM_UART, ack, sizeof(ack));
-        printf("------------Incorrect command");
+        // ack[2] =0x5
       }
       
+      send_data_uart(COM_UART, ack, sizeof(ack));
+
+      // send_
+      // sleep(3);
+      // gpio_write(GPIO_COM_4V_EN, 0);
+
+      return 33;
+    }
+  }
+  else if(COM_RX_DATA[0] == 0x42){
+    return ;
+  }
+  else if(COM_RX_DATA[0] == 0x72)
+    {
+    printf("parse command starting\n");
+    
+    for (int j = 0; j < sizeof(COM_RX_DATA); j++)
+    {
+      printf("%02x|%c ,", COM_RX_DATA[j], COM_RX_DATA[j]);
+    }
+    if(COM_RX_DATA[0] == 0X53 && COM_RX_DATA[1] == 0xac && COM_RX_DATA[2] == 0X04){
+          printf("-----------------------Disabled digipeater mission\n");
+
+    }
+    else{
+    uint8_t HEADER = 0, MCU_ID = 0;
+    if (COM_RX_DATA[16] >= 0x01 && COM_RX_DATA[16] <= 0x05)
+    {
+      HEADER = 16;
+      MCU_ID = COM_RX_DATA[HEADER];
+    }
+    else if (COM_RX_DATA[17] >= 0x01 && COM_RX_DATA[17] <= 0x05)
+    {
+      HEADER = 17;
+      MCU_ID = COM_RX_DATA[HEADER];
+    }
+
+    printf("**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
+          HEADER, COM_RX_DATA[HEADER], COM_RX_DATA[HEADER + 1], COM_RX_DATA[HEADER + 2]);
+    
+
+    // uint nack
+
+    uint8_t cmds[3];
+
+    cmds[0] = (uint8_t)COM_RX_DATA[HEADER + 1];
+    cmds[1] = (uint8_t)COM_RX_DATA[HEADER + 2];
+    cmds[2] = (uint8_t)COM_RX_DATA[HEADER + 3];
+    printf("**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
+          HEADER, cmds[0], cmds[0 + 1], cmds[0 + 2]);
+
+    
+    // else if (cmds[0] == 0x53 & cmds[1] == 0xac & cmds[2] == 0x04)
+    // {
+    //   // gpio_write(GPIO_COM_4V_EN, 1);
+    //   printf("\n ********************Digipeater mode turned off********************\n");
+    //   digipeating = 0;
+    //   ack[0]=0x53;
+    //   ack[1] = 0xac;
+    //   ack[2]=0x04;
+    //   ack[3] = 0x02;
+    //   ack[4] = 0x00;
+    //   ack[5] =0xdd;
+    //   send_data_uart(COM_UART, ack, sizeof(ack));
+
+    //   // send_
+    //   // sleep(3);
+    //   // gpio_write(GPIO_COM_4V_EN, 0);
+
+    //   return 33;
+    // }
+    // else if (cmds[0] == 0xdf & cmds[1] == 0xab & cmds[2] == 0xd1)
+    // {
+    //   printf("\n ********************Digipeater mode turned on : can receive digipeating message********************\n");
+    //   digipeating = 0;
+    //   send_data_uart(COM_UART, COM_RX_DATA, sizeof(COM_RX_DATA));
+
+    //   return 33;
+    // }
+    printf("MCU ID %d |%02x\n", cmds[0]);
+    switch (MCU_ID)
+    {
+    case OBC_MCU: /*
+                  Command to perform flash operations by the OBC
+                  */
+
+    { // __file_operations.cmd = COM_RX_DATA[HEADER + 1];
+      printf("OBC MCU ID has been received\n");
+      // break; // TO remove this later
+      if (cmds[0] == 0xCA | cmds[0] == 0x1D)
+      {
+        struct FILE_OPERATIONS __file_operations = {
+            .cmd = 0x00,
+            .number_of_packets = {0}, // Initialize all elements to 0
+            .filepath = {'\0'},       // Initialize as an empty string
+            .address = {0},           // Initialize all elements to 0
+            .rsv_table = {0},          // Initialize all elements to 0
+            .mcu_id = 0xda
+        };
+
+        __file_operations.cmd = cmds[0];
+        // __file_operations.select_file = ;
+        if ((COM_RX_DATA[HEADER + 2] == 0xD1) || (COM_RX_DATA[HEADER + 2] == 0xD2))
+        {
+          __file_operations.select_flash = MAIN_FLASH_MEMORY;
+          if ((COM_RX_DATA[HEADER + 2] == 0xD2))
+            strcpy(__file_operations.filepath, MFM_MSN_STRPATH);
+          else
+            strcpy(__file_operations.filepath, MFM_MAIN_STRPATH);
+        }
+        if ((COM_RX_DATA[HEADER + 2] == 0xD3) || (COM_RX_DATA[HEADER + 2] == 0xD4))
+        {
+          __file_operations.select_flash = SHARED_FLASH_MEMORY;
+          if ((COM_RX_DATA[HEADER + 2] == 0xD3))
+            strcpy(__file_operations.filepath, SFM_MAIN_STRPATH);
+          else
+            strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
+        }
+        char filename[7][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam.txt", "/epdm.txt", "/adcs.txt"};
+
+        if ((cmds[2] == 0xF1))
+        {
+          __file_operations.select_file = FLAGS;
+          __file_operations.mcu_id = 0xad;
+
+          strcat(__file_operations.filepath, "/flags.txt");
+          printf("Selected file is %s\n", __file_operations.select_file);
+        }
+        else if ((cmds[2] == 0xF2))
+        {
+          __file_operations.mcu_id = 218;
+          __file_operations.select_file = SATELLITE_HEALTH;
+          strcat(__file_operations.filepath, "/satHealth.txt");
+          printf("Selected file is %s\n", __file_operations.select_file);
+        }
+        else if ((cmds[2] == 0xF3))
+        {
+          __file_operations.mcu_id = 0xda;
+
+          __file_operations.select_file = SATELLITE_LOG;
+          strcat(__file_operations.filepath, "/satHealth.txt");
+        }
+        else if ((cmds[2] == 0xF4))
+        {
+          __file_operations.mcu_id = 0xad;
+
+          __file_operations.select_file = RESERVATION_TABLE;
+          strcat(__file_operations.filepath, "/reservation_table.txt");
+        }
+        else if ((cmds[2] == 0xF5))
+        {
+          strcat(__file_operations.filepath, "/cam.txt");
+          __file_operations.mcu_id = 0x0c;
+
+          __file_operations.select_file = CAMERA_TXT;
+        }
+        else if ((cmds[2] == 0xF6))
+        {
+          __file_operations.mcu_id = 0x0b;
+
+          __file_operations.select_file = EPDM_TXT;
+          strcat(__file_operations.filepath, "/epdm.txt");
+        }
+        else if ((cmds[2] == 0xF7))
+        {
+          __file_operations.select_file = ADCS_TXT;
+          __file_operations.mcu_id = 0x0d;
+          strcat(__file_operations.filepath, "/adcs.txt");
+        }
+
+        //TODO check reservation table here
+
+        __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
+        __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
+
+        //TODO check address here
+        __file_operations.address[0] = COM_RX_DATA[HEADER + 6];
+        __file_operations.address[1] = COM_RX_DATA[HEADER + 7];
+        __file_operations.address[2] = COM_RX_DATA[HEADER + 8];
+        __file_operations.address[3] = COM_RX_DATA[HEADER + 9];
+
+        //TODO check for number of packets here
+        __file_operations.number_of_packets[0] = COM_RX_DATA[HEADER + 10] ;
+        __file_operations.number_of_packets[1] = COM_RX_DATA[HEADER + 11];
+        __file_operations.number_of_packets[2] = COM_RX_DATA[HEADER + 12];
+        __file_operations.number_of_packets[3] = COM_RX_DATA[HEADER + 13];
+
+
+        printf("mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
+          __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
+          __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
+          __file_operations.number_of_packets[0], __file_operations.number_of_packets[1],  __file_operations.number_of_packets[2], __file_operations.number_of_packets[3]);
+        send_data_uart(COM_UART, ack, sizeof(ack));
+        perform_file_operations(&__file_operations);
+      //  if (cmds[0] == 0x1D)// download from flash
+      //   {
+      //     int x, ack[85], fd, ret;
+      //     printf("Data download command received\n"); // if reservation command is received then store the reservation command (do not execute)
+
+      //     ack[0] = 0x53;
+      //     // ack[1] = 0x0e;
+      //     if (cmds[2] == 0xf6)
+      //     {
+      //       ack[1] = 0x0b;
+      //     }
+      //     else if (cmds[2] == 0xf7)
+      //     {
+      //       ack[1] = 0x0d;
+      //     }
+      //     else if (cmds[2] == 0xf5)
+      //     {
+      //       ack[1] = 0x0c;
+      //     }
+
+      //     ack[2] = 0x51;
+      //     for (int i = 3; i < 83; i++)
+      //     {
+      //       ack[i] = i;
+      //     }
+      //     ack[83] = 0x7e;
+      //     int j;
+      //     // sleep(2);
+      //     // struct file download_file;
+      //     // char pathname[]= "/mnt/fs/fm/";
+      //     // char filename[]="mtd_mainstorage.txt";
+      //     // open_file_flash(download_file, pathname, filename, O_RDONLY);
+      //     // int file_size = get_file_size(pathname, filename);
+      //     // if()
+
+      //     // for (j = 0; j < 10; j++)
+      //     // {
+      //     //   printf("\n  Data download packet no %d\n", j + 1);
+      //     //   ack[82] = j + 1;
+      //     //   ack[81] = j + 1;
+
+      //     //   fd = open(COM_UART, O_WRONLY);
+      //     //   if (fd < 0)
+      //     //   {
+      //     //     printf("unable to open: %s\n", COM_UART);
+      //     //     return -1;
+      //     //   }
+      //     //   // send_data_uart(COM_UART, ack, sizeof(ack));
+      //     //   gpio_write(GPIO_COM_4V_EN, 1);
+      //     //   printf("Turning on 4V dcdc  line..\n");
+      //     //   gpio_write(GPIO_DCDC_4V_EN, 1);
+      //     //   printf("Turning on 4v RF line..\n");
+      //     //   sleep(1);
+      //     //   ret = write(fd, ack, BEACON_DATA_SIZE);
+      //     //   x = 0;
+      //     //   for (int i = 0; i < 85; i++)
+      //     //   {
+      //     //     printf("%02x ", ack[i]);
+      //     //   }
+      //     //   close(fd);
+      //     //   printf("Turning off 4v RF line..\n");
+      //     //   gpio_write(GPIO_COM_4V_EN, 0);
+      //     //   printf("Turning off 4v dcdc EN line..\n");
+      //     //   gpio_write(GPIO_DCDC_4V_EN, 0);
+      //     //   printf("\n EPDM data o %d sent success\n ******Sleeping *******\n ", j + 1);
+      //     // }
+      //     sleep(1);
+      //   }
+      
+      }
+
+      /*
+      Command for disabling status of KILL SWITCH
+      */
+      else if (cmds[0] == 0xee && cmds[1] == 0xaa && cmds[2] == 0xaa)
+      {
+        send_data_uart(COM_UART, ack, sizeof(ack));
+
+        printf("--------- kill switch deactivated\n");
+      }
+
+      /*
+      Command for enabling status of KILL SWITCH
+      */
+      else if (cmds[0] == 0xee && cmds[1] == 0xee && cmds[2] == 0xee)
+      {
+        send_data_uart(COM_UART, ack, sizeof(ack));
+
+        printf("---------kill switch activated\n");
+      }
     }
     /* code */
     break;
 
-  case CAM_MCU:
-    // Command to ENABLE/DISABLE or run camera(MSN2) mission
-    {
-      printf("CAM MCU ID has been received\n");
-      if (cmds[0] == 0xCC && cmds[1] == 0x5E && cmds[2] == 0xBD)
+    case COM_MCU:
+      // Command to ENABLE Digipeater misison
       {
-        send_data_uart(COM_UART, ack, sizeof(ack));
-        printf("------------------------Enable  cam mission\n");
-      }
-      else{
-        incorrect_command(ack);
+        printf("COM MCU ID has been received\n");
+        if (cmds[0] == 0xDF && cmds[1] == 0xAB && cmds[2] == 0xD1)
+        {
 
-        ack[1] = ack[1] >> 4 | (ack[1] << 4 &0xf0);
-        send_data_uart(COM_UART, ack, sizeof(ack));
-        printf("------------Incorrect command");
-      }
-    }
-    /* code */
-    break;
+          printf("--------Enabled  digipeater mission\n");
+        }
 
-  case EPDM_MCU:
-    // Command to ENABLE/DISABLE or run epdm(MSN3) mission
-    {
-      printf("EPDM MCU ID has been received\n");
-      if (cmds[0] == 0xEC && cmds[1] == 0xCF && cmds[2] == 0xCF)
-      {
-        send_data_uart(COM_UART, ack, sizeof(ack));
-
-        printf("----------------EPDM MCU ID has been activated\n");
-         int fd;
-        char *dev_path = EPDM_UART;
-        turn_msn_on_off(3, 1);
-        int hand = handshake_MSN(3, data);
-        uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
-        sleep(1);
-        sleep(1);
-        sleep(1);
-        sleep(1);
-        sleep(1);
-      sleep(1);
-        sleep(1);
-        sleep(1);
-        sleep(1);
-        sleep(1);
-      sleep(1);
-        sleep(1);
-        sleep(1);
-        sleep(1);
-        sleep(1);
-        uint8_t data[90], ret;
-        hand = handshake_MSN(3,data2);
-        if(hand == 0){
-          syslog(LOG_DEBUG, "Command %s sent\n", data2);
-          fd = open(EPDM_UART, O_RDONLY);
-          ret = read(fd, data, sizeof(data));
-          if(ret >=0){
-            syslog(LOG_DEBUG, "Data received : %s\n",data);
-          }
-          close(fd);
-        // gpio_write(GPIO_MSN3_EN, true);
-
+        // Command to DISABLE Digipeater misison
+        else if (cmds[0] == 0xFD && cmds[1] == 0xBA && cmds[2] == 0xD0)
+        {
+          incorrect_command(ack);
+          printf("-----------------------Disabled digipeater mission\n");
         }
       }
-      else{
-        incorrect_command(ack);
+      /* code */
+      break;
 
-        ack[1] = ack[1] >> 4 | (ack[1] << 4 &0xf0);
-        send_data_uart(COM_UART, ack, sizeof(ack));
-        printf("------------Incorrect command");
+    case ADCS_MCU:
+      // Command to DISABLE adcs(MSN1) misison
+      {
+        printf("ADCS MCU ID has been received\n");      
+        if (cmds[0] == 0xA0 && cmds[1] == 0x53 && cmds[2] == 0xCE)
+        {
+          turn_msn_on_off(1, 1);
+
+          send_data_uart(COM_UART, ack, sizeof(ack));
+          printf("------------ENable  adcs mission\n");
+          turn_msn_on_off(1, 0);
+
+        }
+        else{
+          incorrect_command(ack);
+          ack[1] = ack[1] >> 4 | (ack[1] << 4 &0xf0);
+          send_data_uart(COM_UART, ack, sizeof(ack));
+          printf("------------Incorrect command-----\n");
+        }
+
+        
       }
+      /* code */
+      break;
+
+    case CAM_MCU:
+      // Command to ENABLE/DISABLE or run camera(MSN2) mission
+      {
+        printf("CAM MCU ID has been received\n");
+        if (cmds[0] == 0xCC && cmds[1] == 0x5E && cmds[2] == 0xBD)
+        {
+          turn_msn_on_off(2, 1);
+          printf("------------------------  cam mission turned on\n");
+
+          send_data_uart(COM_UART, ack, sizeof(ack));
+          
+        turn_msn_on_off(2, 0);
+          printf("------------------------  cam mission turned off\n");
+
+
+        }
+        else{
+          incorrect_command(ack);
+
+          ack[1] = ack[1] >> 4 | (ack[1] << 4 &0xf0);
+          send_data_uart(COM_UART, ack, sizeof(ack));
+          printf("------------Incorrect command\n");
+        }
+      }
+      /* code */
+      break;
+
+    case EPDM_MCU:
+      // Command to ENABLE/DISABLE or run epdm(MSN3) mission
+      {
+        printf("EPDM MCU ID has been received\n");
+        if (cmds[0] == 0xEC && cmds[1] == 0xCF && cmds[2] == 0xCF)
+        {
+          send_data_uart(COM_UART, ack, sizeof(ack));
+
+          printf("----------------EPDM MCU ID has been activated\n");
+          int fd;
+          char *dev_path = EPDM_UART;
+          turn_msn_on_off(3, 1);
+        //   int hand = handshake_MSN(3, data);
+        //   uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
+        //   sleep(1);
+        //   sleep(1);
+        //   sleep(1);
+        //   sleep(1);
+        //   sleep(1);
+        // sleep(1);
+        //   sleep(1);
+        //   sleep(1);
+        //   sleep(1);
+        //   sleep(1);
+        // sleep(1);
+        //   sleep(1);
+        //   sleep(1);
+        //   sleep(1);
+        //   sleep(1);
+        //   uint8_t data[90], ret;
+        //   hand = handshake_MSN(3,data2);
+        //   if(hand == 0){
+        //     syslog(LOG_DEBUG, "Command %s sent\n", data2);
+        //     fd = open(EPDM_UART, O_RDONLY);
+        //     ret = read(fd, data, sizeof(data));
+        //     if(ret >=0){
+        //       syslog(LOG_DEBUG, "Data received : %s\n",data);
+        //     }
+        //     close(fd);
+        //   // gpio_write(GPIO_MSN3_EN, true);
+
+        //   }
+        }
+        else{
+          incorrect_command(ack);
+
+          ack[1] = ack[1] >> 4 | (ack[1] << 4 &0xf0);
+          send_data_uart(COM_UART, ack, sizeof(ack));
+          printf("------------Incorrect command");
+        }
+      }
+      turn_msn_on_off(3, 0);
+      /* code */
+      break;
+
+    default:
+          incorrect_command(ack);
+
+    
+      break;
     }
-    /* code */
-    break;
 
-  default:
-        incorrect_command(ack);
-
-   
-    break;
+    // for (int i = 0; i < BEACON_DATA_SIZE; i++)
+    // {
+    //     send_data_uart(COM_UART, ack[i], 1);
+    //     printf("%02x ",ack[i]);
+    // }
+    }
   }
-
-  // for (int i = 0; i < BEACON_DATA_SIZE; i++)
-  // {
-  //     send_data_uart(COM_UART, ack[i], 1);
-  //     printf("%02x ",ack[i]);
-  // }
 }
 
 
@@ -704,6 +813,7 @@ static int COM_TASK(int argc, char *argv[])
   // usleep(1000);
 
   send_beacon_data();
+  sleep(2);
   printf("***************************Beacon 1 sent***************************\n");
   printf("***************************Going to receiver mode***************************\n");
   receive_telecommand_rx(rx_data);
@@ -712,10 +822,10 @@ static int COM_TASK(int argc, char *argv[])
   printf("***************************Beacon 2 sent...***************************\n");
   receive_telecommand_rx(rx_data);
   sleep(2);
-  if (digipeating)
+  if (digipeating == 1)
   {
     printf("***************************Starting digipeating mode***************************\n");
-    digipeater_mode(rx_data);
+        digipeater_mode(rx_data);
   }
   for (;;)
   {
@@ -729,7 +839,7 @@ static int COM_TASK(int argc, char *argv[])
  *
  * COM will be in digipeater mode till a digipeating message is received and digipeated
  ****************************************************************************/
-void digipeater_mode(uint8_t *data)
+void digipeater_mode(uint8_t *data)// TODO beacon 2 paxi disable garna milni enable garna namilni tara 2 agadi chai enable garna namilni
 {
   receive_data_uart(COM_UART, data, 29);
   for (int i = 29; i < 84; i++)
@@ -1285,13 +1395,10 @@ void track_read_seek_pointer(struct FILE_OPERATIONS *file_pointer, int8_t seek_p
       index = 0;
     else if (file_pointer->filepath == "/mnt/fs/mfm/mtd_mission/cam.txt")
       index = 4;
-
     else if (file_pointer->filepath == "/mnt/fs/mfm/mtd_mission/epdm.txt")
       index = 4 * 2;
-
     else if (file_pointer->filepath == "/mnt/fs/mfm/mtd_mission/adcs.txt")
       index = 3 * 4;
-
     else
       syslog(LOG_SYSLOG, "Some error while updating flags data\n");
   }
@@ -1330,10 +1437,21 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
   else
   {
     int8_t seek_pointer[16];
-    uint32_t address = file_operations->address[3] << 24 | file_operations->address[2] << 16 | file_operations->address[1] << 8 | file_operations->address[0] & 0xff;
-    uint16_t number_of_packets = file_operations->number_of_packets[1] << 8 | file_operations->number_of_packets[0] & 0xff;
+    uint8_t flash_data[BEACON_DATA_SIZE];
+    uint32_t address = file_operations->address[0] << 24 | file_operations->address[1] << 16 | file_operations->address[2] << 8 | file_operations->address[3] & 0xff;
+    uint32_t number_of_packets = file_operations->number_of_packets[0] << 24 | file_operations->number_of_packets[1] << 16 | file_operations->number_of_packets[2] << 8 | file_operations->number_of_packets[3] & 0xff;
     ssize_t read_bytes;
     int size_of_file = file_seek(&file_ptr, 0, SEEK_END);
+    printf("---------------------------------------\n");
+    printf("---------------------------------------\n");
+    printf("Address is %d\n",address);
+    printf("Number of packets is %d\n",number_of_packets);
+    printf("TEXT file is %d",file_operations->select_file);
+    // number_of_packets =0;
+
+    printf("---------------------------------------\n");
+    printf("---------------------------------------\n");
+
     int off; //= file_seek(&file_ptr, address, SEEK_SET);
     printf("\nSize of file is %d %d\n", size_of_file, address);
     uint8_t update_address = 0;
@@ -1364,9 +1482,10 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
     //                    (file_operations->address[0] & 0xFF);
     int loop1 = 0;
     // for (int loop1 = 1; loop1 < number_of_packets; loop1++)
+    
     do
     {
-      if (size_of_file > 0 & size_of_file > address)
+      if (size_of_file > 0 & size_of_file > address + 80)
       {
         off = file_seek(&file_ptr, address, SEEK_SET); // Set file pointer to the calculated address
         read_bytes = file_read(&file_ptr, data_retrieved, size_of_buffer);
@@ -1375,43 +1494,57 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
           syslog(LOG_SYSLOG, "Data retrieved from the flash address %d\n", address);
 
           printf("\n--------------------**************Read size = %zd\n", read_bytes);
-          printf("\n\n--------------------------Data received----\n");
+          printf("\n\n--------------------------Data read from flash pkt no :%d  ----\n", loop1 +1);
           for (int j = 0; j < size_of_buffer; j++)
           {
+            flash_data[j + 3] = data_retrieved[j];
             printf("%02x|%c ", data_retrieved[j], data_retrieved[j]); // Print in hexadecimal format
           }
+          flash_data[0] = 0x53;
+          flash_data[1] =  0xac;//file_operations->mcu_id;//TODO check out mcu_id value and set this one
+          flash_data[2] = 0x51;
+          flash_data[BEACON_DATA_SIZE-2]=0x7e;
+          flash_data[BEACON_DATA_SIZE-1]= '\0';
+
+          send_flash_data(flash_data);
           if (number_of_packets > 0)
             number_of_packets -= 1;
           loop1 += 1;
           address += size_of_buffer;
-          file_close(&file_ptr);
         }
         else
         {
           syslog(LOG_SYSLOG, "Failed to read data from the flash address %d\n", address);
           file_close(&file_ptr);
+
           break;
         }
       }
-    } while (number_of_packets > 1); // loop1 < number_of_packets |
+      else{
+        break;
+      }
+      //TODO add else to perform the number of dat
+    } while (number_of_packets > 0); // loop1 < number_of_packets |
     // todo : add seekpointer read index in internal and external flash memories
+          file_close(&file_ptr);
+    
     if (update_address == 1)
     {
-      file_operations->address[3] = (uint8_t)address >> 24 & 0xff;
-      file_operations->address[2] = (uint8_t)address >> 16 & 0xff;
-      file_operations->address[1] = (uint8_t)address >> 8 & 0xff;
-      file_operations->address[0] = (uint8_t)address & 0xff;
+      file_operations->address[0] = (uint8_t)address >> 24 & 0xff;
+      file_operations->address[1] = (uint8_t)address >> 16 & 0xff;
+      file_operations->address[2] = (uint8_t)address >> 8 & 0xff;
+      file_operations->address[3] = (uint8_t)address & 0xff;
       track_read_seek_pointer(file_operations, seek_pointer);
     }
   }
   file_close(&file_ptr);
-  data_retrieved[read_bytes]= '\0';
-  printf("\n\n--------------------------Data received----\n");
-  for (int j = 0; j < sizeof(data_retrieved); j++)
-  {
-    printf("%02x|%c ", data_retrieved[j],data_retrieved1[j]); // Print in hexadecimal format
-  }
-  printf("\n--------------------**************Size = %zu\n", sizeof(data_retrieved));
+  // data_retrieved[read_bytes]= '\0';
+  // printf("\n\n--------------------------Data received----\n");
+  // for (int j = 0; j < sizeof(data_retrieved); j++)
+  // {
+  //   printf("%02x|%c ", data_retrieved[j],data_retrieved1[j]); // Print in hexadecimal format
+  // }
+  // printf("\n--------------------**************Size = %zu\n", sizeof(data_retrieved));
 }
 
 /*
@@ -1444,11 +1577,11 @@ void perform_file_operations(struct FILE_OPERATIONS *file_operations)
     printf("-----Trucate text file called \n");
     break;
   case 0x1d:
-    download_file_from_flash(file_operations, data_retrieved, 112);
-    printf("*******************\nsize:%d\n***********************\ncmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
+    download_file_from_flash(file_operations, data_retrieved, 81);
+    printf("*****Download command received**************\nsize:%d\n***********************\ncmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
            sizeof(data_retrieved), file_operations->cmd, file_operations->select_flash, file_operations->select_file, file_operations->rsv_table[1], file_operations->rsv_table[0], file_operations->filepath,
            file_operations->address[3], file_operations->address[2], file_operations->address[1], file_operations->address[0],
-           file_operations->number_of_packets[0], file_operations->number_of_packets[1]);
+            file_operations->number_of_packets[3], file_operations->number_of_packets[2], file_operations->number_of_packets[1], file_operations->number_of_packets[0]);
 
     printf("-------Data download function has been called\n");
 
@@ -1493,38 +1626,39 @@ int main(int argc, FAR char *argv[])
   if(strcmp(argv[1],"epdm") == 0){
     int fd;
     char *dev_path = EPDM_UART;
-   turn_msn_on_off(3, 1);
-
-   hand = handshake_MSN(3, data);
-   hand = handshake_MSN(2, data);
+   turn_msn_on_off(3, 0);
     sleep(1);
    sleep(1);
-   sleep(1);
-   sleep(1);
-   sleep(1);
-   uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
-   sleep(1);
-   sleep(1);
-   sleep(1);
-   sleep(1);
-   sleep(1);
-sleep(1);
-   sleep(1);
-   sleep(1);
-   sleep(1);
-   sleep(1);
-sleep(1);
-   sleep(1);
-   sleep(1);
-   sleep(1);
-   sleep(1);
+   turn_msn_on_off(3, 1);
+  sleep(1);
+  sleep(1);
 
-  //  hand = handshake_MSN(3,data2);
-  //  if(hand == 0){
-  //   syslog(LOG_DEBUG, "EPDMON sent\n");
-  //  }
-   uint8_t data[240], ret;
+  //  hand = handshake_MSN(3, data);
+  //  hand = handshake_MSN(2, data);
+   
+   uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
+   turn_msn_on_off(2, 0);
+    sleep(1);
+    sleep(1);
+    turn_msn_on_off(2, 1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
+
+
+    do{
+      hand = handshake_MSN(2, data);
+    }while(hand<0);
+    hand=0;
+    uint8_t  ret;
+    char data[240];
+    sleep(1);
+    sleep(1);
+
+    // sleep(1);
+     do{
         hand = handshake_MSN(3,data2);
+     }while(hand < 0);
         if(hand == 0){
           syslog(LOG_DEBUG, "Command %s sent\n", data2);
           for(int i =0;i<60;i++){
@@ -1538,35 +1672,62 @@ sleep(1);
         // gpio_write(GPIO_MSN3_EN, true);
 
         }
-        
-  //  if(hand == 0){
-  //   fd = open(dev_path, O_WRONLY);
-
-  //   if (fd < 0)
-  //   {
-  //     printf("error opening %s\n", dev_path);
-  //     return fd;
-  //   }
-  //   int wr1 = write(fd, "EPDMON", sizeof("EPDMON"));
-  //   if (wr1 < 0)
-  //   {
-  //     printf("Unable to write data\n");
-  //     return wr1;
-  //   }
-  //   printf("\n%d bytes written || Data is EPDMON\n", wr1);
-  //  }
-  //  close(fd);
+        int p=0;
+        do{
+          usleep(10000);
+          p++;
+        }while(p<100000);
+        turn_msn_on_off(3, 0);
   }
   else if(strcmp(argv[1],"cam") == 0){
     turn_msn_on_off(2, 0);
      sleep(1);
     
     turn_msn_on_off(2, 1);
-    
-   gpio_write(GPIO_MSN_5V_EN, true);
-   gpio_write(GPIO_DCDC_5V_EN, true);
-   gpio_write(GPIO_DCDC_MSN_3V3_2_EN, true);
-sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
+    // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
+    uint8_t data2[7] = {0x53,0x0c,0x0a,0x0e,0x01,0x7e};
+
+    do{
+      hand = handshake_MSN(2, data);
+    }while(hand<0);
+    hand=0;
+    uint8_t  ret, fd;
+    char data[240];
+    sleep(1);
+    sleep(1);
+
+    // sleep(1);
+     do{
+        hand = handshake_MSN(3,data2);
+     }while(hand < 0);
+        if(hand == 0){
+          syslog(LOG_DEBUG, "Command %s sent\n", data2);
+          for(int i =0;i<60;i++){
+              fd = open(EPDM_UART, O_RDONLY);
+              ret = read(fd, data, sizeof(data));
+              if(ret >=0){
+                syslog(LOG_DEBUG, "Data received : %s\n",data);
+              }
+              close(fd);
+          }
+        // gpio_write(GPIO_MSN3_EN, true);
+
+        }
+        int p=0;
+        do{
+          usleep(10000);
+          p++;
+        }while(p<100000);
+    turn_msn_on_off(2, 0);
+
+  }
+  else if(strcmp(argv[1],"adcs") == 0){
+
+    sleep(1);
     sleep(1);
     sleep(1);
     sleep(1);sleep(1);
@@ -1607,12 +1768,7 @@ sleep(1);
           usleep(10000);
           p++;
         }while(p<100000);
-    gpio_write(GPIO_MSN_5V_EN, false);
-   gpio_write(GPIO_DCDC_5V_EN, false);
-  }
-  else if(strcmp(argv[1],"adcs") == 0){
-    turn_msn_on_off(1, 1);
-    hand = handshake_MSN( 1, data);
+    turn_msn_on_off(2, 0);
   }
 
 
@@ -2035,14 +2191,24 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
   {
   case 1:
     printf("turning ADCS mission state: %d\n", state);
+    gpio_write(GPIO_MSN1_EN, false);
     gpio_write(GPIO_MSN1_EN, state);
+    sleep(1);
+    gpio_write(GPIO_MSN_5V_EN, state);
+    gpio_write(GPIO_DCDC_5V_EN, state);
     break;
   case 2:
     printf("Turning CAM mission state: %d\n", state);
+    gpio_write(GPIO_MSN2_EN, false);
+    sleep(1);
     gpio_write(GPIO_MSN2_EN, state);
+    gpio_write(GPIO_MSN_5V_EN, state);
+    gpio_write(GPIO_DCDC_5V_EN, state);
     break;
   case 3:
     printf("Turning EPDM mission state: %d\n", state);
+    gpio_write(GPIO_MSN2_EN, false);
+    sleep(1);
     gpio_write(GPIO_MSN3_EN, state);
     break;
   default:
@@ -2052,8 +2218,66 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
 }
 // #include
 
-// //COM & HK
-//
+// //COM 
+void send_flash_data(uint8_t *beacon_data){
+    int  fd = open(COM_UART, O_RDWR);
+    int ret2;
+    if (fd < 0)
+    {
+      printf("unable to open: %s\n", COM_UART);
+      return -1;
+    }
+    sleep(2);
+
+    printf("Turning on  4v dcdc line..\n");
+    gpio_write(GPIO_DCDC_4V_EN, 1);
+    printf("Turning on COM 4V line..\n");
+    gpio_write(GPIO_COM_4V_EN, 1);
+    
+    uint8_t ack_com[43];
+    int ret = write(fd, beacon_data, BEACON_DATA_SIZE);
+    usleep(10000);
+    if (ret < 0)
+    {
+      printf("unable to send data\n");
+      for (int i = 0; i < BEACON_DATA_SIZE; i++)
+      {
+        ret = write(fd, &beacon_data[i], 1);
+        usleep(1000);
+      }
+      if (ret < 0)
+      {
+        printf("Unable to send data through byte method..\n");
+        return -1;
+      }
+      ret2= read(fd, ack_com, sizeof(ack_com));
+    }
+    else{
+      if(ret2 >= 0){
+        printf("Flash data sent to COM successfully\n");
+        printf("data is:::::::: %s\n", beacon_data);
+      }
+      else{
+        ret = write(fd, beacon_data, BEACON_DATA_SIZE);
+      usleep(10000);
+      if (ret < 0)
+      {
+          printf("unable to send data\n");
+          for (int i = 0; i < BEACON_DATA_SIZE; i++)
+          {
+            ret = write(fd, &beacon_data[i], 1);
+            usleep(1000);
+          }
+          if (ret < 0)
+          {
+            printf("Unable to send data through byte method..\n");
+            return -1;
+          }
+        }
+      }
+    }
+}
+
 // COM
 /****************************************************************************
  * Send beacon data to COM

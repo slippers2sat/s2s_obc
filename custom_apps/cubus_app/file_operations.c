@@ -24,21 +24,21 @@
  * Name: adc_main
  ****************************************************************************/
 
-int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filename, int open_mode){
+// int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filename, int open_mode){
 
-  const char file_name[] = {'\0'};
-  // memcpy(file_name, filename, sizeof(filename));
-  char path[65];
-  sprintf(path, "%s%s", flash_strpath, filename);
-  int fd = file_open(file_pointer, path, open_mode);
-  if(fd < 0){
-     syslog(LOG_ERR, "Error opening file: %s\n",path);
-     return fd;
-  }else{
-    syslog(LOG_INFO, "Opened file: %s ...\n",path);
-  }
-  return fd;
-}
+//   const char file_name[] = {'\0'};
+//   // memcpy(file_name, filename, sizeof(filename));
+//   char path[65];
+//   sprintf(path, "%s%s", flash_strpath, filename);
+//   int fd = file_open(file_pointer, path, open_mode);
+//   if(fd < 0){
+//      syslog(LOG_ERR, "Error opening file: %s\n",path);
+//      return fd;
+//   }else{
+//     syslog(LOG_INFO, "Opened file: %s ...\n",path);
+//   }
+//   return fd;
+// }
 
 int get_file_size(char *filepath, char *filename){
   struct file fp;

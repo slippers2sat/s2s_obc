@@ -59,6 +59,7 @@ struct data
     void *data_struct;
     uint16_t data_size;
 };
+
 // struct mpu6500_imu_msg
 // {
 //   int16_t acc_x;
