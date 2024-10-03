@@ -205,9 +205,9 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x7e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
   printf("waiting for telecommands from COM\n");
   int ret;
-  // ret = 1;
+  ret = 1;
   // TODO remove the comment line below and comment the upper line to int ret
-  ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
+  // ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
   printf("Received ret as %d and value :%s\n", ret, COM_RX_DATA);
   if (ret < 0)
   {
@@ -228,13 +228,13 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
     // // Check whether the received data in uart_com has initial 0x00 value or not if the initial is 0x00 then MCU_ID is supposed to be there at index 16, otherwise it is in index 17
     // parse_command(commands);
 
-    // commands[16] = 0x01;
-    // commands[17] = 0x1d;
-    // commands[18] = 0xd2;
-    // commands[19] = 0xf5;
-    // for (int i = 0; i < 9; i++)
-    //   sleep(1);
-    // parse_command(commands);
+    commands[16] = 0x01;
+    commands[17] = 0x1d;
+    commands[18] = 0xd1;
+    commands[19] = 0xf2;
+    for (int i = 0; i < 9; i++)
+      sleep(1);
+    parse_command(commands);
 
     // commands[16] = 0x01;
     // commands[17] = 0xca;
@@ -457,7 +457,7 @@ void parse_command(uint8_t COM_RX_DATA[30])
       //    __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
       send_data_uart(COM_UART, ack, sizeof(ack));
       perform_file_operations(&__file_operations);
-     if (cmds[0] == 0x1D)
+     if (cmds[0] == 0x1D)// download from flash
       {
         int x, ack[85], fd, ret;
         printf("Data download command received\n"); // if reservation command is received then store the reservation command (do not execute)
@@ -485,6 +485,12 @@ void parse_command(uint8_t COM_RX_DATA[30])
         ack[83] = 0x7e;
         int j;
         // sleep(2);
+        struct file download_file;
+        char pathname[]= "/mnt/fs/fm/";
+        char filename[]="mtd_mainstorage.txt";
+        open_file_flash(download_file, pathname, filename, O_RDONLY);
+        int file_size = get_file_size(pathname, filename);
+        if()
 
         for (j = 0; j < 10; j++)
         {
@@ -680,6 +686,8 @@ static int COM_TASK(int argc, char *argv[])
 {
   int ret = -1;
   uint8_t rx_data[COM_RX_CMD_SIZE] = {'\0'};
+  gpio_write(GPIO_3V3_COM_EN, 0);
+  sleep(1);
   printf("***************************Turning on COM MSN...***************************\n");
   gpio_write(GPIO_3V3_COM_EN, 1);
   usleep(2000000);
@@ -846,7 +854,7 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
   // = write(fd, ack, strlen(ack)); // writing handshake data
   for(i=0;i<=strlen(ack);i++){
     write(fd, &ack[i],1);
-    usleep(3000);
+    usleep(5000);
   }
   if (wr1 < 0)
   {
@@ -1329,6 +1337,7 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
     int off; //= file_seek(&file_ptr, address, SEEK_SET);
     printf("\nSize of file is %d %d\n", size_of_file, address);
     uint8_t update_address = 0;
+     uint32_t readBytes2;
     if (address == 0)
     {
       update_address = 1;
@@ -1337,11 +1346,12 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
       int fd2 = file_open(&fl1, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_WRONLY);
       if (fd2 >= 0)
       {
-        ssize_t readBytes2 = file_read(&fl1, seek_pointer, sizeof(seek_pointer));
+        readBytes2 = file_read(&fl1, seek_pointer, sizeof(seek_pointer));
         if (readBytes2 < 0)
         {
           syslog(LOG_SYSLOG, "Error while reading the seek_pointer.txt in mfm\n");
           file_close(&fl1);
+          readBytes2 = 0;
         }
       }
     }
@@ -1395,12 +1405,12 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
     }
   }
   file_close(&file_ptr);
-  // data_retrieved[read_bytes]= '\0';
-  // printf("\n\n--------------------------Data received----\n");
-  // for (int j = 0; j < sizeof(data_retrieved); j++)
-  // {
-  //   printf("%02x|%c ", data_retrieved[j],data_retrieved1[j]); // Print in hexadecimal format
-  // }
+  data_retrieved[read_bytes]= '\0';
+  printf("\n\n--------------------------Data received----\n");
+  for (int j = 0; j < sizeof(data_retrieved); j++)
+  {
+    printf("%02x|%c ", data_retrieved[j],data_retrieved1[j]); // Print in hexadecimal format
+  }
   printf("\n--------------------**************Size = %zu\n", sizeof(data_retrieved));
 }
 
@@ -1484,6 +1494,7 @@ int main(int argc, FAR char *argv[])
     int fd;
     char *dev_path = EPDM_UART;
    turn_msn_on_off(3, 1);
+
    hand = handshake_MSN(3, data);
    hand = handshake_MSN(2, data);
     sleep(1);
@@ -1527,6 +1538,7 @@ sleep(1);
         // gpio_write(GPIO_MSN3_EN, true);
 
         }
+        
   //  if(hand == 0){
   //   fd = open(dev_path, O_WRONLY);
 
@@ -1547,19 +1559,36 @@ sleep(1);
   }
   else if(strcmp(argv[1],"cam") == 0){
     turn_msn_on_off(2, 0);
-    
-    
      sleep(1);
-    sleep(1);
-    sleep(1);
-    sleep(1);
-    sleep(1);
+    
     turn_msn_on_off(2, 1);
+    
+   gpio_write(GPIO_MSN_5V_EN, true);
+   gpio_write(GPIO_DCDC_5V_EN, true);
+   gpio_write(GPIO_DCDC_MSN_3V3_2_EN, true);
+sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
+    // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
+    uint8_t data2[7] = {0x53,0x0c,0x0a,0x0e,0x01,0x7e};
 
-    uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
-    hand = handshake_MSN(2, data);
-    uint8_t data[240], ret, fd;
+    do{
+      hand = handshake_MSN(2, data);
+    }while(hand<0);
+    hand=0;
+    uint8_t  ret, fd;
+    char data[240];
+    sleep(1);
+    sleep(1);
+
+    // sleep(1);
+     do{
         hand = handshake_MSN(3,data2);
+     }while(hand < 0);
         if(hand == 0){
           syslog(LOG_DEBUG, "Command %s sent\n", data2);
           for(int i =0;i<60;i++){
@@ -1573,6 +1602,13 @@ sleep(1);
         // gpio_write(GPIO_MSN3_EN, true);
 
         }
+        int p=0;
+        do{
+          usleep(10000);
+          p++;
+        }while(p<100000);
+    gpio_write(GPIO_MSN_5V_EN, false);
+   gpio_write(GPIO_DCDC_5V_EN, false);
   }
   else if(strcmp(argv[1],"adcs") == 0){
     turn_msn_on_off(1, 1);
