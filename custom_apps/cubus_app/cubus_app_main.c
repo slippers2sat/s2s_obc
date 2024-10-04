@@ -52,6 +52,7 @@
 #define COM_RX_CMD_SIZE 43
 #define COM_DG_MSG_SIZE 44
 #define NB_LOWERHALFS 1
+#define SIZE_OF_DATA_DOWNLOAD 80
 // #define DELAY_ADC 4000
 // #define ADC_DELAY 6000
 #define HK_DELAY 90
@@ -934,7 +935,7 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
     break;
   case 2:
     strcpy(devpath, CAM_UART);
-    gpio_write(GPIO_MSN2_EN, 1);
+    // gpio_write(GPIO_MSN2_EN, 1);
     printf("Turned on power line for CAM\n");
     break;
   case 3:
@@ -1498,16 +1499,18 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
             flash_data[j + 3] = data_retrieved[j];
             printf("%02x|%c ", data_retrieved[j], data_retrieved[j]); // Print in hexadecimal format
           }
+          loop1 += 1;
           flash_data[0] = 0x53;
           flash_data[1] =  0xac;//file_operations->mcu_id;//TODO check out mcu_id value and set this one
           flash_data[2] = 0x51;
+          flash_data[3] = loop1;
           flash_data[BEACON_DATA_SIZE-2]=0x7e;
           flash_data[BEACON_DATA_SIZE-1]= '\0';
+
           // printf("data sent is %s \n", flash_data);
           send_flash_data(flash_data);
           if (number_of_packets > 0)
             number_of_packets -= 1;
-          loop1 += 1;
           address += size_of_buffer;
         }
         else
@@ -1575,7 +1578,7 @@ void perform_file_operations(struct FILE_OPERATIONS *file_operations)
     printf("-----Trucate text file called \n");
     break;
   case 0x1d:
-    download_file_from_flash(file_operations, data_retrieved, 81);
+    download_file_from_flash(file_operations, data_retrieved, SIZE_OF_DATA_DOWNLOAD);
     printf("*****Download command received**************\nsize:%d\n***********************\ncmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
            sizeof(data_retrieved), file_operations->cmd, file_operations->select_flash, file_operations->select_file, file_operations->rsv_table[1], file_operations->rsv_table[0], file_operations->filepath,
            file_operations->address[3], file_operations->address[2], file_operations->address[1], file_operations->address[0],
@@ -1616,7 +1619,7 @@ Declaring structure necessary for collecting HK data
  ****************************************************************************/
 int main(int argc, FAR char *argv[])
 { int hand=5;
-
+  
   // Setup();//TODO this setup is used to create a text file first if not created. the process will be handled by storage app
   // RUN_HK();
 
@@ -1624,58 +1627,59 @@ int main(int argc, FAR char *argv[])
   if(strcmp(argv[1],"epdm") == 0){
     int fd;
     char *dev_path = EPDM_UART;
-   turn_msn_on_off(3, 0);
+  //  turn_msn_on_off(3, 0);
     sleep(1);
    sleep(1);
    turn_msn_on_off(3, 1);
   sleep(1);
   sleep(1);
 
-  //  hand = handshake_MSN(3, data);
+   hand = handshake_MSN(3, data);
   //  hand = handshake_MSN(2, data);
    
    uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
-   turn_msn_on_off(2, 0);
-    sleep(1);
-    sleep(1);
-    turn_msn_on_off(2, 1);
-    sleep(1);
-    sleep(1);
-    sleep(1);
+  //   sleep(1);
+  //   sleep(1);
+  //   sleep(1);
+  //   sleep(1);
 
 
-    do{
-      hand = handshake_MSN(2, data);
-    }while(hand<0);
-    hand=0;
+
+  //   do{
+  //     hand = handshake_MSN(2, data);
+  //   }while(hand<0);
+  //   hand=0;
     uint8_t  ret;
-    char data[240];
-    sleep(1);
-    sleep(1);
+  //   char data[240];
+  //   sleep(1);
+  //   sleep(1);
 
-    // sleep(1);
+  //   // sleep(1);
      do{
         hand = handshake_MSN(3,data2);
      }while(hand < 0);
-        if(hand == 0){
+  //       if(hand == 0){
           syslog(LOG_DEBUG, "Command %s sent\n", data2);
-          for(int i =0;i<60;i++){
-              fd = open(EPDM_UART, O_RDONLY);
-              ret = read(fd, data, sizeof(data));
+          fd = open(EPDM_UART, O_RDONLY);
+          uint8_t data1, data21;
+          do{
+              data21 = data1;
+              ret = read(fd, &data1, sizeof(data1));
               if(ret >=0){
-                syslog(LOG_DEBUG, "Data received : %s\n",data);
+                syslog(LOG_DEBUG, "%d ",data1);
               }
-              close(fd);
-          }
-        // gpio_write(GPIO_MSN3_EN, true);
+              
+          }while(data1!= 0xd9 && data21 != 0xff);
+          close(fd);
+  //       // gpio_write(GPIO_MSN3_EN, true);
 
-        }
-        int p=0;
-        do{
-          usleep(10000);
-          p++;
-        }while(p<100000);
-        turn_msn_on_off(3, 0);
+  //       }
+  //       int p=0;
+  //       do{
+  //         usleep(10000);
+  //         p++;
+  //       }while(p<100000);
+  //       turn_msn_on_off(3, 0);
   }
   else if(strcmp(argv[1],"cam") == 0){
     turn_msn_on_off(2, 0);
@@ -1724,19 +1728,20 @@ int main(int argc, FAR char *argv[])
 
   }
   else if(strcmp(argv[1],"adcs") == 0){
+    turn_msn_on_off(1, 0);
 
     sleep(1);
     sleep(1);
-    sleep(1);
-    sleep(1);sleep(1);
-    sleep(1);
-    sleep(1);
+    turn_msn_on_off(1, 1);
+
     sleep(1);
     // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
-    uint8_t data2[7] = {0x53,0x0c,0x0a,0x0e,0x01,0x7e};
+    uint8_t data2[7] = {0x53,0x0a,0x0d,0x0c,0x01,0x7e};
 
     do{
+      hand = handshake_MSN(1, data);
       hand = handshake_MSN(2, data);
+
     }while(hand<0);
     hand=0;
     uint8_t  ret, fd;
@@ -1746,15 +1751,16 @@ int main(int argc, FAR char *argv[])
 
     // sleep(1);
      do{
-        hand = handshake_MSN(3,data2);
+        hand = handshake_MSN(1,data2);
      }while(hand < 0);
+     uint8_t data1;
         if(hand == 0){
           syslog(LOG_DEBUG, "Command %s sent\n", data2);
-          for(int i =0;i<60;i++){
+          for(int i =0;i<10;i++){
               fd = open(EPDM_UART, O_RDONLY);
-              ret = read(fd, data, sizeof(data));
+              ret = read(fd, &data1, 1);
               if(ret >=0){
-                syslog(LOG_DEBUG, "Data received : %s\n",data);
+                syslog(LOG_DEBUG, "Data received : %d\n",data1);
               }
               close(fd);
           }
@@ -1766,7 +1772,7 @@ int main(int argc, FAR char *argv[])
           usleep(10000);
           p++;
         }while(p<100000);
-    turn_msn_on_off(2, 0);
+    turn_msn_on_off(1, 0);
   }
 
 
@@ -2181,23 +2187,28 @@ int main(int argc, FAR char *argv[])
 // //COM
 int turn_msn_on_off(uint8_t subsystem, uint8_t state)
 { 
-  // gpio_write(GPIO_MSN2_EN, true);
+  gpio_write(GPIO_MSN3_EN, false);
 
-  // gpio_write(GPIO_DCDC_MSN_3V3_2_EN, true);
+  gpio_write(GPIO_DCDC_MSN_3V3_2_EN, state);
+  stm32_gpiowrite(GPIO_MSN_3V3_EN, state);
+
+    gpio_write(GPIO_MSN1_EM_EN, false);
+    gpio_write(GPIO_MSN2_EN, false);
+    
+    // gpio_write(GPIO_MSN_3V3_EM_EN, state);
+    // gpio_write(GPIO_DCDC_MSN_3V3_2_EN, state);
 
   switch (subsystem)
   {
   case 1:
     printf("turning ADCS mission state: %d\n", state);
-    gpio_write(GPIO_MSN1_EN, false);
-    gpio_write(GPIO_MSN1_EN, state);
+    gpio_write(GPIO_MSN1_EM_EN, state);
     sleep(1);
     gpio_write(GPIO_MSN_5V_EN, state);
     gpio_write(GPIO_DCDC_5V_EN, state);
     break;
   case 2:
     printf("Turning CAM mission state: %d\n", state);
-    gpio_write(GPIO_MSN2_EN, false);
     sleep(1);
     gpio_write(GPIO_MSN2_EN, state);
     gpio_write(GPIO_MSN_5V_EN, state);
@@ -2205,9 +2216,8 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
     break;
   case 3:
     printf("Turning EPDM mission state: %d\n", state);
-    gpio_write(GPIO_MSN2_EN, false);
-    sleep(1);
     gpio_write(GPIO_MSN3_EN, state);
+    sleep(1);
     break;
   default:
     printf("Wrong subsystem selected\n");

@@ -186,8 +186,9 @@ int stm32_bringup(void)
   stm32_gpiowrite(GPIO_MUX_EN,  false);
   stm32_gpiowrite(GPIO_SFM_MODE, false);
   // stm32_gpiowrite(GPIO_3V3_COM_EN,true);
-  stm32_gpiowrite(GPIO_MSN3_EN, true);
-    // gpio_write(GPIO_MSN2_EN, 1);
+  // stm32_gpiowrite(GPIO_MSN3_EN, true);
+  // gpio_write(GPIO_MSN2_EN, 1);
+  stm32_gpiowrite(GPIO_MSN1_EM_EN, false);
   stm32_gpiowrite(GPIO_MSN_3V3_EN, true);
   stm32_gpiowrite(GPIO_DCDC_MSN_3V3_2_EN, true);
   /* Configure SPI-based devices */
