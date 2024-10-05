@@ -65,7 +65,7 @@ uint8_t beacon_status = 0;
 uint8_t COM_BUSY = 0;
 static struct work_s work_beacon;
 uint8_t beacon_type = 0;
-static bool g_commander_task_started;
+static bool g_commander_task_started, g_wdog_task_started;
 uint8_t data[7] = {0x53, 0x01, 0x02, 0x03, 0x04, 0x7e};
 uint8_t Msn_Start_Cmd[7] = {0x53, 0xad, 0xba, 0xcd, 0x9e, 0x7e};
 // uint8_t ACK[7] = {0x53, 0xaa, 0xcc, 0xaa, 0xcc, 0x7e};
@@ -1604,11 +1604,55 @@ void Antenna_Deployment();
 Declaring structure necessary for collecting HK data
 */
 
+//WDG_TASK
+
+// void WDG_TASK(){
+//   bool state = true;
+//   uint32_t counter=0;
+//   for(;;){
+//     counter++;
+//     gpio_write(GPIO_WD_WDI, state);
+//     state = !state; 
+//     if(counter >= 1000){
+//       while(1){
+
+//       }
+//     }
+//     usleep(50);
+//   }
+// }
+
 /****************************************************************************
  * Name: main
  ****************************************************************************/
 int main(int argc, FAR char *argv[])
 { int hand=5;
+//watchdog code
+  // {
+  //    if (g_wdog_task_started)
+  //   {
+  //     printf("[Watchdog TASK] Task already started.\n");
+  //     return EXIT_SUCCESS;
+  //   }
+  //   else
+  //   {
+  //     int retval = task_create("WATCHDOG_TASK", 50, 4096, WDG_TASK, NULL);
+  //     if (retval < 0)
+  //     {
+  //       printf("unable to create WATCHDOG_TASK task\n");
+  //       for (int i = 0; i < 4; i++)
+  //       {
+  //         retval = task_create("WATCHDOG_TASK", 100, 4096, WDG_TASK, NULL);
+  //         if (retval >= 0)
+  //         {
+  //           break;
+  //           return 0;
+  //         }
+  //       }
+  //       return -1;
+  //     }
+  //   }
+  // }
   
   // Setup();//TODO this setup is used to create a text file first if not created. the process will be handled by storage app
   // RUN_HK();
@@ -1690,9 +1734,6 @@ int main(int argc, FAR char *argv[])
     
     turn_msn_on_off(2, 1);
     sleep(1);
-    sleep(1);
-    sleep(1);
-    sleep(1);
     // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
     uint8_t data2[7] = {0x53,0x0c,0x0a,0x0e,0x01,0x7e};
 
@@ -1702,32 +1743,59 @@ int main(int argc, FAR char *argv[])
     hand=0;
     uint8_t  ret, fd;
     char data[240];
-    sleep(1);
-    sleep(1);
+    sleep(2);
 
     // sleep(1);
      do{
         hand = handshake_MSN(3,data2);
      }while(hand < 0);
-        if(hand == 0){
+        // if(hand == 0)
+        {
           syslog(LOG_DEBUG, "Command %s sent\n", data2);
-          for(int i =0;i<60;i++){
-              fd = open(EPDM_UART, O_RDONLY);
-              ret = read(fd, data, sizeof(data));
-              if(ret >=0){
-                syslog(LOG_DEBUG, "Data received : %s\n",data);
-              }
-              close(fd);
+         
+          int p=0;
+          uint8_t data3,data4;
+        uint32_t counter1 = 0;
+        uint8_t cam[3500]={'\0'};
+        int fd2 = open(CAM_UART, O_RDONLY);
+        // sleep(10);
+
+        while(1){
+          data4 =data3;
+          ret = read(fd2, &data3, 1);
+          syslog(LOG_DEBUG,"%02x ", data3);
+          cam[counter1] = data3;
+          if(data4 == 0xff && data3 == 0xd9){
+            break;
           }
-        // gpio_write(GPIO_MSN3_EN, true);
+          // if(cam[counter1-1] == 0xff && cam[counter1] ==0xd9){
+          //   // syslog(LOG_DEBUG," %02x %02x\n",data1[counter1 -1], data1[counter1]);
+          //   break;
+          // }
+        // if(counter1 >2500) break;
+        counter1++;
+        // break;
+        }
+        cam[counter1]='\0';
+        close(fd2);
+        syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n",counter1);
+        struct file fptr;
+        p= open_file_flash(&fptr, MFM_MAIN_STRPATH, "/cam.txt", O_CREAT | O_WRONLY | O_APPEND);
+        if(p>=0){
+          if (file_write(&fptr, cam, strlen(counter1))){
+            syslog(LOG_DEBUG,"Writing data to flash sucessful");
+          }
+          
+        }
+        // else{
+        //   syslog(LOG_DEBUG, "Cannot open the file named");
+        // }
+        file_close(&fptr);
+        gpio_write(GPIO_MSN3_EN, true);
 
         }
-        int p=0;
-        do{
-          usleep(10000);
-          p++;
-        }while(p<100000);
-    turn_msn_on_off(2, 0);
+        
+    // turn_msn_on_off(2, 0);
 
   }
   else if(strcmp(argv[1],"adcs") == 0){

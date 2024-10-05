@@ -52,6 +52,8 @@
  ************************************************************************************/
  void board_peripheral_reset(int ms)
 {
+	// stm32_configgpio(GPIO_WD_WDI);
+
 	// Setting the kill switch control gpio
 
 	stm32_gpiowrite(GPIO_KILL_SW_EN, 0);
