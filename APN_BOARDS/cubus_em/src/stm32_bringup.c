@@ -41,6 +41,13 @@
 #include "cubus_mtd.h"
 #endif
 
+#ifdef CONFIG_TIMER
+  ret = stm32_timer_initialize("/dev/timer0", 0);
+  if(ret < 0){
+    syslog(LOG_ERR, "Error : Failed to initialize timer driver: %d \n", ret);
+  }
+#endif
+
 #ifndef CONFIG_STM32F427A_FLASH_MINOR
 #define CONFIG_STM32F427A_FLASH_MINOR 0
 #endif
@@ -458,27 +465,34 @@ int stm32_bringup(void)
 #endif
 
 #ifdef CONFIG_STM32_IWDG
-  // struct watchdog_lowerhalf_s lower;
+// struct watchdog_lowerhalf_s lower;
 
-  //   / Allocate the lower-half data structure /
-  //   lower = (FAR struct watchdog_lowerhalf_s)kmm_zalloc(sizeof(struct watchdog_lowerhalf_s));
-  //   if (!lower)
-  //   {
-  //     return -ENOMEM;
-  //   }
-  //     struct watchdog_ops_s g_my_watchdog_ops;
-  //   /* Initialize the lower-half structure */
-  //   lower->ops = &g_my_watchdog_ops;
-  // watchdog_register("/dev/watchdog0", &lower);
+//   / Allocate the lower-half data structure /
+//   lower = (FAR struct watchdog_lowerhalf_s)kmm_zalloc(sizeof(struct watchdog_lowerhalf_s));
+//   if (!lower)
+//   {
+//     return -ENOMEM;
+//   }
+//     struct watchdog_ops_s g_my_watchdog_ops; 
+//   /* Initialize the lower-half structure */
+//   lower->ops = &g_my_watchdog_ops;
+// watchdog_register("/dev/watchdog0", &lower);
 
-  stm32_iwdginitialize("/dev/iwdg0", 20000000);
+stm32_iwdginitialize("/dev/iwdg0", 20000000);
 #endif
 
 // stm32_serial_dma_setup();
 // stm32_serial_dma_initialize();
 // write();
 #ifdef CONFIG_STM32_WWDG
-  stm32_wwdginitialize("/dev/wwdg0");
+stm32_wwdginitialize("/dev/wwdg0");
+#endif
+
+// stm32_serial_dma_setup();
+// stm32_serial_dma_initialize();
+// write();
+#ifdef CONFIG_STM32_WWDG
+  stm32_wwdginitialize("/dev/watchdog0");
 #endif
   return 0;
 }

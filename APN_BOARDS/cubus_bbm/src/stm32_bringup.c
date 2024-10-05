@@ -77,6 +77,11 @@
 // #include <nuttx/arch/arm/src/stm32/stm32_wdg.h>
 #endif
 
+#if defined CONFIG_RTC
+  #include <nuttx/timers/rtc.h>
+  #include "stm32_rtc.h"
+#endif
+
 #if defined(CONFIG_STM32_SPI2)
 struct spi_dev_s *spi2;
 #endif

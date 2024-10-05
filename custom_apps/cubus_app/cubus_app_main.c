@@ -342,7 +342,6 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
   if(COM_RX_DATA[0] == 0x53){//SEND 85 BYTES BACK
     if (COM_RX_DATA[0] == 0x53 & COM_RX_DATA[1] == 0xac & COM_RX_DATA[2] == 0x04)
     {
-      // gpio_write(GPIO_COM_4V_EN, 1);
       if(COM_RX_DATA[4] ==0x00  & COM_RX_DATA[5] == 0xdd)
       {
       printf("\n ********************Digipeater mode turned off********************\n");
@@ -352,19 +351,10 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       printf("\n ********************Digipeater mode turned on********************\n");
       digipeating = 1;
       }
-      {
         for(int loop1=0; loop1 < 43; loop1++){
           ack[loop1] = COM_RX_DATA[loop1];
         }
-        // ack[2] =0x5
-      }
-      
       send_data_uart(COM_UART, ack, sizeof(ack));
-
-      // send_
-      // sleep(3);
-      // gpio_write(GPIO_COM_4V_EN, 0);
-
       return 33;
     }
   }
@@ -1624,7 +1614,20 @@ int main(int argc, FAR char *argv[])
   // RUN_HK();
 
   /*TODO : REMOVE LATER Independent testing*/
-  if(strcmp(argv[1],"epdm") == 0){
+  if(strcmp(argv[1],"reset") == 0){
+    int fd;
+    syslog(LOG_DEBUG, "OBC reset command received\n***********OBC will reset in 10 seconds******\n");
+    do{
+      fd++;
+      usleep(1000);
+    }while (fd < 1000);
+
+    {
+      gpio_write(GPIO_GBL_RST,true);
+    }
+    
+  }
+  else if(strcmp(argv[1],"epdm") == 0){
     int fd;
     char *dev_path = EPDM_UART;
   //  turn_msn_on_off(3, 0);
