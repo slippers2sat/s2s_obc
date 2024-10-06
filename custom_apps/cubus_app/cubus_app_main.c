@@ -44,6 +44,17 @@
  * COM TASK task
  ****************************************************************************/
 
+/*
+*****************************************
+*/
+
+// TODO uncomment below for logging
+//  #define LOGGING
+
+/*
+*****************************************
+*/
+
 // Macro Definition
 #define COM_DATA_SIZE 44
 #define BEACON_DELAY 90
@@ -99,6 +110,7 @@ CRITICAL_FLAGS test_flags;
 struct sensor_accel imu_acc_data;
 struct sensor_gyro imu_gyro_data;
 struct mpu6500_imu_msg raw_imu;
+struct MISSION_STATUS mission_status;
 
 char buffer[255] = {'\0'};
 
@@ -209,17 +221,17 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   uint8_t HEADER, MCU_ID;
 
   uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x7e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
-  printf("waiting for telecommands from COM\n");
+  syslog(LOG_DEBUG, "waiting for telecommands from COM\n");
   int ret;
   // ret = 1;
   // TODO remove the comment line below and comment the upper line to int ret
   ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
-  printf("Received ret as %d and value :%s\n", ret, COM_RX_DATA);
+  syslog(LOG_DEBUG, "Received ret as %d and value :%s\n", ret, COM_RX_DATA);
   if (ret < 0)
   {
-    printf("data not received from COM\n NACK sending\n");
+    syslog(LOG_DEBUG, "data not received from COM\n NACK sending\n");
     send_data_uart(COM_UART, NACK, 7);
-    printf("data not received from COM\n NACK Sent\n");
+    syslog(LOG_DEBUG, "data not received from COM\n NACK Sent\n");
     return ret;
   }
   else
@@ -229,7 +241,7 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
     parse_command(COM_RX_DATA);
 
     uint8_t commands[COM_DATA_SIZE] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
-    printf("-------------parse command starting-------------\n");
+    syslog(LOG_DEBUG, "-------------parse command starting-------------\n");
 
     // // Check whether the received data in uart_com has initial 0x00 value or not if the initial is 0x00 then MCU_ID is supposed to be there at index 16, otherwise it is in index 17
     // parse_command(commands);
@@ -316,9 +328,9 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
 
     return 0; // todo remove this part
   }
-  printf("Value of digipeating is %d %d\n", digipeating, COM_RX_DATA[HEADER]);
+  syslog(LOG_DEBUG, "Value of digipeating is %d %d\n", digipeating, COM_RX_DATA[HEADER]);
 
-  printf("value of ret is %d\ndata received from COM\n sending ACK\n", ret);
+  syslog(LOG_DEBUG, "value of ret is %d\ndata received from COM\n sending ACK\n", ret);
   sleep(3);
 
   return ret;
@@ -331,34 +343,58 @@ void incorrect_command(uint8_t *ack)
   ack[4] = 0x63;
   ack[5] = 0x62;
   send_data_uart(COM_UART, ack, sizeof(ack));
-  printf("The supplied command is incorrect");
+  syslog(LOG_DEBUG, "The supplied command is incorrect");
   return;
 }
 
 void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
 {
   uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x7e};
+  syslog(LOG_DEBUG, "command received is :");
+  for (int i = 0; i < COM_DATA_SIZE; i++)
+  {
+    syslog(LOG_DEBUG, "%d ", COM_RX_DATA[i]);
+  }
   ack[83] = 0x7e;
   ack[82] = 0x7e;
   if (COM_RX_DATA[0] == 0x53)
   { // SEND 85 BYTES BACK
-    if (COM_RX_DATA[0] == 0x53 & COM_RX_DATA[1] == 0xac & COM_RX_DATA[2] == 0x04)
+    // 53 0A 2B 53 02 53 digipeating format
+    if (digipeating == 1 && COM_RX_DATA[1] == 0x0a && COM_RX_DATA[2] == 0x2b && COM_RX_DATA[3] == 0x53 && COM_RX_DATA[4] == 0x02 && COM_RX_DATA[5] == 0x53)
     {
-      if (COM_RX_DATA[4] == 0x00 & COM_RX_DATA[5] == 0xdd)
-      {
-        printf("\n ********************Digipeater mode turned off********************\n");
-        digipeating = 0;
+      send_data_uart(COM_UART, COM_RX_DATA, sizeof(COM_RX_DATA));
+      return 33;
+    }
+    else if (COM_RX_DATA[0] == 0x53 & COM_RX_DATA[1] == 0xac & COM_RX_DATA[2] == 0x04)
+    {
+      if (COM_RX_DATA[3] == 0X02 & COM_RX_DATA[4] == 0XFC & COM_RX_DATA[5] == 0XEE)
+      { // FALSE COMMAND
+        // uint8_t ack1[] = {0x53, 0xac, 0x04, 0x02, 0xFC, 0xEE};
+        ack[3] = 0x02;
+        ack[4] = 0xfc;
+        ack[5] = 0xee;
+
+        // send_data_uart(COM_UART, ack1, sizeof(ack1));
       }
-      else if (COM_RX_DATA[4] == 0x01 & COM_RX_DATA[5] == 0xdd)
+      else
       {
-        printf("\n ********************Digipeater mode turned on********************\n");
-        digipeating = 1;
-      }
-      for (int loop1 = 0; loop1 < 43; loop1++)
-      {
-        ack[loop1] = COM_RX_DATA[loop1];
+        if (COM_RX_DATA[4] == 0x00 & COM_RX_DATA[5] == 0xdd)
+        {
+          syslog(LOG_DEBUG, "\n ********************Digipeater mode turned off********************\n");
+          digipeating = 0;
+        }
+        else if (COM_RX_DATA[4] == 0x01 & COM_RX_DATA[5] == 0xdd)
+        {
+          syslog(LOG_DEBUG, "\n ********************Digipeater mode turned on********************\n");
+          digipeating = 1;
+        }
+        for (int loop1 = 0; loop1 < 43; loop1++)
+        {
+          ack[loop1] = COM_RX_DATA[loop1];
+        }
       }
       send_data_uart(COM_UART, ack, sizeof(ack));
+
       return 33;
     }
   }
@@ -368,15 +404,15 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
   }
   else if (COM_RX_DATA[0] == 0x72)
   {
-    printf("parse command starting\n");
+    syslog(LOG_DEBUG, "parse command starting\n");
 
     for (int j = 0; j < sizeof(COM_RX_DATA); j++)
     {
-      printf("%02x|%c ,", COM_RX_DATA[j], COM_RX_DATA[j]);
+      syslog(LOG_DEBUG, "%02x|%c ,", COM_RX_DATA[j], COM_RX_DATA[j]);
     }
     if (COM_RX_DATA[0] == 0X53 && COM_RX_DATA[1] == 0xac && COM_RX_DATA[2] == 0X04)
     {
-      printf("-----------------------Disabled digipeater mission\n");
+      syslog(LOG_DEBUG, "-----------------------Disabled digipeater mission\n");
     }
     else
     {
@@ -392,7 +428,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         MCU_ID = COM_RX_DATA[HEADER];
       }
 
-      printf("**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
+      syslog(LOG_DEBUG, "**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
              HEADER, COM_RX_DATA[HEADER], COM_RX_DATA[HEADER + 1], COM_RX_DATA[HEADER + 2]);
 
       // uint nack
@@ -402,13 +438,13 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       cmds[0] = (uint8_t)COM_RX_DATA[HEADER + 1];
       cmds[1] = (uint8_t)COM_RX_DATA[HEADER + 2];
       cmds[2] = (uint8_t)COM_RX_DATA[HEADER + 3];
-      printf("**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
+      syslog(LOG_DEBUG, "**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
              HEADER, cmds[0], cmds[0 + 1], cmds[0 + 2]);
 
       // else if (cmds[0] == 0x53 & cmds[1] == 0xac & cmds[2] == 0x04)
       // {
       //   // gpio_write(GPIO_COM_4V_EN, 1);
-      //   printf("\n ********************Digipeater mode turned off********************\n");
+      //   syslog(LOG_DEBUG, "\n ********************Digipeater mode turned off********************\n");
       //   digipeating = 0;
       //   ack[0]=0x53;
       //   ack[1] = 0xac;
@@ -426,13 +462,13 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       // }
       // else if (cmds[0] == 0xdf & cmds[1] == 0xab & cmds[2] == 0xd1)
       // {
-      //   printf("\n ********************Digipeater mode turned on : can receive digipeating message********************\n");
+      //   syslog(LOG_DEBUG, "\n ********************Digipeater mode turned on : can receive digipeating message********************\n");
       //   digipeating = 0;
       //   send_data_uart(COM_UART, COM_RX_DATA, sizeof(COM_RX_DATA));
 
       //   return 33;
       // }
-      printf("MCU ID %d |%02x\n", cmds[0]);
+      syslog(LOG_DEBUG, "MCU ID %d |%02x\n", cmds[0]);
       switch (MCU_ID)
       {
       case OBC_MCU: /*
@@ -440,7 +476,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                     */
 
       { // __file_operations.cmd = COM_RX_DATA[HEADER + 1];
-        printf("OBC MCU ID has been received\n");
+        syslog(LOG_DEBUG, "OBC MCU ID has been received\n");
         // break; // TO remove this later
         if (cmds[0] == 0xCA | cmds[0] == 0x1D)
         {
@@ -478,14 +514,14 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             __file_operations.mcu_id = 0xad;
 
             strcat(__file_operations.filepath, "/flags.txt");
-            printf("Selected file is %s\n", __file_operations.select_file);
+            syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
           }
           else if ((cmds[2] == 0xF2))
           {
             __file_operations.mcu_id = 218;
             __file_operations.select_file = SATELLITE_HEALTH;
             strcat(__file_operations.filepath, "/satHealth.txt");
-            printf("Selected file is %s\n", __file_operations.select_file);
+            syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
           }
           else if ((cmds[2] == 0xF3))
           {
@@ -537,80 +573,12 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           __file_operations.number_of_packets[0] = COM_RX_DATA[HEADER + 10];
           __file_operations.number_of_packets[1] = COM_RX_DATA[HEADER + 11];
 
-          printf("mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
+          syslog(LOG_DEBUG, "mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
                  __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
                  __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
                  __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
           send_data_uart(COM_UART, ack, sizeof(ack));
           perform_file_operations(&__file_operations);
-          //  if (cmds[0] == 0x1D)// download from flash
-          //   {
-          //     int x, ack[85], fd, ret;
-          //     printf("Data download command received\n"); // if reservation command is received then store the reservation command (do not execute)
-
-          //     ack[0] = 0x53;
-          //     // ack[1] = 0x0e;
-          //     if (cmds[2] == 0xf6)
-          //     {
-          //       ack[1] = 0x0b;
-          //     }
-          //     else if (cmds[2] == 0xf7)
-          //     {
-          //       ack[1] = 0x0d;
-          //     }
-          //     else if (cmds[2] == 0xf5)
-          //     {
-          //       ack[1] = 0x0c;
-          //     }
-
-          //     ack[2] = 0x51;
-          //     for (int i = 3; i < 83; i++)
-          //     {
-          //       ack[i] = i;
-          //     }
-          //     ack[83] = 0x7e;
-          //     int j;
-          //     // sleep(2);
-          //     // struct file download_file;
-          //     // char pathname[]= "/mnt/fs/fm/";
-          //     // char filename[]="mtd_mainstorage.txt";
-          //     // open_file_flash(download_file, pathname, filename, O_RDONLY);
-          //     // int file_size = get_file_size(pathname, filename);
-          //     // if()
-
-          //     // for (j = 0; j < 10; j++)
-          //     // {
-          //     //   printf("\n  Data download packet no %d\n", j + 1);
-          //     //   ack[82] = j + 1;
-          //     //   ack[81] = j + 1;
-
-          //     //   fd = open(COM_UART, O_WRONLY);
-          //     //   if (fd < 0)
-          //     //   {
-          //     //     printf("unable to open: %s\n", COM_UART);
-          //     //     return -1;
-          //     //   }
-          //     //   // send_data_uart(COM_UART, ack, sizeof(ack));
-          //     //   gpio_write(GPIO_COM_4V_EN, 1);
-          //     //   printf("Turning on 4V dcdc  line..\n");
-          //     //   gpio_write(GPIO_DCDC_4V_EN, 1);
-          //     //   printf("Turning on 4v RF line..\n");
-          //     //   sleep(1);
-          //     //   ret = write(fd, ack, BEACON_DATA_SIZE);
-          //     //   x = 0;
-          //     //   for (int i = 0; i < 85; i++)
-          //     //   {
-          //     //     printf("%02x ", ack[i]);
-          //     //   }
-          //     //   close(fd);
-          //     //   printf("Turning off 4v RF line..\n");
-          //     //   gpio_write(GPIO_COM_4V_EN, 0);
-          //     //   printf("Turning off 4v dcdc EN line..\n");
-          //     //   gpio_write(GPIO_DCDC_4V_EN, 0);
-          //     //   printf("\n EPDM data o %d sent success\n ******Sleeping *******\n ", j + 1);
-          //     // }
-          //     sleep(1);
-          //   }
         }
 
         /*
@@ -620,7 +588,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         {
           send_data_uart(COM_UART, ack, sizeof(ack));
 
-          printf("--------- kill switch deactivated\n");
+          syslog(LOG_DEBUG, "--------- kill switch deactivated\n");
         }
 
         /*
@@ -630,7 +598,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         {
           send_data_uart(COM_UART, ack, sizeof(ack));
 
-          printf("---------kill switch activated\n");
+          syslog(LOG_DEBUG, "---------kill switch activated\n");
         }
       }
       /* code */
@@ -639,18 +607,18 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       case COM_MCU:
         // Command to ENABLE Digipeater misison
         {
-          printf("COM MCU ID has been received\n");
+          syslog(LOG_DEBUG, "COM MCU ID has been received\n");
           if (cmds[0] == 0xDF && cmds[1] == 0xAB && cmds[2] == 0xD1)
           {
 
-            printf("--------Enabled  digipeater mission\n");
+            syslog(LOG_DEBUG, "-------- Digipeater mission turned ON---------\n");
           }
 
           // Command to DISABLE Digipeater misison
           else if (cmds[0] == 0xFD && cmds[1] == 0xBA && cmds[2] == 0xD0)
           {
             incorrect_command(ack);
-            printf("-----------------------Disabled digipeater mission\n");
+            syslog(LOG_DEBUG, "-----------------------Digipeater mission turned OFF---------------\n");
           }
         }
         /* code */
@@ -659,21 +627,20 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       case ADCS_MCU:
         // Command to DISABLE adcs(MSN1) misison
         {
-          printf("ADCS MCU ID has been received\n");
+          syslog(LOG_DEBUG, "ADCS MCU ID has been received\n");
           if (cmds[0] == 0xA0 && cmds[1] == 0x53 && cmds[2] == 0xCE)
           {
-            turn_msn_on_off(1, 1);
-
             send_data_uart(COM_UART, ack, sizeof(ack));
-            printf("------------ENable  adcs mission\n");
-            turn_msn_on_off(1, 0);
+            syslog(LOG_DEBUG, "------------  ADCS mission turned on (command received using radio frequency)--------------\n");
+            adcs_operation();
+            syslog(LOG_DEBUG, "------------  ADCS mission turned off (command received using radio frequency) --------------\n");
           }
           else
           {
             incorrect_command(ack);
             ack[1] = ack[1] >> 4 | (ack[1] << 4 & 0xf0);
             send_data_uart(COM_UART, ack, sizeof(ack));
-            printf("------------Incorrect command-----\n");
+            syslog(LOG_DEBUG, "----------------Incorrect command for ADCS mission---------------\n");
           }
         }
         /* code */
@@ -682,16 +649,17 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       case CAM_MCU:
         // Command to ENABLE/DISABLE or run camera(MSN2) mission
         {
-          printf("CAM MCU ID has been received\n");
+          syslog(LOG_DEBUG, "CAM MCU ID has been received\n");
           if (cmds[0] == 0xCC && cmds[1] == 0x5E && cmds[2] == 0xBD)
           {
             turn_msn_on_off(2, 1);
-            printf("------------------------  cam mission turned on\n");
+            syslog(LOG_DEBUG, "------------------------  cam mission turned on (Command received from COM using RF)------------------\n");
 
             send_data_uart(COM_UART, ack, sizeof(ack));
-
+            cam_operation();
             turn_msn_on_off(2, 0);
-            printf("------------------------  cam mission turned off\n");
+
+            syslog(LOG_DEBUG, "------------------------  cam mission turned off(Command received from COM using RF)--------------------\n");
           }
           else
           {
@@ -699,7 +667,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
 
             ack[1] = ack[1] >> 4 | (ack[1] << 4 & 0xf0);
             send_data_uart(COM_UART, ack, sizeof(ack));
-            printf("------------Incorrect command\n");
+            syslog(LOG_DEBUG, "------------Incorrect command\n");
           }
         }
         /* code */
@@ -708,56 +676,23 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       case EPDM_MCU:
         // Command to ENABLE/DISABLE or run epdm(MSN3) mission
         {
-          printf("EPDM MCU ID has been received\n");
+          syslog(LOG_DEBUG, "EPDM MCU ID has been received\n");
           if (cmds[0] == 0xEC && cmds[1] == 0xCF && cmds[2] == 0xCF)
           {
             send_data_uart(COM_UART, ack, sizeof(ack));
 
-            printf("----------------EPDM MCU ID has been activated\n");
-            int fd;
-            char *dev_path = EPDM_UART;
-            turn_msn_on_off(3, 1);
-            //   int hand = handshake_MSN(3, data);
-            //   uint8_t data2[] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
-            //   sleep(1);
-            //   sleep(1);
-            //   sleep(1);
-            //   sleep(1);
-            //   sleep(1);
-            // sleep(1);
-            //   sleep(1);
-            //   sleep(1);
-            //   sleep(1);
-            //   sleep(1);
-            // sleep(1);
-            //   sleep(1);
-            //   sleep(1);
-            //   sleep(1);
-            //   sleep(1);
-            //   uint8_t data[90], ret;
-            //   hand = handshake_MSN(3,data2);
-            //   if(hand == 0){
-            //     syslog(LOG_DEBUG, "Command %s sent\n", data2);
-            //     fd = open(EPDM_UART, O_RDONLY);
-            //     ret = read(fd, data, sizeof(data));
-            //     if(ret >=0){
-            //       syslog(LOG_DEBUG, "Data received : %s\n",data);
-            //     }
-            //     close(fd);
-            //   // gpio_write(GPIO_MSN3_EN, true);
-
-            //   }
+            syslog(LOG_DEBUG, "----------------EPDM  turned on ------------------\n");
+            epdm_operation();
+            syslog(LOG_DEBUG, "----------------EPDM  turned off -----------------\n");
           }
           else
           {
             incorrect_command(ack);
-
             ack[1] = ack[1] >> 4 | (ack[1] << 4 & 0xf0);
             send_data_uart(COM_UART, ack, sizeof(ack));
-            printf("------------Incorrect command");
+            syslog(LOG_DEBUG, "------------Incorrect command received for EPDM-----------\n");
           }
         }
-        turn_msn_on_off(3, 0);
         /* code */
         break;
 
@@ -770,7 +705,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       // for (int i = 0; i < BEACON_DATA_SIZE; i++)
       // {
       //     send_data_uart(COM_UART, ack[i], 1);
-      //     printf("%02x ",ack[i]);
+      //     syslog(LOG_DEBUG, "%02x ",ack[i]);
       // }
     }
   }
@@ -782,34 +717,34 @@ static int COM_TASK(int argc, char *argv[])
   uint8_t rx_data[COM_RX_CMD_SIZE] = {'\0'};
   gpio_write(GPIO_3V3_COM_EN, 0);
   sleep(1);
-  printf("***************************Turning on COM MSN...***************************\n");
+  syslog(LOG_DEBUG, "***************************Turning on COM MSN...***************************\n");
   gpio_write(GPIO_3V3_COM_EN, 1);
   usleep(2000000);
   ret = handshake_COM(data); // tx rx data is flushed before closing the file
   usleep(PRINT_DELAY * 100);
   if (ret == 0)
   {
-    printf("Successful handshake with COM\n");
+    syslog(LOG_DEBUG, "Successful handshake with COM\n");
   }
   if (ret != 0)
   {
-    printf("Unable to handshake with COM\n");
+    syslog(LOG_DEBUG, "Unable to handshake with COM\n");
   }
   // usleep(1000);
 
   send_beacon_data();
   sleep(2);
-  printf("***************************Beacon 1 sent***************************\n");
-  printf("***************************Going to receiver mode***************************\n");
+  syslog(LOG_DEBUG, "***************************Beacon 1 sent***************************\n");
+  syslog(LOG_DEBUG, "***************************Going to receiver mode***************************\n");
   receive_telecommand_rx(rx_data);
   sleep(20);
   send_beacon_data();
-  printf("***************************Beacon 2 sent...***************************\n");
+  syslog(LOG_DEBUG, "***************************Beacon 2 sent...***************************\n");
   receive_telecommand_rx(rx_data);
   sleep(2);
   if (digipeating == 1)
   {
-    printf("***************************Starting digipeating mode***************************\n");
+    syslog(LOG_DEBUG, "***************************Starting digipeating mode***************************\n");
     digipeater_mode(rx_data);
   }
   for (;;)
@@ -835,7 +770,7 @@ void digipeater_mode(uint8_t *data) // TODO beacon 2 paxi disable garna milni en
   /*To delete*/
   if (send_data_uart(COM_UART, data, 84) > 0)
   {
-    printf("***************************digipeating data is ***************************\n ");
+    syslog(LOG_DEBUG, "***************************digipeating data is ***************************\n ");
     for (int i = 0; i < 85; i++)
       printf("%02x ", data);
     printf("***************************digipeating successful***************************\n :");
@@ -1696,13 +1631,13 @@ int main(int argc, FAR char *argv[])
     }
     else
     {
-      int retval = task_create("COMMANDER_TASK_APP", 100, 4096, COM_TASK, NULL);
+      int retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
       if (retval < 0)
       {
         printf("unable to create COMMANDER_TASK_APP task\n");
         for (int i = 0; i < 4; i++)
         {
-          retval = task_create("COMMANDER_TASK_APP", 100, 4096, COM_TASK, NULL);
+          retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
           if (retval >= 0)
           {
             break;
@@ -1712,52 +1647,7 @@ int main(int argc, FAR char *argv[])
         return -1;
       }
     }
-    // COM_TASK(argc, argv);
-
-    // {
-    //   uint8_t data_received[400];
-    //   struct FILE_OPERATIONS file_operations;
-    //   file_operations.cmd = 0x1d;
-    //   file_operations.address[0] = 10;
-    //   file_operations.address[1] = 0;
-    //   file_operations.address[2] = 0;
-    //   file_operations.address[3] = 0;
-
-    //   file_operations.number_of_packets[0] = 6;
-    //   file_operations.number_of_packets[1] = 0;
-    //   strcpy(file_operations.filepath, "/mnt/fs/mfm/mtd_mission/test.txt");
-    //   //  file_operations.=;
-    //   download_file_from_flash(&file_operations, &data_received, 112);
-
-    //   file_operations.number_of_packets[0] = 1;
-    //   file_operations.number_of_packets[1] = 0;
-    //   strcpy(file_operations.filepath, "/mnt/fs/mfm/mtd_mission/test.txt");
-    //   //  file_operations.=;
-    // download_file_from_flash(&file_operations, &data_received, 112);
-
-    //   return 0;
-    // }
-
-    {
-      // int retval = task_create("task1", 100, 1024, COM_TASK, NULL);
-      // if (retval < 0)
-      // {
-      //   printf("unable to create COM task\n");
-      //   return -1;
-      // }
-    }
     printf("************************************************\n");
-
-    //   if(critic_flags.ANT_DEP_STAT == UNDEPLOYED && critic_flags.UL_STATE == UL_NOT_RX){
-    //     //TODO: add work queue to perform antenna deployment after 30 minutes
-    //     work_queue(HPWORK, &work_ant_dep, Antenna_Deployment, NULL, SEC2TICK(ANT_DEP_DELAY));
-    //   }else{
-    //     printf("Antenna in Deployed State...\n Not entering antenna deployment sequence\n");
-    //   }
-    //   // work_queue(HPWORK, &work_hk, collect_hk, NULL, MSEC2TICK(HK_DELAY));
-    // #if defined(CONFIG_CUSTOM_APPS_CUBUS_USE_EXT_ADC) || defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1) || defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC3)
-    //   RUN_HK();
-    //   work_queue(HPWORK, &work_hk, RUN_HK, NULL, SEC2TICK(HK_DELAY));
 
     // #endif
     printf("************************************************\n");
@@ -1766,332 +1656,6 @@ int main(int argc, FAR char *argv[])
   }
   return 0;
 }
-
-// HK
-// void read_magnetometer(satellite_health_s *sat_health)
-// {
-
-//   int mag_fd;
-//   uint16_t seconds;
-//   int ret;
-
-//   struct sensor_mag mag;
-//   struct sensor_mag mag_sub;
-//   int mag_afd, mag_sfd;
-
-//   printf("SPI device LIS3MDL uorb test, World!\n");
-
-//   /* Open SPI device driver */
-//   mag_fd = open("/dev/uorb/sensor_mag0", O_RDONLY | O_NONBLOCK);
-//   if (mag_fd < 0)
-//   {
-//     printf("Failed to open mag sensor\n");
-//     return -1;
-//   }
-
-//   struct pollfd pfds[] = {
-//       {.fd = mag_fd, .events = POLLIN}};
-
-//   struct data sensor_data[] = {
-//       {.data_struct = &mag, .data_size = sizeof(struct sensor_mag)}};
-
-//   {
-//     ret = poll(pfds, NB_LOWERHALFS, -1);
-//     if (ret < 0)
-//     {
-//       perror("Could not poll sensor\n");
-//       return ret;
-//     }
-
-//     for (int i = 0; i < NB_LOWERHALFS; i++)
-//     {
-//       if (pfds[i].revents & POLLIN)
-//       {
-//         ret = read(pfds[i].fd, sensor_data[i].data_struct,
-//                    sensor_data[i].data_size);
-
-//         if (ret != sensor_data[i].data_size)
-//         {
-//           perror("Could not read from sub-sensor.");
-//           return ret;
-//         }
-//       }
-//     }
-//     seconds -= 3;
-//   }
-
-//   printf("Timestamp = %lli\n"
-//          "Temperature [c] = %f\n"
-//          "mag x axis = %f\n"
-//          "mag y axis = %f\n"
-//          "mag z axis = %f\n",
-//          mag.timestamp, mag.temperature, mag.x, mag.y, mag.z);
-//   sat_health->temp_obc = mag.temperature;
-//   sat_health->mag_x = mag.x;
-//   sat_health->mag_y = mag.y;
-//   sat_health->mag_z = mag.z;
-//   close(mag_fd);
-// }
-
-// void print_satellite_health_data(satellite_health_s *sat_health)
-// {
-//   printf(" *******************************************\r\n");
-//   printf(" |   X axis acceleration    \t %f \t|\r\n", sat_health->accl_x);
-//   printf(" |   Y axis acceleration    \t %f \t|\r\n", sat_health->accl_y);
-//   printf(" |   Z axis acceleration    \t %f \t|\r\n", sat_health->accl_z);
-
-//   printf(" |   X axis Gyro data       \t %f \t|\r\n", sat_health->gyro_x);
-//   printf(" |   Y axis Gyro data       \t %f \t|\r\n", sat_health->gyro_y);
-//   printf(" |   Z axis gyro data       \t %f \t|\r\n", sat_health->gyro_z);
-
-//   printf(" |   X axis magnetic field  \t %f \t|\r\n", sat_health->mag_x);
-//   printf(" |   Y axis magnetic field  \t %f \t|\r\n", sat_health->mag_y);
-//   printf(" |   Z axis magnetic field  \t %f \t|\r\n", sat_health->mag_z);
-
-//   printf(" |   Solar Panel 1 Voltage: \t %d \t|\r\n", sat_health->sol_p1_v);
-//   printf(" |   Solar Panel 2 Voltage: \t %d \t|\r\n", sat_health->sol_p2_v);
-//   printf(" |   Solar Panel 3 Voltage: \t %d \t|\r\n", sat_health->sol_p3_v);
-//   printf(" |   Solar Panel 4 Voltage: \t %d \t|\r\n", sat_health->sol_p4_v);
-//   printf(" |   Solar Panel 5 Voltage: \t %d \t|\r\n", sat_health->sol_p5_v);
-//   printf(" |   Solar Panel T Voltage: \t %d \t|\r\n", sat_health->sol_t_v);
-//   printf(" |--------------------------------------|\r\n");
-//   printf(" |   Solar Panel 1 Current: \t %d \t|\r\n", sat_health->sol_p1_c);
-//   printf(" |   Solar Panel 2 Current: \t %d \t|\r\n", sat_health->sol_p2_c);
-//   printf(" |   Solar Panel 3 Current: \t %d \t|\r\n", sat_health->sol_p3_c);
-//   printf(" |   Solar Panel 4 Current: \t %d \t|\r\n", sat_health->sol_p4_c);
-//   printf(" |   Solar Panel 5 Current: \t %d \t|\r\n", sat_health->sol_p5_c);
-//   printf(" |   Solar Panel T Current: \t %d \t|\r\n", sat_health->sol_t_c);
-//   printf(" |--------------------------------------|\r\n");
-//   printf(" |   Unreg Line Current:    \t %d \t|\r\n", sat_health->unreg_c);
-//   printf(" |   Main 3v3 Current:      \t %d \t|\r\n", sat_health->v3_main_c);
-//   printf(" |   COM 3v3 Current:       \t %d \t|\r\n", sat_health->v3_com_c);
-//   printf(" |   5 Volts line Current:  \t %d \t|\r\n", sat_health->v5_c);
-//   printf(" |   3v3 2 line Current:    \t %d \t|\r\n", sat_health->v3_2_c);
-//   printf(" |--------------------------------------|\r\n");
-//   printf(" |   Raw Current:           \t %d \t|\r\n", sat_health->raw_c);
-//   printf(" |   Raw Voltage:           \t %d \t|\r\n", sat_health->raw_v);
-//   printf(" |--------------------------------------|\r\n");
-//   printf(" |   Battery Total Voltage: \t %d \t|\r\n", sat_health->batt_volt);
-//   printf(" |   Battery Total Current: \t %d \t|\r\n", sat_health->batt_c);
-//   printf(" |   Battery Temperature:   \t %d \t|\r\n", sat_health->temp_batt);
-//   printf(" *********************************************\r\n");
-// }
-
-// /****************************************************************************
-//  * Name: adc_main
-//  ****************************************************************************/
-// // HK_DATA
-// void RUN_HK()
-// {
-//   read_int_adc1(); // GET DATA FROM INTERNAL ADCs
-//   read_int_adc3();
-//   ext_adc_main();
-
-//   collect_imu_mag();
-//   gpio_write1(GPIO_MUX_EN, false);
-
-//   gpio_write1(GPIO_MUX_EN_EM, false);
-//   gpio_write1(GPIO_SFM_MODE, false); // OBC access
-//   gpio_write1(GPIO_SFM_CS, false);
-
-//   // read_magnetometer(sat_health);
-
-//   make_satellite_health();
-//   // store_sat_health_data(&sat_health);
-//   // TODO just record and send data to mqueue or uorb. Storage manager saves the data accordingly then.
-
-//   print_satellite_health_data(&sat_health);
-
-//   gpio_write1(GPIO_MUX_EN, true);
-//   gpio_write1(GPIO_SFM_CS, true);
-
-//   gpio_write1(GPIO_SFM_MODE, true); // OBC access
-
-//    work_queue(HPWORK, &work_hk, RUN_HK, NULL, SEC2TICK(9));
-// }
-
-// /*
-//  * this is to be used between any processes only...
-//  */
-// // HK_DATA
-// void RUN_ADC()
-// {
-//   read_int_adc1();
-//   read_int_adc3();
-//   ext_adc_main();
-//   make_satellite_health();
-//   // store_sat_health_data(&sat_health);
-//   // TODO here send the data to mqueue or uorbthen storage manager app write to flash memory
-//   print_satellite_health_data(&sat_health);
-// }
-
-// /****************************************************************************
-//  * Name: adc_main
-//  ****************************************************************************/
-// // HK_DATA
-// void make_satellite_health()
-// {
-
-//   float int_adc1_temp[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE] = {'\0'};
-//   int_adc1_data_convert(int_adc1_temp);
-
-//   float int_adc3_temp[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC3_GROUPSIZE] = {'\0'};
-//   int_adc3_data_convert(int_adc3_temp);
-
-//   /* External ADC data */
-//   sat_health.sol_t_v = (int16_t)ext_adc_data[0].processed_data;
-//   sat_health.raw_v = (int16_t)ext_adc_data[1].processed_data;
-//   sat_health.sol_p5_v = (int16_t)ext_adc_data[2].processed_data;
-//   sat_health.sol_p4_v = (int16_t)ext_adc_data[3].processed_data;
-//   sat_health.sol_p3_v = (int16_t)ext_adc_data[4].processed_data;
-//   sat_health.sol_p1_v = (int16_t)ext_adc_data[5].processed_data;
-//   sat_health.sol_p2_v = (int16_t)ext_adc_data[6].processed_data;
-
-//   sat_health.ant_temp_out = (int16_t)ext_adc_data[8].processed_data;
-//   // sat_health.temp_batt = (int16_t)ext_adc_data[9].processed_data;
-//   sat_health.temp_bpb = (int16_t)ext_adc_data[10].processed_data;
-//   sat_health.temp_z = (int16_t)ext_adc_data[11].processed_data;
-
-//   /* Internal ADC1 data */
-//   sat_health.batt_c = (int16_t)int_adc1_temp[9];
-//   sat_health.sol_t_c = (int16_t)int_adc1_temp[10];
-//   sat_health.raw_c = (int16_t)int_adc1_temp[11];
-
-//   sat_health.unreg_c = (int16_t)int_adc1_temp[0];
-//   sat_health.v3_main_c = (int16_t)int_adc1_temp[1];
-//   sat_health.v3_com_c = (int16_t)int_adc1_temp[2];
-//   sat_health.v5_c = (int16_t)int_adc1_temp[3];
-
-//   sat_health.batt_volt = (int16_t)int_adc1_temp[4];
-
-//   sat_health.sol_p1_c = (int16_t)int_adc1_temp[5];
-//   sat_health.v3_2_c = (int16_t)int_adc1_temp[6];
-//   sat_health.sol_p4_c = (int16_t)int_adc1_temp[7];
-//   sat_health.sol_p5_c = (int16_t)int_adc1_temp[8];
-
-//   sat_health.sol_p2_c = (int16_t)int_adc1_temp[12];
-//   sat_health.sol_p3_c = (int16_t)int_adc1_temp[13];
-
-//   /* internal adc2 data*/
-//   sat_health.v4_c = (int16_t)int_adc3_temp[0];
-// }
-// // HK_DATA
-
-// void collect_imu_mag()
-// {
-//   float acq_period = CONFIG_CUSTOM_APPS_CUBUS_APP_SAMPLE_RATE / 1000.0f;
-//   printf("Sensor Fusion example\n");
-//   printf("Sample Rate: %.2f Hz\n", 1.0 / acq_period);
-//   printf("got inside sensor_work");
-//   int fd, fd_mag;
-
-//   int16_t mag_data[4];
-
-//   fd = open("/dev/mpu6500", O_RDONLY);
-//   if (fd < 0)
-//   {
-//     printf("Failed to open mpu6500\n");
-//     return; // This might create an issue
-//   }
-
-//   fd_mag = open("/dev/mag0", O_RDONLY);
-//   if (fd_mag < 0)
-//   {
-//     printf("Failed to open magnetometer\n");
-//     close(fd_mag);
-//     // return;// This might create an issue
-//   }
-//   printf("************************************************\n");
-
-//   read_mpu6050(fd, &imu_acc_data, &imu_gyro_data, &raw_imu);
-//   // read_lis3mdl(fd_mag, &raw_imu, mag_data);
-//   read_magnetometer(&sat_health);
-
-//   printf("Timestamp: %f  Temperature: %f\n"
-//          "Accelerometer X: %f | Y: %f | Z: %f\n"
-//          "Gyroscope X: %f | Y: %f | Z: %f\n"
-//          "Magnetometer X: %f | Y: %f | Z: %f\n",
-//          imu_acc_data.timestamp, imu_acc_data.temperature,
-//          imu_acc_data.x, imu_acc_data.y, imu_acc_data.z,
-//          imu_gyro_data.x, imu_gyro_data.y, imu_gyro_data.z,
-//          sat_health.mag_x, sat_health.mag_y, sat_health.mag_z);
-//   printf("************************************************\n");
-
-//   close(fd);
-//   close(fd_mag);
-
-//   sat_health.accl_x = ((imu_acc_data.x));
-//   sat_health.accl_y = ((imu_acc_data.y));
-//   sat_health.accl_z = ((imu_acc_data.z));
-
-//   sat_health.gyro_x = ((imu_gyro_data.x));
-//   sat_health.gyro_y = ((imu_gyro_data.y));
-//   sat_health.gyro_z = ((imu_gyro_data.z));
-
-//   sat_health.mag_x = (sat_health.mag_x);
-//   sat_health.mag_y = (sat_health.mag_y);
-//   sat_health.mag_z = (sat_health.mag_z);
-
-//   printf("Accelerometer X: %d | Y: %d | Z: %d\n  Magnetometer X: %d | Y: %d | Z: %d\n", sat_health.accl_x, sat_health.accl_y,
-//          sat_health.accl_z, sat_health.mag_x, sat_health.mag_y, sat_health.mag_z);
-// }
-// // HK_DATA
-
-// void read_mpu6050(int fd, struct sensor_accel *acc_data, struct sensor_gyro *gyro_data, struct mpu6500_imu_msg *raw_imu)
-// {
-//   int16_t raw_data[7];
-//   memset(raw_imu, 0, sizeof(struct mpu6500_imu_msg));
-//   int ret = read(fd, raw_data, sizeof(raw_data));
-//   if (ret <= 0) //!= sizeof(raw_data))
-//   {
-//     printf("Failed to read accelerometer data\n");
-//   }
-//   else
-//   {
-//     raw_imu->acc_x = ((raw_data[0] & REG_HIGH_MASK) << 8) + ((raw_data[0] & REG_LOW_MASK) >> 8);
-//     raw_imu->acc_y = ((raw_data[1] & REG_HIGH_MASK) << 8) + ((raw_data[1] & REG_LOW_MASK) >> 8);
-//     raw_imu->acc_z = ((raw_data[2] & REG_HIGH_MASK) << 8) + ((raw_data[2] & REG_LOW_MASK) >> 8);
-//     raw_imu->gyro_x = ((raw_data[4] & REG_HIGH_MASK) << 8) + ((raw_data[4] & REG_LOW_MASK) >> 8);
-//     raw_imu->gyro_y = ((raw_data[5] & REG_HIGH_MASK) << 8) + ((raw_data[5] & REG_LOW_MASK) >> 8);
-//     raw_imu->gyro_z = ((raw_data[6] & REG_HIGH_MASK) << 8) + ((raw_data[6] & REG_LOW_MASK) >> 8);
-//   }
-
-//   acc_data->x = raw_imu->acc_x / MPU6050_AFS_SEL;
-//   acc_data->y = raw_imu->acc_y / MPU6050_AFS_SEL;
-//   acc_data->z = raw_imu->acc_z / MPU6050_AFS_SEL;
-
-//   gyro_data->x = raw_imu->gyro_x / MPU6050_FS_SEL;
-//   gyro_data->y = raw_imu->gyro_y / MPU6050_FS_SEL;
-//   gyro_data->z = raw_imu->gyro_z / MPU6050_FS_SEL;
-//   printf("Timestamp: %f  Temperature: %f\n"
-//          "Accelerometer X: %f | Y: %f | Z: %f\n"
-//          "Gyroscope X: %f | Y: %f | Z: %f\n",
-
-//          imu_acc_data.timestamp, imu_acc_data.temperature,
-//          acc_data->x, acc_data->y, acc_data->z,
-//          gyro_data->x, gyro_data->y, gyro_data->z);
-// }
-// // HK_DATA
-
-// void read_lis3mdl(int fd_mag, struct mpu6500_imu_msg *raw_imu, int16_t mag_data[4])
-// {
-//   assert(fd_mag >= 0);
-//   int data_size = read(fd_mag, mag_data, 8);
-//   if (data_size > 0)
-//   {
-//     printf("read sensor data from Mag. Len %i\n", data_size);
-//     raw_imu->mag_x = mag_data[0];
-//     raw_imu->mag_y = mag_data[1];
-//     raw_imu->mag_z = mag_data[2];
-//     printf("Magnetometer func: x:%d y:%d z:%d\n", mag_data[0], mag_data[1], mag_data[2]);
-//   }
-//   else
-//   {
-//     printf("Failed to read from sensor.\n");
-//   }
-// }
-
-// //COM_APP
 
 // //COM
 int turn_msn_on_off(uint8_t subsystem, uint8_t state)
@@ -2293,141 +1857,84 @@ int send_beacon_data()
 
 // //Commander //COM
 // // TODO: add work queue to antenna deployment
-// void Antenna_Deployment()
-// {
-//   printf("Entering antenna deployment sequence\n");
-//   int retval, retval1 = 0;
-//   CRITICAL_FLAGS ant_check;
-//   ant_check.ANT_DEP_STAT = critic_flags.ANT_DEP_STAT;
-//   printf("Antenna Deployment Flag: %d\n", critic_flags.ANT_DEP_STAT);
-//   // TODO: add redundancy (check UL status along with antenna deployment status)
-//   if (critic_flags.ANT_DEP_STAT == UNDEPLOYED)
-//   {
-//     for (int i = 0; i < 3; i++)
-//     {
-//       printf("Turning on burner circut\nAttempt: %d\n", i + 1);
-//       retval = gpio_write1(GPIO_BURNER_EN, true);
-//       retval1 = gpio_write1(GPIO_UNREG_EN, true);
-//       RUN_ADC();
-//       sleep(6); // 6 seconds
-//       printf("Turning off burner circuit\n");
-//       gpio_write1(GPIO_UNREG_EN, false);
-//       gpio_write1(GPIO_BURNER_EN, false);
-//       // usleep(1000 * 1000 * 2); // 2 seconds
-//       sleep(6);
-//     }
-//   }
-//   printf("Antenna deployment sequence complete\n");
-//   ant_check.ANT_DEP_STAT = DEPLOYED;
-//   store_flag_data(&ant_check);
-//   printf("Updated flag data...\n");
-//   check_flag_data();
-//   print_critical_flag_data(&critic_flags);
-// }
+void Antenna_Deployment()
+{
+  int i = 0;
+  do
+  {
+    sleep(1);
+    i++;
+  } while (i < 30)
+
+      printf("Entering antenna deployment sequence\n");
+  int retval, retval1 = 0;
+  CRITICAL_FLAGS ant_check;
+  ant_check.ANT_DEP_STAT = critic_flags.ANT_DEP_STAT;
+  printf("Antenna Deployment Flag: %d\n", critic_flags.ANT_DEP_STAT);
+  // TODO: add redundancy (check UL status along with antenna deployment status)
+  if (critic_flags.ANT_DEP_STAT == UNDEPLOYED && critic_flags.UL_STATE == UL_NOT_RX)
+  {
+    for (int i = 0; i < 3; i++)
+    {
+      printf("Turning on burner circut\nAttempt: %d\n", i + 1);
+      retval = gpio_write1(GPIO_BURNER_EN, true);
+      retval1 = gpio_write1(GPIO_UNREG_EN, true);
+      // RUN_ADC();
+      // TODO : manage antenna deployement time
+      sleep(6); // 6 seconds
+      printf("Turning off burner circuit\n");
+      gpio_write1(GPIO_UNREG_EN, false);
+      gpio_write1(GPIO_BURNER_EN, false);
+      // usleep(1000 * 1000 * 2); // 2 seconds
+      sleep(6);
+    }
+  }
+  printf("Antenna deployment sequence complete\n");
+  ant_check.ANT_DEP_STAT = DEPLOYED;
+  // ant_check.UL_STATE
+  store_flag_data(&ant_check);
+  printf("Updated flag data...\n");
+  check_flag_data();
+  print_critical_flag_data(&critic_flags);
+}
+
 void adcs_operation()
 {
-  int hand;
-  turn_msn_on_off(1, 0);
-
-  sleep(1);
-  sleep(1);
-  turn_msn_on_off(1, 1);
-
-  sleep(1);
-  // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
-  uint8_t data2[7] = {0x53, 0x0a, 0x0d, 0x0c, 0x01, 0x7e};
-
-  // do{
-  hand = handshake_MSN(1, data);
-  // hand = handshake_MSN(2, data);
-
-  // }while(hand<0);
-  hand = 0;
-  uint8_t ret, fd;
-  sleep(1);
-  sleep(1);
-
-  sleep(1);
-  do
+  if (mission_status.ADCS_MISSION == false && mission_status.EPDM_MISSION == false && mission_status.CAM_MISSION == false)
   {
-    hand = handshake_MSN(1, data2);
-  } while (hand < 0);
+    mission_status.ADCS_MISSION = true;
+    int hand;
+    turn_msn_on_off(1, 0);
 
-  int p = 0;
-  uint8_t data3, data4;
-  uint32_t counter1 = 0;
-  uint8_t cam[90] = {'\0'};
-  int fd2 = open(CAM_UART, O_RDONLY);
+    sleep(1);
+    sleep(1);
+    turn_msn_on_off(1, 1);
 
-  while (1)
-  {
-    data4 = data3;
-    ret = read(fd2, &data3, 1);
-    syslog(LOG_DEBUG, "%02x ", data3);
-    cam[counter1] = data3;
-    if (data4 == 0xff && data3 == 0xd9)
+    sleep(1);
+    // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
+    uint8_t data2[7] = {0x53, 0x0a, 0x0d, 0x0c, 0x01, 0x7e};
+
+    // do{
+    hand = handshake_MSN(1, data);
+    // hand = handshake_MSN(2, data);
+
+    // }while(hand<0);
+    hand = 0;
+    uint8_t ret, fd;
+    sleep(1);
+    sleep(1);
+
+    sleep(1);
+    do
     {
-      syslog(LOG_DEBUG, "%02x ", data3);
-
-      break;
-    }
-    if (counter1++ > 89)
-      break;
-    // if(data4== 0xff);
-    counter1++;
-    // break;
-  }
-  // cam[counter1]='\0';
-  close(fd2);
-  syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n", counter1);
-  sleep(1);
-  // delay()
-  struct file fptr;
-  cam[sizeof(cam) - 2] = 0xff;
-  cam[sizeof(cam) - 1] = 0xd9;
-  mission_data("/adcs.txt", &cam, counter1);
-
-  turn_msn_on_off(1, 0);
-}
-void cam_operation()
-{
-  int hand;
-  turn_msn_on_off(2, 0);
-  sleep(1);
-
-  turn_msn_on_off(2, 1);
-  sleep(1);
-  // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
-  uint8_t data2[7] = {0x53, 0x0c, 0x0a, 0x0e, 0x01, 0x7e};
-
-  do
-  {
-    hand = handshake_MSN(2, data);
-  } while (hand < 0);
-  hand = 0;
-  uint8_t ret, fd;
-  char data[240];
-  sleep(1);
-
-  // sleep(1);
-  do
-  {
-    hand = handshake_MSN(3, data2);
-  } while (hand < 0);
-  sleep(3);
-  // if(hand == 0)
-  {
-    syslog(LOG_DEBUG, "Command %s sent\n", data2);
+      hand = handshake_MSN(1, data2);
+    } while (hand < 0);
 
     int p = 0;
     uint8_t data3, data4;
     uint32_t counter1 = 0;
-    uint8_t cam[5500] = {'\0'};
+    uint8_t cam[90] = {'\0'};
     int fd2 = open(CAM_UART, O_RDONLY);
-    // sleep(10);
-    sleep(3);
-    // gpio_write(GPIO_MSN_5V_EN, false);
-    // gpio_write(GPIO_DCDC_5V_EN, false);
 
     while (1)
     {
@@ -2437,126 +1944,159 @@ void cam_operation()
       cam[counter1] = data3;
       if (data4 == 0xff && data3 == 0xd9)
       {
+        syslog(LOG_DEBUG, "%02x ", data3);
+
         break;
       }
+      if (counter1++ > 89)
+        break;
       // if(data4== 0xff);
       counter1++;
       // break;
     }
     // cam[counter1]='\0';
     close(fd2);
+    turn_msn_on_off(1, 0);
+    mission_status.ADCS_MISSION = false;
+    usleep(10000);
     syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n", counter1);
     sleep(1);
-    // delay()
-    struct file fptr;
-    mission_data("/cam.txt", &cam, counter1);
-
-    // p= open_file_flash(&fptr, MFM_MAIN_STRPATH, "/cam.txt", O_CREAT | O_WRONLY | O_APPEND);
-    // if(p>=0){
-    //   if (file_write(&fptr, &cam, counter1)){
-    //     syslog(LOG_DEBUG,"Writing data to flash sucessful");
-    //   }
-
-    // // }
-    // // else{
-    // //   syslog(LOG_DEBUG, "Cannot open the file named");
-    // // }
-    // file_close(&fptr);
-    // }
+    cam[sizeof(cam) - 2] = 0xff;
+    cam[sizeof(cam) - 1] = 0xd9;
+    mission_data("/adcs.txt", &cam, counter1);
   }
-  turn_msn_on_off(2, 0);
+}
+void cam_operation()
+{
+  if (mission_status.ADCS_MISSION == false && mission_status.EPDM_MISSION == false && mission_status.CAM_MISSION == false)
+  {
+    mission_status.CAM_MISSION = true;
+    int hand;
+    turn_msn_on_off(2, 0);
+    sleep(1);
+
+    turn_msn_on_off(2, 1);
+    sleep(1);
+    // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
+    uint8_t data2[7] = {0x53, 0x0c, 0x0a, 0x0e, 0x01, 0x7e};
+
+    do
+    {
+      hand = handshake_MSN(2, data);
+    } while (hand < 0);
+    hand = 0;
+    uint8_t ret, fd;
+    char data[240];
+    sleep(1);
+
+    // sleep(1);
+    do
+    {
+      hand = handshake_MSN(3, data2);
+    } while (hand < 0);
+    sleep(3);
+    // if(hand == 0)
+    {
+      syslog(LOG_DEBUG, "Command %s sent\n", data2);
+
+      int p = 0;
+      uint8_t data3, data4;
+      uint32_t counter1 = 0;
+      uint8_t cam[5500] = {'\0'};
+      int fd2 = open(CAM_UART, O_RDONLY);
+      // sleep(10);
+      sleep(3);
+      gpio_write(GPIO_MSN_5V_EN, false);
+      // gpio_write(GPIO_DCDC_5V_EN, false);
+
+      while (1)
+      {
+        data4 = data3;
+        ret = read(fd2, &data3, 1);
+        printf("%02x ", data3);
+        cam[counter1] = data3;
+        if (data4 == 0xff && data3 == 0xd9)
+        {
+          break;
+        }
+        // if(data4== 0xff);
+        counter1++;
+        // break;
+      }
+      // cam[counter1]='\0';
+      close(fd2);
+
+      turn_msn_on_off(2, 0);
+      mission_status.CAM_MISSION = false;
+
+      usleep(10000);
+      syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n", counter1);
+      sleep(2);
+      mission_data("/cam.txt", &cam, counter1);
+    }
+  }
 }
 
 void epdm_operation()
 {
   int hand;
   int fd;
-  char *dev_path = EPDM_UART;
-  turn_msn_on_off(3, 0);
-  sleep(1);
-  turn_msn_on_off(3, 1);
-  sleep(1);
-  sleep(1);
-  sleep(1);
-  sleep(1);
-  sleep(1);
-  sleep(1);
-  sleep(1);
-
-  hand = handshake_MSN(3, data);
-  //  hand = handshake_MSN(2, data);
-
-  uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
-  //   sleep(1);
-  //   sleep(1);
-  //   sleep(1);
-  //   sleep(1);
-
-  //   do{
-  //     hand = handshake_MSN(2, data);
-  //   }while(hand<0);
-  //   hand=0;
-  uint8_t ret;
-  //   char data[240];
-  //   sleep(1);
-  //   sleep(1);
-
-  //   // sleep(1);
-
-  do
+  if (mission_status.ADCS_MISSION == false && mission_status.CAM_MISSION == false)
   {
-    hand = handshake_MSN(3, data2);
-  } while (hand < 0);
-  syslog(LOG_DEBUG, "Command %s sent\n", data2);
+    mission_status = true;
+    char *dev_path = EPDM_UART;
+    turn_msn_on_off(3, 0);
+    sleep(1);
+    turn_msn_on_off(3, 1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
+    sleep(1);
 
-  int p = 0;
-  uint8_t data3, data4;
-  uint32_t counter1 = 0;
-  uint8_t cam[5000] = {'\0'};
-  int fd2 = open(CAM_UART, O_RDONLY);
+    hand = handshake_MSN(3, data);
 
-  while (1)
-  {
-    data4 = data3;
-    ret = read(fd2, &data3, 1);
-    syslog(LOG_DEBUG, "%02x ", data3);
-    cam[counter1] = data3;
-    if (data4 == 0xff && data3 == 0xd9)
+    uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
+    uint8_t ret;
+    do
     {
-      break;
+      hand = handshake_MSN(3, data2);
+    } while (hand < 0);
+    syslog(LOG_DEBUG, "Command %s sent\n", data2);
+
+    int p = 0;
+    uint8_t data3, data4;
+    uint32_t counter1 = 0;
+    uint8_t cam[4500] = {'\0'};
+    int fd2 = open(CAM_UART, O_RDONLY);
+
+    while (1)
+    {
+      data4 = data3;
+      ret = read(fd2, &data3, 1);
+      // syslog(LOG_DEBUG, "%02x ", data3);
+      if (counter1 % 200 == 0)
+      {
+        syslog(LOG_DEBUG, "COUNTER : %d", counter1);
+      }
+      cam[counter1] = data3;
+      if (data4 == 0xff && data3 == 0xd9)
+      {
+        break;
+      }
+      counter1++;
     }
-    // if(data4== 0xff);
-    counter1++;
-    // break;
+    close(fd2);
+    turn_msn_on_off(3, 0);
+    mission_status = false;
+
+    // free(data2);
+    syslog(LOG_DEBUG, "Total data received %d\n CAM operation succeded\n", counter1);
+    sleep(2);
+    mission_data("/epdm.txt", &cam, counter1);
+    // free(cam);
+    // free()
   }
-  // cam[counter1]='\0';
-  close(fd2);
-  syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n", counter1);
-  sleep(1);
-  // delay()
-  struct file fptr;
-  mission_data("/epdm.txt", &cam, counter1);
-
-  //       if(hand == 0){
-  // syslog(LOG_DEBUG, "Command %s sent\n", data2);
-  // fd = open(EPDM_UART, O_RDONLY);
-  // uint8_t data1, data21;
-  // do{
-  //     data21 = data1;
-  //     ret = read(fd, &data1, sizeof(data1));
-  //     if(ret >=0){
-  //       syslog(LOG_DEBUG, "%d ",data1);
-  //     }
-
-  // }while(data1!= 0xd9 && data21 != 0xff);
-  // close(fd);
-  //       // gpio_write(GPIO_MSN3_EN, true);
-
-  //       }
-  //       int p=0;
-  //       do{
-  //         usleep(10000);
-  //         p++;
-  //       }while(p<100000);
-  turn_msn_on_off(3, 0);
 }

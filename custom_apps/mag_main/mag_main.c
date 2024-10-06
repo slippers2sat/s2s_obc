@@ -7,7 +7,7 @@
  * ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the
  * License.  You may obtain a copy of the License at
- *
+ *time
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -34,6 +34,11 @@
 #include <sensor/accel.h>
 #include <sensor/gyro.h>
 #include <nuttx/sensors/sensor.h>
+
+
+//TODO uncomment below for logging
+// #define LOGGING
+//TODO
 #define REG_LOW_MASK 0xFF00
 #define REG_HIGH_MASK 0x00FF
 #define MPU6500_FS_SEL 32.8f
@@ -164,9 +169,11 @@ int mag_daemon(int argc, FAR char *argv[])
         }
 
         // syslog(LOG_INFO, "Copied data from orb_object.\n");
-
+      //TODO uncomment for logging
+      #ifdef LOGGING
         printf("Timestamp: %lli \t", mag0.timestamp);
         syslog(LOG_DEBUG, "Temperature: %0.02f \t||", mag0.temperature);
+      #endif
         // printf("X : %0.02f \t", mag0.mag_x);
         // printf("Y : %0.02f \t", mag0.mag_y);
         // printf("Z : %0.02f \t\n", mag0.mag_z);

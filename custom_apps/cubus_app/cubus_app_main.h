@@ -60,6 +60,13 @@ struct data
     uint16_t data_size;
 };
 
+
+
+struct mission_status{
+  bool ADCS_MISSION = false;
+  bool CAM_MISSION = false;
+  bool EPDM_MISSION = false;
+} MISSION_STATUS;
 // struct mpu6500_imu_msg
 // {
 //   int16_t acc_x;

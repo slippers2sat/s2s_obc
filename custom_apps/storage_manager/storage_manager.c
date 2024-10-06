@@ -20,7 +20,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <stdio.h>
+// #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -52,17 +52,17 @@ void read_and_print_mag_data(void)
   //
   // if (work_queue(HPWORK, &work_storage, read_and_print_mag_data, NULL, SEC2TICK(30)) >= 0)
   // {
-  //   syslog(LOG_DEBUG, "Workqueue running\n");
+  //   //syslog(LOG_DEBUG, "Workqueue running\n");
   // }
   // else
   // {
   //   if (work_queue(HPWORK, &work_storage, read_and_print_mag_data, NULL, SEC2TICK(30)) >= 0)
   //   {
-  //     syslog(LOG_DEBUG, "Workqueue running\n");
+  //     //syslog(LOG_DEBUG, "Workqueue running\n");
   //   }
   //   else
   //   {
-  //     syslog(LOG_DEBUG, "workqueue failled\n");
+  //     //syslog(LOG_DEBUG, "workqueue failled\n");
   //   }
   // }
   // if (count == 0)
@@ -79,7 +79,7 @@ void read_and_print_mag_data(void)
   // ads = orb_subscibe(ORB_ID(e_ads7953_0));
   if (sub_fd < 0)
   {
-    syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
+    //syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
     return;
   }
 
@@ -90,14 +90,15 @@ void read_and_print_mag_data(void)
     {
       orb_copy(ORB_ID(orb_mag_scaled), sub_fd, &mag_data);
 
-      syslog(LOG_INFO, "\n\n\r****-------[Storage maanager ]Mag Data:\n");
+    #ifdef LOGGING
+      //syslog(LOG_INFO, "\n\n\r****-------[Storage maanager ]Mag Data:\n");
 
-      syslog(LOG_INFO, "  ACCELEROMETER X: %.4f Y: %.4f Z: %.4f\n", mag_data.acc_x, mag_data.acc_y, mag_data.acc_z);
-      syslog(LOG_INFO, "  GYROSCOPE X: %.4f Y: %.4f Z: %.4f\n", mag_data.gyro_x, mag_data.gyro_y, mag_data.gyro_z);
+      //syslog(LOG_INFO, "  ACCELEROMETER X: %.4f Y: %.4f Z: %.4f\n", mag_data.acc_x, mag_data.acc_y, mag_data.acc_z);
+      //syslog(LOG_INFO, "  GYROSCOPE X: %.4f Y: %.4f Z: %.4f\n", mag_data.gyro_x, mag_data.gyro_y, mag_data.gyro_z);
 
-      syslog(LOG_INFO, "  MAGNETOMETER X: %.4f Y: %.4f Z: %.4f\n", mag_data.mag_x, mag_data.mag_y, mag_data.mag_z);
-      syslog(LOG_INFO, "  Temp:  %.4f\n", mag_data.temperature);
-
+      //syslog(LOG_INFO, "  MAGNETOMETER X: %.4f Y: %.4f Z: %.4f\n", mag_data.mag_x, mag_data.mag_y, mag_data.mag_z);
+      //syslog(LOG_INFO, "  Temp:  %.4f\n", mag_data.temperature);
+    #endif
       satellite_health.accl_x = mag_data.acc_x;
       satellite_health.accl_y = mag_data.acc_y;
       satellite_health.accl_z = mag_data.acc_z;
@@ -167,28 +168,28 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
     ssize_t bytes_written = file_write(&file_p, sat_health_data, sizeof(satellite_health_s));
     if (bytes_written > 0)
     {
-      syslog(LOG_INFO, "Satellite Health data write Successful.\nData Len: %d.\n", bytes_written);
+      //syslog(LOG_INFO, "Satellite Health data write Successful.\nData Len: %d.\n", bytes_written);
       file_close(&file_p);
     }
     else
     {
-      syslog(LOG_INFO, "Write Failure.\n");
+      //syslog(LOG_INFO, "Write Failure.\n");
     }
     if (ret = file_syncfs(&file_p) < 0)
     {
-      syslog(LOG_DEBUG, "some issue while synfs closing: %d\n",ret);
+      //syslog(LOG_DEBUG, "some issue while synfs closing: %d\n",ret);
       file_syncfs(&file_p);
     }
     if (file_close(&file_p) < 0)
     {
-      syslog(LOG_DEBUG, "some issue while synfs closing\n");
+      //syslog(LOG_DEBUG, "some issue while synfs closing\n");
 
       file_close(&file_p);
     }
   }
   else
   {
-    syslog(LOG_ERR, "Error opening file to write satellite health data..\n");
+    //syslog(LOG_ERR, "Error opening file to write satellite health data..\n");
   }
   file_close(&file_p);
   
@@ -208,12 +209,12 @@ int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filena
   int fd = file_open(file_pointer, path, open_mode);
   if (fd < 0)
   {
-    syslog(LOG_ERR, "Error opening file: %s\n", path);
+    //syslog(LOG_ERR, "Error opening file: %s\n", path);
     return fd;
   }
   else
   {
-    syslog(LOG_INFO, "Opened file: %s ...\n", path);
+    //syslog(LOG_INFO, "Opened file: %s ...\n", path);
   }
   return fd;
 }
