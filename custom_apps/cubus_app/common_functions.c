@@ -18,7 +18,7 @@
 //  *
 //  ****************************************************************************/
 
-// #include "common_functions.h"
+#include "common_functions.h"
 // #include <mqueue.h>
 
 // CRITICAL_FLAGS critic_flags;
@@ -155,55 +155,34 @@
 //   }
 // }
 
-// void store_sat_health_data(satellite_health_s *sat_health_data)
-// {
-//   struct file file_p;
-//   // TODO: discuss and figure out if we need to set limit to size of file and truncate contents once the file size limit is reached ...
-//   if (open_file_flash(&file_p, SFM_MAIN_STRPATH, file_name_sat_health, O_RDWR | O_APPEND) >= 0)
-//   {
-//     ssize_t bytes_written = file_write(&file_p, sat_health_data, sizeof(satellite_health_s));
-//     writer_mq_edited(sat_health_data);
-//     if (bytes_written > 0)
-//     {
-//       syslog(LOG_INFO, "Satellite Health data write Successful.\nData Len: %d.\n", bytes_written);
-//       file_close(&file_p);
-//     }
-//     else
-//     {
-//       syslog(LOG_INFO, "Write Failure.\n");
-//     }
-//     file_syncfs(&file_p);
-//     file_close(&file_p);
-//   }
-//   else
-//   {
-//     syslog(LOG_ERR, "Error opening file to write satellite health data..\n");
-//   }
-//   file_close(&file_p);
-//   //TODO delter this later
-//   if (open_file_flash(&file_p, SFM_MSN_STRPATH, file_name_sat_health, O_CREAT | O_RDWR | O_APPEND) >= 0)
-//   {
-//     char txt[]="sangam wrote this file\0";
-//     ssize_t bytes_written = file_write(&file_p, &txt, sizeof(txt));
-//     writer_mq_edited(txt);
-//     if (bytes_written > 0)
-//     {
-//       syslog(LOG_INFO, "Txt write Successful.\nData Len: %d.\n", bytes_written);
-//       file_close(&file_p);
-//     }
-//     else
-//     {
-//       syslog(LOG_INFO, "Write Failure.\n");
-//     }
-//     file_syncfs(&file_p);
-//     file_close(&file_p);
-//   }
-//   else
-//   {
-//     syslog(LOG_ERR, "Error opening file to write satellite health data..\n");
-//   }
-//   file_close(&file_p);
-// }
+void mission_data(char *filename, uint8_t *data, uint16_t size1)
+{
+  struct file file_p;
+  // TODO: discuss and figure out if we need to set limit to size of file and truncate contents once the file size limit is reached ...
+  if (open_file_flash(&file_p, "/mnt/fs/mfm/mtd_mainstorage", filename, O_RDWR | O_APPEND) >= 0)
+  {
+    ssize_t bytes_written = file_write(&file_p, data, size1);
+    // writer_mq_edited(sat_health_data);
+    if (bytes_written > 0)
+    {
+      syslog(LOG_INFO, "Satellite Health data write Successful.\nData Len: %d.\n", bytes_written);
+      file_close(&file_p);
+    }
+    else
+    {
+      syslog(LOG_INFO, "Write Failure.\n");
+    }
+    file_syncfs(&file_p);
+    file_close(&file_p);
+  }
+  else
+  {
+    syslog(LOG_ERR, "Error opening file to write satellite health data..\n");
+  }
+  file_close(&file_p);
+  //TODO delter this later
+ 
+}
 
 // void retrieve_latest_sat_health_data(satellite_health_s *sat_health_buf)
 // {

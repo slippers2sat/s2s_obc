@@ -1756,7 +1756,7 @@ int main(int argc, FAR char *argv[])
           int p=0;
           uint8_t data3,data4;
         uint32_t counter1 = 0;
-        uint8_t cam[3500]={'\0'};
+        uint8_t cam[5500]={'\0'};
         int fd2 = open(CAM_UART, O_RDONLY);
         // sleep(10);
 
@@ -1768,33 +1768,32 @@ int main(int argc, FAR char *argv[])
           if(data4 == 0xff && data3 == 0xd9){
             break;
           }
-          // if(cam[counter1-1] == 0xff && cam[counter1] ==0xd9){
-          //   // syslog(LOG_DEBUG," %02x %02x\n",data1[counter1 -1], data1[counter1]);
-          //   break;
-          // }
-        // if(counter1 >2500) break;
+          
         counter1++;
         // break;
         }
-        cam[counter1]='\0';
+        // cam[counter1]='\0';
         close(fd2);
         syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n",counter1);
+        sleep(1);
+        // delay()
         struct file fptr;
-        p= open_file_flash(&fptr, MFM_MAIN_STRPATH, "/cam.txt", O_CREAT | O_WRONLY | O_APPEND);
-        if(p>=0){
-          if (file_write(&fptr, cam, strlen(counter1))){
-            syslog(LOG_DEBUG,"Writing data to flash sucessful");
-          }
-          
-        }
-        // else{
-        //   syslog(LOG_DEBUG, "Cannot open the file named");
-        // }
-        file_close(&fptr);
-        gpio_write(GPIO_MSN3_EN, true);
+        mission_data("/cam.txt", &cam, counter1);
 
-        }
-        
+        // p= open_file_flash(&fptr, MFM_MAIN_STRPATH, "/cam.txt", O_CREAT | O_WRONLY | O_APPEND);
+        // if(p>=0){
+        //   if (file_write(&fptr, &cam, counter1)){
+        //     syslog(LOG_DEBUG,"Writing data to flash sucessful");
+        //   }
+          
+        // // }
+        // // else{
+        // //   syslog(LOG_DEBUG, "Cannot open the file named");
+        // // }
+        // file_close(&fptr);
+        // }
+
+        } 
     // turn_msn_on_off(2, 0);
 
   }

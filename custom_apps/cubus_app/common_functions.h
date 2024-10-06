@@ -25,6 +25,7 @@
 #include <syslog.h>
 #include "file_operations.h"
 #include "gpio_definitions.h"
+#include <stdint.h>
 
 #define FLAG_DATA_INT_ADDR    0x081C0000
 #define FLAG_DATA_SECTOR_NUM 
@@ -234,5 +235,5 @@ void print_critical_flag_data(CRITICAL_FLAGS *flags);
 
 int gpio_write(uint32_t pin, uint8_t mode);
 int gpio_read(uint32_t pin);
-
+void mission_data(char *filename, uint8_t *data, uint16_t size1);
 #endif
