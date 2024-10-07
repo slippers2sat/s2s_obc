@@ -62,11 +62,17 @@ struct data
 
 
 
-struct mission_status{
-  bool ADCS_MISSION = false;
-  bool CAM_MISSION = false;
-  bool EPDM_MISSION = false;
-} MISSION_STATUS;
+
+// Ensure this is defined before you use MISSION_STATUS in your functions
+struct mission_status {
+    bool ADCS_MISSION;
+    bool CAM_MISSION;
+    bool EPDM_MISSION;
+    bool FLASH_OPERATION;
+};
+
+extern struct mission_status MISSION_STATUS;
+
 // struct mpu6500_imu_msg
 // {
 //   int16_t acc_x;

@@ -60,6 +60,8 @@ struct mpu6500_imu_msg
   float gyro_y;
   float gyro_z;
   float temperature;
+  int ANT_DEPLOYED;
+
 };
 
 ORB_DECLARE(mpu6500_imu_msg);

@@ -188,14 +188,14 @@ int read_int_adc(FAR struct adc_state_s *g_adcstate,
   int ret;
   /* Open the ADC device for reading */
 
-  syslog(LOG_INFO, "[adc_main]: Hardware initialized. Opening the ADC device: %s\n",
-         g_adcstate->devpath);
+  //syslog(LOG_INFO, "[adc_main]: Hardware initialized. Opening the ADC device: %s\n",
+        //  g_adcstate->devpath);
 
   /* Opening internal ADC1 */
   adc_config->fd = open(g_adcstate->devpath, O_RDONLY);
   if (adc_config->fd < 0)
   {
-    syslog(LOG_ERR, "[adc_main]: open %s failed: %d\n", g_adcstate->devpath, errno);
+    //syslog(LOG_ERR, "[adc_main]: open %s failed: %d\n", g_adcstate->devpath, errno);
     adc_config->errval = 2;
     goto errout;
   }
@@ -225,14 +225,14 @@ int read_int_adc(FAR struct adc_state_s *g_adcstate,
     if (ret < 0)
     {
       int errcode = errno;
-      syslog(LOG_ERR, "[adc_main]: ANIOC_TRIGGER ioctl failed: %d\n", errcode);
+      //syslog(LOG_ERR, "[adc_main]: ANIOC_TRIGGER ioctl failed: %d\n", errcode);
     }
 #endif
 
     /* Read up to CONFIG_CUSTOM_APPS_ADC_GROUPSIZE samples */
     adc_config->nbytes = read(adc_config->fd, int_adc_sample, adc_config->readsize);
 
-    // syslog(LOG_INFO, "Readsize: %d \n nbytes: %d\n CUSTOM_APPS_CUBUS_INT_ADC_GROUPSIZE :"
+    // //syslog(LOG_INFO, "Readsize: %d \n nbytes: %d\n CUSTOM_APPS_CUBUS_INT_ADC_GROUPSIZE :"
     //                  " %d \n ADCSTATE READCOUNT: %d \r\n",
     //        adc_config->readsize, adc_config->nbytes,
     //        adc_config->readsize / (sizeof(struct adc_msg_s)), g_adcstate->count);
@@ -243,17 +243,17 @@ int read_int_adc(FAR struct adc_state_s *g_adcstate,
       adc_config->errval = errno;
       if (adc_config->errval != EINTR)
       {
-        syslog(LOG_ERR, "[adc_main]: read %s failed: %d\n",
-               g_adcstate->devpath, adc_config->errval);
+        //syslog(LOG_ERR, "[adc_main]: read %s failed: %d\n",
+              //  g_adcstate->devpath, adc_config->errval);
         adc_config->errval = 3;
         goto errout_with_dev;
       }
 
-      syslog(LOG_ERR, "[adc_main]: Interrupted read...\n");
+      //syslog(LOG_ERR, "[adc_main]: Interrupted read...\n");
     }
     else if (adc_config->nbytes == 0)
     {
-      syslog(LOG_WARNING, "[adc_main]: No data read, Ignoring\n");
+      //syslog(LOG_WARNING, "[adc_main]: No data read, Ignoring\n");
     }
 
     /* Print the sample data on successful return */
@@ -263,17 +263,17 @@ int read_int_adc(FAR struct adc_state_s *g_adcstate,
       int nsamples = adc_config->readsize / sizeof(struct adc_msg_s);
       if (nsamples * sizeof(struct adc_msg_s) != adc_config->nbytes)
       {
-        syslog(LOG_ERR, "adc_main: read size=%ld is not a multiple of "
-                        "sample size=%d, Ignoring\n",
-               (long)adc_config->nbytes, sizeof(struct adc_msg_s));
+        //syslog(LOG_ERR, "adc_main: read size=%ld is not a multiple of "
+              //           "sample size=%d, Ignoring\n",
+              //  (long)adc_config->nbytes, sizeof(struct adc_msg_s));
       }
       else
       {
-        // syslog(LOG_INFO, "Sample:\n");
+        // //syslog(LOG_INFO, "Sample:\n");
         // for (int i = 0; i < nsamples; i++)
         // {
         //   struct adc_msg_s temp = int_adc_sample[i];
-        //   syslog(LOG_INFO, "%d: channel: %d value: %" PRId32 "\n",
+        //   //syslog(LOG_INFO, "%d: channel: %d value: %" PRId32 "\n",
         //         i, temp.am_channel, temp.am_data);
         // }
       }
@@ -311,18 +311,18 @@ errout:
 //    * samples that we collect before returning.  Otherwise, we never return
 //    */
 
-//   syslog(LOG_INFO, "[adc_main]: g_adcstate3.count: %d\n", g_adcstate3.count);
+//   //syslog(LOG_INFO, "[adc_main]: g_adcstate3.count: %d\n", g_adcstate3.count);
 
 //   /* Open the ADC device for reading */
 
-//   syslog(LOG_INFO, "[adc_main]: Hardware initialized. Opening the ADC device: %s\n",
+//   //syslog(LOG_INFO, "[adc_main]: Hardware initialized. Opening the ADC device: %s\n",
 //          g_adcstate3.devpath);
 
 //   /* Opening internal ADC1 */
 //   adc3_config.fd = open("/dev/adc0", O_RDONLY);
 //   if (adc3_config.fd < 0)
 //   {
-//     syslog(LOG_ERR, "[adc_main]: open %s failed: %d\n", g_adcstate3.devpath, errno);
+//     //syslog(LOG_ERR, "[adc_main]: open %s failed: %d\n", g_adcstate3.devpath, errno);
 //     adc3_config.errval = 2;
 //     goto errout;
 //   }
@@ -352,14 +352,14 @@ errout:
 //     if (ret < 0)
 //     {
 //       int errcode = errno;
-//       syslog(LOG_ERR, "[adc_main]: ANIOC_TRIGGER ioctl failed: %d\n", errcode);
+//       //syslog(LOG_ERR, "[adc_main]: ANIOC_TRIGGER ioctl failed: %d\n", errcode);
 //     }
 // #endif
 
 //     /* Read up to CONFIG_CUSTOM_APPS_ADC_GROUPSIZE samples */
 
 //     adc3_config.nbytes = read(adc3_config.fd, int_adc3_sample, adc3_config.readsize);
-//     syslog(LOG_INFO, "Readsize: %d \n nbytes: %d\n CUSTOM_APPS_CUBUS_INT_ADC_GROUPSIZE : %d \n ADCSTATE READCOUNT: %d \r\n",
+//     //syslog(LOG_INFO, "Readsize: %d \n nbytes: %d\n CUSTOM_APPS_CUBUS_INT_ADC_GROUPSIZE : %d \n ADCSTATE READCOUNT: %d \r\n",
 //            adc3_config.readsize, adc3_config.nbytes, CONFIG_CUSTOM_APPS__INT_ADC3_GROUPSIZE, g_adcstate3.count);
 
 //     /* Handle unexpected return values */
@@ -368,17 +368,17 @@ errout:
 //       adc3_config.errval = errno;
 //       if (adc3_config.errval != EINTR)
 //       {
-//         syslog(LOG_ERR, "adc_main: read %s failed: %d\n",
+//         //syslog(LOG_ERR, "adc_main: read %s failed: %d\n",
 //                g_adcstate3.devpath, adc3_config.errval);
 //         adc3_config.errval = 3;
 //         goto errout_with_dev;
 //       }
 
-//       syslog(LOG_ERR, "[adc_main]: Interrupted read...\n");
+//       //syslog(LOG_ERR, "[adc_main]: Interrupted read...\n");
 //     }
 //     else if (adc3_config.nbytes == 0)
 //     {
-//       syslog(LOG_WARNING, "[adc_main]: No data read, Ignoring\n");
+//       //syslog(LOG_WARNING, "[adc_main]: No data read, Ignoring\n");
 //     }
 
 //     /* Print the sample data on successful return */
@@ -387,16 +387,16 @@ errout:
 //       int nsamples = adc3_config.nbytes / sizeof(struct adc_msg_s);
 //       if (nsamples * sizeof(struct adc_msg_s) != adc3_config.nbytes)
 //       {
-//         syslog(LOG_ERR, "adc_main: read size=%ld is not a multiple of "
+//         //syslog(LOG_ERR, "adc_main: read size=%ld is not a multiple of "
 //                         "sample size=%d, Ignoring\n",
 //                (long)adc3_config.nbytes, sizeof(struct adc_msg_s));
 //       }
 //       else
 //       {
-//         syslog(LOG_INFO, "Sample:\n");
+//         //syslog(LOG_INFO, "Sample:\n");
 //         for (i = 0; i < nsamples; i++)
 //         {
-//           syslog(LOG_INFO, "%d: channel: %d value: %" PRId32 "\n",
+//           //syslog(LOG_INFO, "%d: channel: %d value: %" PRId32 "\n",
 //                  i, int_adc3_sample[i].am_channel, int_adc3_sample[i].am_data);
 //         }
 //       }
@@ -416,7 +416,7 @@ errout:
 //   close(adc3_config.fd);
 
 // errout:
-//   syslog(LOG_ERR, "[adc_main]: Terminating!\n");
+//   //syslog(LOG_ERR, "[adc_main]: Terminating!\n");
 //   fflush(stdout);
 //   close(adc3_config.fd);
 //   return adc3_config.errval;
@@ -527,16 +527,16 @@ int adc_daemon(int argc, FAR char *argv[])
                                               0, sizeof(struct sat_int_adc_msg));
   if (adc_afd < 0)
   {
-    syslog(LOG_ERR, "[adc_main] Internal ADC message advertise failed.\n");
+    //syslog(LOG_ERR, "[adc_main] Internal ADC message advertise failed.\n");
   }
 
   for (;;)
   {
-    syslog(LOG_INFO, "[adc_main]: g_adcstate1.count: %d\n", g_adcstate1.count);
+    //syslog(LOG_INFO, "[adc_main]: g_adcstate1.count: %d\n", g_adcstate1.count);
     read_int_adc(&g_adcstate1, &adc1_config, int_adc1_sample, CONFIG_CUSTOM_APPS_INT_ADC1_NSAMPLES);
     int_adc1_data_convert(int_adc1_temp, int_adc1_sample);
 
-    syslog(LOG_INFO, "[adc_main] g_adcstate3.count: %d\n", g_adcstate3.count);
+    //syslog(LOG_INFO, "[adc_main] g_adcstate3.count: %d\n", g_adcstate3.count);
     read_int_adc(&g_adcstate3, &adc3_config, int_adc3_sample, CONFIG_CUSTOM_APPS_INT_ADC3_NSAMPLES);
     int_adc3_data_convert(int_adc3_temp, int_adc3_sample);
 
@@ -559,7 +559,7 @@ int adc_daemon(int argc, FAR char *argv[])
 
     if(OK != orb_publish(ORB_ID(sat_int_adc_msg), adc_afd, &int_adc))
     {
-      syslog(LOG_ERR,"[adc_main] Sat int adc publish failed.\n");
+      //syslog(LOG_ERR,"[adc_main] Sat int adc publish failed.\n");
     }
     usleep(500000);
   } // for(;;)
@@ -567,7 +567,7 @@ int adc_daemon(int argc, FAR char *argv[])
   ret = orb_unadvertise(adc_afd);
   if(ret < 0)
   {
-    syslog(LOG_ERR,"[adc_main] int adc orb unadvertise failed.\n");
+    //syslog(LOG_ERR,"[adc_main] int adc orb unadvertise failed.\n");
   }
   return 0;
 }
@@ -580,10 +580,10 @@ int main(int argc, FAR char *argv[])
 { 
   int ret;
 
-  syslog(LOG_INFO,"[adc_main] Stating task.\n");
+  //syslog(LOG_INFO,"[adc_main] Stating task.\n");
   if(g_adc_daemon_started)
   {
-    syslog(LOG_WARNING,"[adc_main] Task already started.\n");
+    // //syslog(LOG_WARNING,"[adc_main] Task already started.\n");
     return EXIT_SUCCESS;
   }
 
@@ -593,11 +593,11 @@ int main(int argc, FAR char *argv[])
   if(ret < 0)
   {
     int errcode = errno;
-    syslog(LOG_ERR,"[adc_main] ERROR: failed to start adc_daemon.%d\n",
-           errcode);
+    //syslog(LOG_ERR,"[adc_main] ERROR: failed to start adc_daemon.%d\n",
+          //  errcode);
     return EXIT_FAILURE;
   }
 
-  syslog(LOG_INFO,"[adc_main] adc_daemon started.\n");
+  //syslog(LOG_INFO,"[adc_main] adc_daemon started.\n");
   return EXIT_SUCCESS;
 }
