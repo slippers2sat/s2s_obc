@@ -21,7 +21,8 @@
 /****************************************************************************
  * Included Files
  ****************************************************************************/
-
+// #include "ads7953_raw_msg.h"
+#include <sys/ioctl.h>
 #include "cubus_app_main.h"
 #include "common_functions.h"
 // #include<sys/ddi.h>
@@ -35,6 +36,8 @@
 #include <nuttx/clock.h>
 #include <time.h>
 #include <malloc.h>
+#include <nuttx/timers/watchdog.h>
+// #include "adc.h"
 
 // #include "com_app_main.h"
 #include "gpio_definitions.h"
@@ -73,13 +76,15 @@
 
 /*Private variable start*/
 // Declare the instance of the struct
+uint8_t COM_HANDSHAKE_STATUS = 0;
+bool FLASH_OPERATION = false;
 struct mission_status MISSION_STATUS = {false, false, false}; // Initialize all to false
 
 uint8_t beacon_status = 0;
 uint8_t COM_BUSY = 0;
 static struct work_s work_beacon;
 uint8_t beacon_type = 0;
-static bool g_commander_task_started, g_wdog_task_started;
+static bool g_commander_task_started = false, g_wdog_task_started = false, g_beacon_task_started = false;
 uint8_t data[7] = {0x53, 0x01, 0x02, 0x03, 0x04, 0x7e};
 uint8_t Msn_Start_Cmd[7] = {0x53, 0xad, 0xba, 0xcd, 0x9e, 0x7e};
 // uint8_t ACK[7] = {0x53, 0xaa, 0xcc, 0xaa, 0xcc, 0x7e};
@@ -196,7 +201,7 @@ typedef struct
 /*Private function prototypes declaration start*/
 
 void incorrect_command(uint8_t *ack);
-int gpio_write1(uint32_t pin, uint8_t mode);
+// int gpio_write1(uint32_t pin, uint8_t mode);
 int handshake_MSN(uint8_t subsystem, uint8_t *ack);
 int handshake_COM(uint8_t *ack);
 int receive_telecommand_rx(uint8_t *COM_RX_DATA);
@@ -210,9 +215,13 @@ void serialize_beacon_a(uint8_t beacon_data[BEACON_DATA_SIZE]);
 void digipeater_mode(uint8_t *data);
 void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE]);
 int turn_msn_on_off(uint8_t subsystem, uint8_t state);
-void adcs_operation();
+void adcs_operation(uint8_t mode);
 void epdm_operation();
 void cam_operation();
+void watchdog_refresh_task(int fd);
+
+int configure_watchdog(int fd, int timeout);
+void send_beacon();
 /*Private function prototypes declaration end */
 int receive_telecommand_rx(uint8_t *COM_RX_DATA)
 { // TODO sth to do with parsing
@@ -223,7 +232,7 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   uint16_t pckt_no = 0;
   uint8_t HEADER, MCU_ID;
 
-  uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x7e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+  uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
   syslog(LOG_DEBUG, "waiting for telecommands from COM\n");
   int ret;
   // ret = 1;
@@ -631,17 +640,27 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         // Command to DISABLE adcs(MSN1) misison
         {
           syslog(LOG_DEBUG, "ADCS MCU ID has been received\n");
-          if (cmds[0] == 0xA0 && cmds[1] == 0x53 && cmds[2] == 0xCE)
+          if (cmds[1] == 0x53 && cmds[2] == 0xCE)
           {
             send_data_uart(COM_UART, ack, sizeof(ack));
             syslog(LOG_DEBUG, "------------  ADCS mission turned on (command received using radio frequency)--------------\n");
-            adcs_operation();
+            if (cmds[0] == 0xA0)
+              adcs_operation(0x01);
+            else
+              adcs_operation(0x02);
             syslog(LOG_DEBUG, "------------  ADCS mission turned off (command received using radio frequency) --------------\n");
           }
           else
           {
             incorrect_command(ack);
-            ack[1] = ack[1] >> 4 | (ack[1] << 4 & 0xf0);
+            // 53,ac,04,01,63,62,7e
+            ack[2] = 0xac;
+            ack[3] = 0x04;
+            ack[4] = 0x01;
+            ack[5] = 0x63;
+            ack[6] = 0x62;
+            ack[7] = 0x7e;
+
             send_data_uart(COM_UART, ack, sizeof(ack));
             syslog(LOG_DEBUG, "----------------Incorrect command for ADCS mission---------------\n");
           }
@@ -667,8 +686,12 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           else
           {
             incorrect_command(ack);
-
-            ack[1] = ack[1] >> 4 | (ack[1] << 4 & 0xf0);
+            ack[2] = 0xac;
+            ack[3] = 0x04;
+            ack[4] = 0x01;
+            ack[5] = 0x63;
+            ack[6] = 0x62;
+            ack[7] = 0x7e;
             send_data_uart(COM_UART, ack, sizeof(ack));
             syslog(LOG_DEBUG, "------------Incorrect command\n");
           }
@@ -691,7 +714,13 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           else
           {
             incorrect_command(ack);
-            ack[1] = ack[1] >> 4 | (ack[1] << 4 & 0xf0);
+
+            ack[2] = 0xac;
+            ack[3] = 0x04;
+            ack[4] = 0x01;
+            ack[5] = 0x63;
+            ack[6] = 0x62;
+            ack[7] = 0x7e;
             send_data_uart(COM_UART, ack, sizeof(ack));
             syslog(LOG_DEBUG, "------------Incorrect command received for EPDM-----------\n");
           }
@@ -700,6 +729,12 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         break;
 
       default:
+        ack[2] = 0xac;
+        ack[3] = 0x04;
+        ack[4] = 0x01;
+        ack[5] = 0x63;
+        ack[6] = 0x62;
+        ack[7] = 0x7e;
         incorrect_command(ack);
 
         break;
@@ -728,32 +763,42 @@ static int COM_TASK(int argc, char *argv[])
   if (ret == 0)
   {
     syslog(LOG_DEBUG, "Successful handshake with COM\n");
+    COM_HANDSHAKE_STATUS = 1;
   }
   if (ret != 0)
   {
     syslog(LOG_DEBUG, "Unable to handshake with COM\n");
+    ret = handshake_COM(data);
+    if (ret == 0)
+    {
+      COM_HANDSHAKE_STATUS = 1;
+    }
   }
-  // usleep(1000);
-
-  send_beacon_data();
-  sleep(2);
-  syslog(LOG_DEBUG, "***************************Beacon 1 sent***************************\n");
-  syslog(LOG_DEBUG, "***************************Going to receiver mode***************************\n");
-  receive_telecommand_rx(rx_data);
-  sleep(20);
-  send_beacon_data();
-  syslog(LOG_DEBUG, "***************************Beacon 2 sent...***************************\n");
-  receive_telecommand_rx(rx_data);
-  sleep(2);
-  if (digipeating == 1)
-  {
-    syslog(LOG_DEBUG, "***************************Starting digipeating mode***************************\n");
-    digipeater_mode(rx_data);
+  if(COM_HANDSHAKE_STATUS == 1){
+     send_beacon_data();
   }
+  
   for (;;)
   {
-    receive_telecommand_rx(rx_data);
+    if (COM_HANDSHAKE_STATUS == 1)
+    {
+      receive_telecommand_rx(rx_data);
+    }
     usleep(1000);
+  }
+}
+
+void send_beacon()
+{
+  for (;;)
+  {
+    if (COM_HANDSHAKE_STATUS == 1 )
+    {
+      send_beacon_data();
+    
+    }
+      sleep(90);
+    // usleep(100000);
   }
 }
 
@@ -842,118 +887,351 @@ int handshake_COM(uint8_t *ack)
  * MSN handshake function
  ****************************************************************************/
 
+// int handshake_MSN(uint8_t subsystem, uint8_t *ack)
+// {
+//   int fd;
+//   char devpath[15];
+//   uint8_t data1[7] = {'\0'};
+//   int i;
+//   int count = 0, ret;
+
+//   switch (subsystem)
+//   {
+//   case 1:
+//     strcpy(devpath, ADCS_UART);
+//     // gpio_write(GPIO_MSN1_EN, 1);// TODO uncomment later
+//     printf("Turned on power line for ADCS\n");
+//     break;
+//   case 2:
+//     strcpy(devpath, CAM_UART);
+//     // gpio_write(GPIO_MSN2_EN, 1);
+//     printf("Turned on power line for CAM\n");
+//     break;
+//   case 3:
+//     strcpy(devpath, EPDM_UART);
+//     // gpio_write(GPIO_BURNER_EN, 1);
+//     printf("Turned on power line for EPDM\n");
+//     break;
+//   default:
+//     printf("Unknown MSN subsystem selected\n");
+//     return -1;
+//     break;
+//   }
+
+//   printf("Opening uart dev path : %s \n", devpath);
+//   usleep(PRINT_DELAY);
+//   fd = open(devpath, O_RDWR);
+//   if (fd < 0)
+//   {
+//     printf("error opening %s\n", devpath);
+//     usleep(PRINT_DELAY);
+//     return -1;
+//   }
+
+//   int wr1;
+//   // = write(fd, ack, strlen(ack)); // writing handshake data
+//   for (i = 0; i <= strlen(ack); i++)
+//   {
+//     write(fd, &ack[i], 1);
+//     // usleep(5000);
+//   }
+//   if (wr1 < 0)
+//   {
+//     printf("Unable to send data through %d UART", devpath);
+//     // usleep(PRINT_DELAY);
+//     return -1;
+//   }
+//   printf("\n%d bytes written\n", strlen(ack));
+//   usleep(1000 * 3000);
+//   // ret = read(fd, data1, 7);
+//   for (i = 0; i < 6; i++)
+//   {
+//     ret = read(fd, &data1[i], 1);
+//   }
+//   printf("data received from %s \n", devpath);
+//   usleep(PRINT_DELAY);
+//   for (int i = 0; i < 7; i++)
+//   {
+//     printf(" %x ", data1[i]);
+//   }
+//   printf("\n");
+//   usleep(PRINT_DELAY);
+//   if (data[0] == data1[0] && data[5] == data1[5])
+//   {
+//     printf("\n******Acknowledgement received******\n");
+//     usleep(PRINT_DELAY);
+//   }
+//   else
+//     return 1;
+//   printf("handshake complete\n");
+//   usleep(PRINT_DELAY);
+//   printf("\n");
+//   ioctl(fd, TCFLSH, 2);
+//   ioctl(fd, TCDRN, NULL);
+//   printf("flused tx rx buffer\n");
+//   close(fd);
+//   return 0;
+// }
+
+// int gpio_write1(uint32_t pin, uint8_t mode)
+// {
+
+//   gpio_config_s gpio_numval;
+//   int fd = open(ETX_LED_DRIVER_PATH, O_WRONLY);
+//   if (fd < 0)
+//   {
+//     syslog(LOG_ERR, "Error opening %s for GPIO WRITE...", ETX_LED_DRIVER_PATH);
+//     close(fd);
+//     return -1;
+//   }
+//   gpio_numval.gpio_num = pin;
+//   gpio_numval.gpio_val = mode;
+//   if (gpio_numval.gpio_val > 1 || gpio_numval.gpio_num < 0)
+//   {
+//     syslog(LOG_ERR, "Undefined GPIO pin or set mode selected...\n");
+//     return -2;
+//   }
+//   int ret = write(fd, (const void *)&gpio_numval, sizeof(gpio_config_s));
+//   close(fd);
+//   if (ret < 0)
+//   {
+//     syslog(LOG_ERR, "Unable to write to gpio pin...\n");
+//   }
+//   return ret;
+// }
+int handshake_MSN_ADCS(uint8_t subsystem, uint8_t *ack)
+{
+  int fd;
+  char devpath[15];
+  uint8_t data1[7] = {'\0'};
+  int i;
+  ssize_t wr1, ret;
+  uint8_t counter = 0;
+
+  switch (subsystem)
+  {
+  case 1:
+    strcpy(devpath, ADCS_UART);
+    printf("Turned on power line for ADCS\n");
+    break;
+  case 2:
+    strcpy(devpath, CAM_UART);
+    printf("Turned on power line for CAM\n");
+    break;
+  case 3:
+    strcpy(devpath, EPDM_UART);
+    printf("Turned on power line for EPDM\n");
+    break;
+  default:
+    printf("Unknown MSN subsystem selected\n");
+    return -1;
+  }
+
+  printf("Opening UART dev path: %s\n", devpath);
+  usleep(PRINT_DELAY);
+  fd = open(devpath, O_WRONLY); // Open in non-blocking mode
+  if (fd < 0)
+  {
+    printf("Error opening %s\n", devpath);
+    usleep(PRINT_DELAY);
+    return -1;
+  }
+
+  // Writing handshake data
+  ret = write(fd, ack, 7);
+  close(fd);
+  // sleep(1);
+  fd = open(devpath, O_RDWR | O_NONBLOCK); // Open in non-blocking mode
+
+  printf("6 bytes written\n");
+  // usleep(3000 * 1000); // 3 seconds delay
+
+  // Reading data from UART
+  // for (i = 0; i < 6; i++)
+  // {
+  //   ret = read(fd, &data1[i], 1);
+  //   if (ret < 0)
+  //   {
+  //     if (errno == EAGAIN)
+  //     {
+  //       // printf("No data available for reading\n");
+  //       // usleep(500000);
+  //       usleep(500);
+  //       i--; // Retry reading the same index
+  //       continue;
+  //     }
+  //     printf("Error reading from %s\n", devpath);
+  //     close(fd);
+  //     return -1;
+  //   }
+  //   else{
+  //     break;
+  //   }
+  // }
+  // for (i = 0; i < 6; i++)
+  int loop = 0;
+  close(fd);
+  fd = open(ADCS_UART, O_RDONLY);
+  ret = read(fd, data1, 7);
+
+  printf("Data received from %s:\n", devpath);
+  usleep(PRINT_DELAY);
+  for (int j = 0; j < 7; j++)
+  {
+    printf(" %x ", data1[j]);
+  }
+  printf("\n");
+  usleep(PRINT_DELAY);
+
+  if (data1[0] == ack[0] && data1[5] == ack[5])
+  {
+    printf("\n******Acknowledgement received******\n");
+    usleep(PRINT_DELAY);
+  }
+  else
+  {
+    close(fd);
+    return 1;
+  }
+
+  printf("Handshake complete\n");
+  usleep(PRINT_DELAY);
+  printf("\n");
+  ioctl(fd, TCFLSH, 2);
+  ioctl(fd, TCDRN, NULL);
+  printf("Flushed TX/RX buffer\n");
+  close(fd);
+  return 0;
+}
+
 int handshake_MSN(uint8_t subsystem, uint8_t *ack)
 {
   int fd;
   char devpath[15];
   uint8_t data1[7] = {'\0'};
   int i;
-  int count = 0, ret;
+  ssize_t wr1, ret;
+  uint8_t counter = 0;
 
   switch (subsystem)
   {
   case 1:
     strcpy(devpath, ADCS_UART);
-    // gpio_write(GPIO_MSN1_EN, 1);// TODO uncomment later
     printf("Turned on power line for ADCS\n");
     break;
   case 2:
     strcpy(devpath, CAM_UART);
-    // gpio_write(GPIO_MSN2_EN, 1);
     printf("Turned on power line for CAM\n");
     break;
   case 3:
     strcpy(devpath, EPDM_UART);
-    // gpio_write(GPIO_BURNER_EN, 1);
     printf("Turned on power line for EPDM\n");
     break;
   default:
     printf("Unknown MSN subsystem selected\n");
     return -1;
-    break;
   }
 
-  printf("Opening uart dev path : %s \n", devpath);
+  printf("Opening UART dev path: %s\n", devpath);
   usleep(PRINT_DELAY);
-  fd = open(devpath, O_RDWR);
+  fd = open(devpath, O_WRONLY); // Open in non-blocking mode
   if (fd < 0)
   {
-    printf("error opening %s\n", devpath);
+    printf("Error opening %s\n", devpath);
     usleep(PRINT_DELAY);
     return -1;
   }
 
-  int wr1;
-  // = write(fd, ack, strlen(ack)); // writing handshake data
-  for (i = 0; i <= strlen(ack); i++)
-  {
-    write(fd, &ack[i], 1);
-    // usleep(5000);
-  }
-  if (wr1 < 0)
-  {
-    printf("Unable to send data through %d UART", devpath);
-    // usleep(PRINT_DELAY);
-    return -1;
-  }
-  printf("\n%d bytes written\n", wr1);
-  usleep(1000 * 3000);
-  // ret = read(fd, data1, 7);
-  for (i = 0; i < 6; i++)
+  // Writing handshake data
+  ret = write(fd, ack, 7);
+  close(fd);
+  // sleep(1);
+  fd = open(devpath, O_RDONLY | O_NONBLOCK); // Open in non-blocking mode
+
+  printf("6 bytes written\n");
+  // usleep(3000 * 1000); // 3 seconds delay
+
+  // Reading data from UART
+  // for (i = 0; i < 6; i++)
+  // {
+  //   ret = read(fd, &data1[i], 1);
+  //   if (ret < 0)
+  //   {
+  //     if (errno == EAGAIN)
+  //     {
+  //       // printf("No data available for reading\n");
+  //       // usleep(500000);
+  //       usleep(500);
+  //       i--; // Retry reading the same index
+  //       continue;
+  //     }
+  //     printf("Error reading from %s\n", devpath);
+  //     close(fd);
+  //     return -1;
+  //   }
+  //   else{
+  //     break;
+  //   }
+  // }
+  // for (i = 0; i < 6; i++)
+  int loop = 0;
+  while (1)
   {
     ret = read(fd, &data1[i], 1);
+    if (ret < 0)
+    {
+      if (errno == EAGAIN)
+      {
+        // Uncomment for debugging
+        // printf("No data available for reading\n");
+        usleep(50); // usleep(5000); // Increase the sleep time to 500 ms
+        i--;        // Retry reading the same index
+        continue;
+      }
+      printf("Error reading from %s\n", devpath);
+      close(fd);
+      return -1;
+    }
+    loop++;
+    // If we successfully read a character, check if we have more data
+    if (ret == 1)
+    {
+      // Optionally print the character read for debugging
+      printf("Read character: %c\n", data1[i]);
+      break; // Exit the loop if a character was successfully read
+    }
   }
-  printf("data received from %s \n", devpath);
+
+  printf("Data received from %s:\n", devpath);
   usleep(PRINT_DELAY);
-  for (int i = 0; i < 7; i++)
+  for (int j = 0; j < 7; j++)
   {
-    printf(" %x ", data1[i]);
+    printf(" %x ", data1[j]);
   }
   printf("\n");
   usleep(PRINT_DELAY);
-  if (data[0] == data1[0] && data[5] == data1[5])
+
+  if (data1[0] == ack[0] && data1[5] == ack[5])
   {
     printf("\n******Acknowledgement received******\n");
     usleep(PRINT_DELAY);
   }
   else
+  {
+    close(fd);
     return 1;
-  printf("handshake complete\n");
+  }
+
+  printf("Handshake complete\n");
   usleep(PRINT_DELAY);
   printf("\n");
   ioctl(fd, TCFLSH, 2);
   ioctl(fd, TCDRN, NULL);
-  printf("flused tx rx buffer\n");
+  printf("Flushed TX/RX buffer\n");
   close(fd);
   return 0;
 }
 
-int gpio_write1(uint32_t pin, uint8_t mode)
-{
-
-  gpio_config_s gpio_numval;
-  int fd = open(ETX_LED_DRIVER_PATH, O_WRONLY);
-  if (fd < 0)
-  {
-    syslog(LOG_ERR, "Error opening %s for GPIO WRITE...", ETX_LED_DRIVER_PATH);
-    close(fd);
-    return -1;
-  }
-  gpio_numval.gpio_num = pin;
-  gpio_numval.gpio_val = mode;
-  if (gpio_numval.gpio_val > 1 || gpio_numval.gpio_num < 0)
-  {
-    syslog(LOG_ERR, "Undefined GPIO pin or set mode selected...\n");
-    return -2;
-  }
-  int ret = write(fd, (const void *)&gpio_numval, sizeof(gpio_config_s));
-  close(fd);
-  if (ret < 0)
-  {
-    syslog(LOG_ERR, "Unable to write to gpio pin...\n");
-  }
-  return ret;
-}
 // static int COM_TASK(int argc, char *argv[]);
 
 /*
@@ -1505,6 +1783,7 @@ void perform_file_operations(struct FILE_OPERATIONS *file_operations)
     printf("-----Trucate text file called \n");
     break;
   case 0x1d:
+    FLASH_OPERATION = true;
     MISSION_STATUS.FLASH_OPERATION = true;
     download_file_from_flash(file_operations, data_retrieved, SIZE_OF_DATA_DOWNLOAD);
     printf("*****Download command received**************\nsize:%d\n***********************\ncmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
@@ -1514,6 +1793,7 @@ void perform_file_operations(struct FILE_OPERATIONS *file_operations)
 
     printf("-------Data download function has been called\n");
     MISSION_STATUS.FLASH_OPERATION = false;
+    FLASH_OPERATION = false;
     break;
   default:
     break;
@@ -1566,6 +1846,8 @@ Declaring structure necessary for collecting HK data
 int main(int argc, FAR char *argv[])
 {
   int hand = 5;
+  // Antenna_Deployment(argc, argv);
+
   // watchdog code
   //  {
   //     if (g_wdog_task_started)
@@ -1613,7 +1895,8 @@ int main(int argc, FAR char *argv[])
   }
   else if (strcmp(argv[1], "ant") == 0)
   {
-    Antenna_Deployment(argc,argv);
+    Antenna_Deployment(argc, argv);
+    // RUN_ADC();
   }
   else if (strcmp(argv[1], "epdm") == 0)
   {
@@ -1625,44 +1908,75 @@ int main(int argc, FAR char *argv[])
   }
   else if (strcmp(argv[1], "adcs") == 0)
   {
-    adcs_operation();
+    adcs_operation(0x02);
   }
 
   /*TODO : REMOVE LATER Independent testing*/
   else
   {
-
-    if (g_commander_task_started)
+    bool g_wdg_task_started = false;
+    if (g_wdg_task_started)
     {
-      printf("[COMMANDER TASK] Task already started.\n");
+      printf("[WDG TASK] Task already started.\n");
       return EXIT_SUCCESS;
     }
     else
     {
-      int retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
-      if (retval < 0)
-      {
-        printf("unable to create COMMANDER_TASK_APP task\n");
-        for (int i = 0; i < 4; i++)
-        {
-          retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
-          if (retval >= 0)
-          {
-            break;
-            return 0;
-          }
-        }
-        return -1;
-      }
-    }
-    printf("************************************************\n");
 
-    // #endif
-    printf("************************************************\n");
-    // }
-    // TODO: after checking flags data are being written/read correctly, we'll enable satellite health things as well and have a basic complete work queue functions except UART
+      if (g_commander_task_started)
+      {
+        printf("[COMMANDER TASK] Task already started.\n");
+        return EXIT_SUCCESS;
+      }
+      else
+      {
+        int retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
+        if (retval < 0)
+        {
+          printf("unable to create COMMANDER_TASK_APP task\n");
+          for (int i = 0; i < 4; i++)
+          {
+            retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
+            if (retval >= 0)
+            {
+              break;
+              return 0;
+            }
+          }
+          return -1;
+        }
+      }
+      printf("************************************************\n");
+      if (g_beacon_task_started)
+      {
+        printf("[BEACON TASK] Task already started.\n");
+        return EXIT_SUCCESS;
+      }
+      else
+      {
+        int retval = task_create("BEACON_TASK_APP", 100, 800, send_beacon, NULL);
+        if (retval < 0)
+        {
+          printf("unable to create BEACON_TASK_APP task\n");
+          for (int i = 0; i < 4; i++)
+          {
+            retval = task_create("BEACON_TASK_APP", 100, 800, send_beacon, NULL);
+            if (retval >= 0)
+            {
+              break;
+              return 0;
+            }
+          }
+          return -1;
+        }
+      }
+      // #endif
+      printf("************************************************\n");
+      // }
+      // TODO: after checking flags data are being written/read correctly, we'll enable satellite health things as well and have a basic complete work queue functions except UART
+    }
+    return 0;
   }
-  return 0;
 }
 
 // //COM
@@ -1675,6 +1989,7 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
 
   gpio_write(GPIO_MSN1_EM_EN, false);
   gpio_write(GPIO_MSN2_EN, false);
+  
 
   // gpio_write(GPIO_MSN_3V3_EM_EN, state);
   // gpio_write(GPIO_DCDC_MSN_3V3_2_EN, state);
@@ -1861,7 +2176,7 @@ int send_beacon_data()
       beacon_type = !beacon_type;
 
       printf("Beacon Type %d sequence complete\n", beacon_type);
-      work_queue(HPWORK, &work_beacon, send_beacon_data, NULL, SEC2TICK(BEACON_DELAY));
+      // work_queue(HPWORK, &work_beacon, send_beacon_data, NULL, SEC2TICK(BEACON_DELAY));
     }
   }
   return 0;
@@ -1871,7 +2186,7 @@ void FirstFunction()
 {
   CRITICAL_FLAGS rd_flags_int;
   struct file fp;
-  
+
   CRITICAL_FLAGS rd_flags_mfm = {0xff};
   uint8_t mfm_have_data = 0;
   ssize_t read_size_mfm = 0;
@@ -1893,7 +2208,6 @@ void FirstFunction()
   {
     read_size_mfm = file_read(&fp, &rd_flags_mfm, sizeof(CRITICAL_FLAGS));
   }
-
 }
 
 // //Commander //COM
@@ -1904,7 +2218,7 @@ void Antenna_Deployment(int argc, char *argv[])
   do
   {
     sleep(1);
-    printf("%d second has passesd\n",i);
+    printf("%d second has passesd\n", i);
     i++;
   } while (i < 30);
 
@@ -1917,19 +2231,19 @@ void Antenna_Deployment(int argc, char *argv[])
   // if (critic_flags.ANT_DEP_STAT == UNDEPLOYED && critic_flags.UL_STATE == UL_NOT_RX)
   // if(argv[2]=="1" | argv[2] ==1)
   {
-    for (int i = 0; i <= 1; i++)
+    for (int i = 0; i <= 2; i++)
     {
       printf("Turning on burner circut\nAttempt: %d\n", i + 1);
-      retval = gpio_write1(GPIO_BURNER_EN, true);
-      retval1 = gpio_write1(GPIO_UNREG_EN, true);
+      retval = gpio_write(GPIO_BURNER_EN, true);
+      retval1 = gpio_write(GPIO_UNREG_EN, true);
       // RUN_ADC();
       // TODO : manage antenna deployement time
-      sleep(10); // 10 seconds
+      sleep(8); // 8 seconds
       printf("Turning off burner circuit\n");
-      gpio_write1(GPIO_UNREG_EN, false);
-      gpio_write1(GPIO_BURNER_EN, false);
+      gpio_write(GPIO_UNREG_EN, false);
+      gpio_write(GPIO_BURNER_EN, false);
       // usleep(1000 * 1000 * 2); // 2 seconds
-      sleep(6);
+      sleep(10);
     }
   }
   printf("Antenna deployment sequence complete\n");
@@ -1941,7 +2255,7 @@ void Antenna_Deployment(int argc, char *argv[])
   // print_critical_flag_data(&critic_flags);
 }
 
-void adcs_operation()
+void adcs_operation(uint8_t mode)
 {
   if (MISSION_STATUS.ADCS_MISSION == false && MISSION_STATUS.EPDM_MISSION == false && MISSION_STATUS.CAM_MISSION == false)
   {
@@ -1950,24 +2264,26 @@ void adcs_operation()
     turn_msn_on_off(1, 0);
     sleep(1);
     turn_msn_on_off(1, 1);
-    sleep(1);
+    sleep(4);
     // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
     uint8_t data2[7] = {0x53, 0x0a, 0x0d, 0x0c, 0x01, 0x7e};
+    data2[4] = mode;
 
-    // do{
-    hand = handshake_MSN(1, data);
-    // hand = handshake_MSN(2, data);
+    do
+    {
+      hand = handshake_MSN_ADCS(1, data);
+      // hand = handshake_MSN(2, data);
 
-    // }while(hand<0);
+    } while (hand < 0);
     hand = 0;
     uint8_t ret, fd;
     sleep(1);
 
     do
     {
-      hand = handshake_MSN(1, data2);
+      hand = handshake_MSN_ADCS(1, data2);
     } while (hand < 0);
-
+    sleep(2);
     int p = 0;
     uint8_t data3, data4;
     uint32_t counter1 = 0;
@@ -1999,12 +2315,14 @@ void adcs_operation()
     turn_msn_on_off(1, 0);
     MISSION_STATUS.ADCS_MISSION = false;
     usleep(10000);
-    syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n", counter1);
+    syslog(LOG_DEBUG, "TOtal data received %d\n ADCS operation success\n", counter1);
     sleep(1);
     cam[sizeof(cam) - 2] = 0xff;
     cam[sizeof(cam) - 1] = 0xd9;
     sleep(1);
     mission_data("/adcs.txt", &cam, counter1);
+    uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+    send_data_uart(COM_UART, ack, sizeof(ack));
   }
 }
 void cam_operation()
@@ -2047,9 +2365,6 @@ void cam_operation()
       int fd2 = open(CAM_UART, O_RDONLY);
       // sleep(10);
       sleep(3);
-      // gpio_write(GPIO_MSN_5V_EN, false);
-      // gpio_write(GPIO_DCDC_5V_EN, false);
-
       while (1)
       {
         data4 = data3;
@@ -2074,6 +2389,8 @@ void cam_operation()
       syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n", counter1);
       sleep(2);
       mission_data("/cam.txt", &cam, counter1);
+      uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+      send_data_uart(COM_UART, ack, sizeof(ack));
     }
   }
 }
@@ -2134,10 +2451,58 @@ void epdm_operation()
     MISSION_STATUS.EPDM_MISSION = false;
 
     // free(data2);
-    syslog(LOG_DEBUG, "Total data received %d\n CAM operation succeded\n", counter1);
+    syslog(LOG_DEBUG, "Total data received %d\n EPDM operation succeded\n", counter1);
     sleep(2);
     mission_data("/epdm.txt", &cam, counter1);
+    uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+    send_data_uart(COM_UART, ack, sizeof(ack));
     // free(cam);
     // free()
   }
 }
+
+int configure_watchdog(int fd, int timeout)
+{
+  /* Set the watchdog timeout */
+  int ret = ioctl(fd, WDIOC_SETTIMEOUT, (unsigned long)timeout);
+  if (ret < 0)
+  {
+    perror("Failed to set watchdog timeout");
+    return -1;
+  }
+
+  /* Start the watchdog */
+  ret = ioctl(fd, WDIOC_START, 0);
+  if (ret < 0)
+  {
+    perror("Failed to start watchdog");
+    return -1;
+  }
+
+  return 0;
+}
+
+void watchdog_refresh_task(int fd)
+{
+  while (1)
+  {
+    /* Refresh the watchdog */
+    int ret = ioctl(fd, WDIOC_KEEPALIVE, 0);
+    if (ret < 0)
+    {
+      perror("Failed to refresh watchdog");
+    }
+
+    /* Wait for the next refresh interval */
+    sleep(2);
+  }
+}
+
+// void RUN_ADC(){
+//   // read_int_adc1();
+//   // read_int_adc3();
+//   ext_adc_main();
+//   make_satellite_health();
+//   store_sat_health_data(&sat_health);
+//   print_satellite_health_data(&sat_health);
+// }

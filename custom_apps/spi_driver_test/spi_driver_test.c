@@ -1,84 +1,88 @@
-#include <nuttx/wqueue.h>
+
 #include <nuttx/config.h>
-#include <mqueue.h>
-#include <stdio.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <nuttx/timers/watchdog.h>  // Add this line
+#include <errno.h>
 #include <syslog.h>
 
-#define QUEUE_NAME_1 "/sat_health"
-#define QUEUE_NAME_2 "/flags"
-#define QUEUE_NAME_3 "/seek_pointer"
-#define MAX_SIZE 1024
-#define MSG_STOP "//exit"
+/* Watchdog refresh interval in seconds */
+#define WATCHDOG_REFRESH_INTERVAL 1
 
-static struct work_s work_gpio1;
-
-void reader_mq_2(void *arg)
+int configure_watchdog1(int fd, int timeout)
 {
-  struct mq_attr attr;
-  attr.mq_flags = 0;
-  attr.mq_maxmsg = 1000;
-  attr.mq_msgsize = 8192;
-  attr.mq_curmsgs = 0;
-
-  const char *queue_names[] = {QUEUE_NAME_1, QUEUE_NAME_2, QUEUE_NAME_3};
-  char buffer[MAX_SIZE + 1];
-
-  for (int j = 0; j < sizeof(queue_names) / sizeof(queue_names[0]); j++)
+  /* Set the watchdog timeout */
+  int ret = ioctl(fd, WDIOC_SETTIMEOUT, (unsigned long)timeout);
+  if (ret < 0)
   {
-    mqd_t mq = mq_open(queue_names[j], O_RDONLY, 0644, &attr);
-    if (mq == (mqd_t)-1)
-    {
-      syslog(LOG_DEBUG, "Failed to open queue: %s\n", queue_names[j]);
-      continue;
-    }
-
-    ssize_t bytes_read = mq_receive(mq, buffer, MAX_SIZE, NULL);
-     syslog(LOG_DEBUG, "Bytes read : %d",bytes_read);
-    if (bytes_read == -1)
-    {
-      syslog(LOG_DEBUG, "Failed to receive message from queue: %s\n", queue_names[j]);
-    }
-    else
-    {
-      buffer[bytes_read] = '\0'; // Null-terminate the string
-      syslog(LOG_DEBUG, "Received: %s from queue: %s\n", buffer, queue_names[j]);
-    }
-
-    if (mq_close(mq) == -1)
-    {
-      syslog(LOG_DEBUG, "Failed to close queue: %s\n", queue_names[j]);
-    }
-    else
-    {
-      syslog(LOG_DEBUG, "Queue %s closed successfully\n", queue_names[j]);
-    }
-
-    if (mq_unlink(queue_names[j]) == -1)
-    {
-      syslog(LOG_DEBUG, "Failed to unlink queue: %s\n", queue_names[j]);
-    }
-    else
-    {
-      syslog(LOG_DEBUG, "Queue %s unlinked successfully\n", queue_names[j]);
-    }
+    perror("Failed to set watchdog timeout");
+    return -1;
   }
 
-  if (work_queue(HPWORK, &work_gpio1, reader_mq_2, NULL, SEC2TICK(14)) < 0)
+  /* Start the watchdog */
+  ret = ioctl(fd, WDIOC_START, 0);
+  if (ret < 0)
   {
-    syslog(LOG_DEBUG, "Failed to queue work\n");
+    perror("Failed to start watchdog");
+    return -1;
+  }
+
+  return 0;
+}
+
+void watchdog_refresh_task1(int fd)
+{
+  while (1)
+  {
+    /* Refresh the watchdog */
+    int ret = ioctl(fd, WDIOC_KEEPALIVE, 0);  // Use WDIOC_KEEPALIVE
+    if (ret < 0)
+    {
+      perror("Failed to refresh watchdog");
+    }
+
+    /* Wait for the next refresh interval */
+    sleep(WATCHDOG_REFRESH_INTERVAL);
   }
 }
 
 int main(int argc, FAR char *argv[])
 {
-  int ret = task_create("data_reader", 100, 2080, (main_t)reader_mq_2, (FAR char *const *)NULL);
+  int fd = open("/dev/iwdgO", O_RDWR);
+  if (fd < 0)
+  {
+    perror("Failed to open watchdog device");
+    return 1;
+  }
+
+  /* Set the watchdog timeout to 10 seconds */
+  if (configure_watchdog(fd, 10) < 0)
+  {
+    close(fd);
+    return 1;
+  }
+
+  /* Create the watchdog refresh task */
+  int ret = task_create("watchdog_refresh", SCHED_PRIORITY_DEFAULT,
+                        CONFIG_DEFAULT_TASK_STACKSIZE, (main_t)watchdog_refresh_task1,
+                        (FAR char * const *)&fd);
   if (ret < 0)
   {
-    syslog(LOG_DEBUG, "Unable to create task data_reader\n");
-    return -1;
+    int errcode = errno;
+    syslog(LOG_ERR, "[watchdog] ERROR: Failed to start watchdog refresh task: %d\n", errcode);
+    close(fd);
+    return 1;
   }
-  syslog(LOG_DEBUG, "SPI daemon running\n");
 
+  /* Your main application code here */
+  while (1)
+  {
+    printf("Main application running...\n");
+    sleep(2);
+  }
+
+  close(fd);
   return 0;
 }

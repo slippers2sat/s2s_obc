@@ -41,12 +41,12 @@
 #include "cubus_mtd.h"
 #endif
 
-#ifdef CONFIG_TIMER
-  ret = stm32_timer_initialize("/dev/timer0", 0);
-  if(ret < 0){
-    syslog(LOG_ERR, "Error : Failed to initialize timer driver: %d \n", ret);
-  }
-#endif
+// #ifdef CONFIG_TIMER
+//   ret = stm32_timer_initialize("/dev/timer0", 0);
+//   if(ret < 0){
+//     syslog(LOG_ERR, "Error : Failed to initialize timer driver: %d \n", ret);
+//   }
+// #endif
 
 #ifndef CONFIG_STM32F427A_FLASH_MINOR
 #define CONFIG_STM32F427A_FLASH_MINOR 0
@@ -489,8 +489,6 @@ stm32_wwdginitialize("/dev/wwdg0");
 // stm32_serial_dma_setup();
 // stm32_serial_dma_initialize();
 // write();
-#ifdef CONFIG_STM32_WWDG
-  stm32_wwdginitialize("/dev/watchdog0");
-#endif
+
   return 0;
 }

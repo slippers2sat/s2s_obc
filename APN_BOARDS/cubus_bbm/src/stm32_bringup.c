@@ -36,6 +36,12 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
 
+#ifdef CONFIG_RTC
+
+#include <nuttx/timers/rtc.h>
+
+#endif
+
 #if defined(CONFIG_MTD_MT25QL) || defined(CONFIG_MTD_PROGMEM)
 #include <nuttx/mtd/mtd.h>
 #include "cubus_mtd.h"
@@ -196,6 +202,10 @@ int stm32_bringup(void)
   int ret;
 
   /* Configure SPI-based devices */
+  #ifdef CONFIG_RTC
+   ret = rtc_initialize("/dev/rtc",0); 
+
+  #endif
 
 #ifdef CONFIG_ADC_ADS7953
 

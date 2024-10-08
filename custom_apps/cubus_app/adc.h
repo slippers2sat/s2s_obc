@@ -138,5 +138,6 @@ int read_int_adc3();
 int ext_adc_main();
 void int_adc1_data_convert(float *temp_buff);
 void int_adc3_data_convert(float *temp_buff_1);
+void RUN_ADC();
 
 #endif /* __APPS_CUSTOM_APPS_ADC_ADC_H */
