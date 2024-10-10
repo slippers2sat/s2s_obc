@@ -754,9 +754,13 @@ static int COM_TASK(int argc, char *argv[])
   int ret = -1;
   uint8_t rx_data[COM_RX_CMD_SIZE] = {'\0'};
   gpio_write(GPIO_3V3_COM_EN, 0);
+	gpio_write(GPIO_3V3_COM_EN, false); 	// Enable COM systems
+
   sleep(1);
   syslog(LOG_DEBUG, "***************************Turning on COM MSN...***************************\n");
   gpio_write(GPIO_3V3_COM_EN, 1);
+	gpio_write(GPIO_3V3_COM_EN, true); 	// Enable COM systems
+
   usleep(2000000);
   ret = handshake_COM(data); // tx rx data is flushed before closing the file
   usleep(PRINT_DELAY * 100);
@@ -776,6 +780,7 @@ static int COM_TASK(int argc, char *argv[])
   }
   if(COM_HANDSHAKE_STATUS == 1){
      send_beacon_data();
+    //  stm32_rtc_initialize();
   }
   
   for (;;)
@@ -1846,6 +1851,11 @@ Declaring structure necessary for collecting HK data
 int main(int argc, FAR char *argv[])
 {
   int hand = 5;
+      printf("************************************************\n");
+      printf("***********S2S commander app************\n");
+
+      printf("********ANtenna deployement starting************\n");
+
   // Antenna_Deployment(argc, argv);
 
   // watchdog code
@@ -1954,13 +1964,13 @@ int main(int argc, FAR char *argv[])
       }
       else
       {
-        int retval = task_create("BEACON_TASK_APP", 100, 800, send_beacon, NULL);
+        int retval = task_create("BEACON_TASK_APP", 100, 1000, send_beacon, NULL);
         if (retval < 0)
         {
           printf("unable to create BEACON_TASK_APP task\n");
           for (int i = 0; i < 4; i++)
           {
-            retval = task_create("BEACON_TASK_APP", 100, 800, send_beacon, NULL);
+            retval = task_create("BEACON_TASK_APP", 100, 1000, send_beacon, NULL);
             if (retval >= 0)
             {
               break;

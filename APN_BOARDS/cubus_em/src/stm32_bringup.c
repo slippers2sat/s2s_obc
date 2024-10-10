@@ -190,6 +190,7 @@ int stm32_bringup(void)
 {
 
   int ret;
+  
   stm32_gpiowrite(GPIO_MUX_EN,  false);
   stm32_gpiowrite(GPIO_SFM_MODE, false);
   // stm32_gpiowrite(GPIO_3V3_COM_EN,true);
