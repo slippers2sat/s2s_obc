@@ -62,6 +62,8 @@ int ads7953_daemon(int argc, FAR char *argv[])
   int temp_afd;
   int volts_afd;
   uint8_t raw_temp[2];
+  uint8_t counter;
+  float t5,mean=0.0;
 
   struct ads7953_raw_msg e_ads7953_0;
   struct sat_temp_msg sat_temps;
@@ -146,7 +148,7 @@ int ads7953_daemon(int argc, FAR char *argv[])
     close(fd); // closing ADC sesnor path after reading is completed
 
     e_ads7953_0.timestamp = orb_absolute_time();
-
+    
     if (OK != orb_publish(ORB_ID(ads7953_raw_msg), raw_afd, &e_ads7953_0))
     {
       syslog(LOG_ERR, "Orb Publish failed\n");
@@ -158,7 +160,10 @@ int ads7953_daemon(int argc, FAR char *argv[])
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[2] * 1000))));
     sat_temps.temp_bpb = (((5.506 - temp / (2 * (-0.00176))) + 30)) * 100;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[0] * 1000))));
-    sat_temps.temp_ant = (((5.506 - temp / (2 * (-0.00176))) + 30)) * 100;
+    t5= (((5.506 - temp) / (-0.00352) )+ 30);// * 100;
+
+    sat_temps.temp_ant =  (int16_t)(t5*100);
+    //(((5.506 - temp / (2 * (-0.00176))) + 30)) * 100;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[3] * 1000))));
     sat_temps.temp_z_pos = (((5.506 - temp / (2 * (-0.00176))) + 30)) * 100;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[4] * 1000))));
@@ -167,10 +172,43 @@ int ads7953_daemon(int argc, FAR char *argv[])
     sat_temps.temp_4 = (((5.506 - temp / (2 * (-0.00176))) + 30)) * 100;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[6] * 1000))));
     sat_temps.temp_3 = (((5.506 - temp / (2 * (-0.00176))) + 30)) * 100;
+    // temp = (5.506 -sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[7] * 1000)))))/(2*(-0.00176))+30;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[7] * 1000))));
-    sat_temps.temp_2 = (((5.506 - temp / (2 * (-0.00176))) + 30)) * 100;
+   
+    // t5= (((5.506 - temp) / (-0.00352) )+ 30);// * 100;
+    sat_temps.temp_2= (int16_t)(t5*100);
+    //  temp = (sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[7] * 1000)))))/(2*(-0.00176))+30;
+    // sat_temps.temp_2 = (((5.506 - temp) / (2 * (-0.00176)) + 30)) * 100;
     sat_temps.timestamp = e_ads7953_0.timestamp;
+     if(counter == 0){
+      mean= sat_temps.temp_ant;
 
+    }
+    else{
+      mean=(mean + sat_temps.temp_ant)/2;
+    }
+    if(counter % 50 == 0){
+      syslog(LOG_DEBUG,"MEan 50 is %f",mean);
+     
+    }
+    counter++;
+
+    // syslog(LOG_DEBUG,"Got temp value %f Temp %f",sat_temps.temp_ant, t5);
+    if(counter% 450 ==0){
+      syslog(LOG_DEBUG,"MEan 450 is %f\n",mean);
+       struct file fptr;
+       char log[20];
+      int fd = file_open(&fptr, "/mnt/fs/mfm/mtd_mainstorage/adc_data.txt", O_CREAT | O_APPEND | O_WRONLY );
+      sprintf(log,"%d,\0", (int16_t)mean);
+      if(0 != file_write(&fptr, log,strlen(log))){
+        printf("File written succesfully\n");
+      }
+      // file_sync(&fptr);
+      file_close(&fptr);
+      mean=0;
+      counter=0;
+
+    }
     // temperature sensor data processed
     if (OK != orb_publish(ORB_ID(sat_temp_msg), temp_afd, &sat_temps))
     {
@@ -194,7 +232,7 @@ int ads7953_daemon(int argc, FAR char *argv[])
       syslog(LOG_ERR, "Sat volts Orb Publish failed\n");
     }
 
-    usleep(500000);
+    usleep(10000);
   } // for(;;)
 
   ret = orb_unadvertise(raw_afd);

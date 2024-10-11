@@ -354,6 +354,7 @@ void incorrect_command(uint8_t *ack)
   ack[2] = 0x04;
   ack[4] = 0x63;
   ack[5] = 0x62;
+  sleep(1);
   send_data_uart(COM_UART, ack, sizeof(ack));
   syslog(LOG_DEBUG, "The supplied command is incorrect");
   return;
@@ -405,6 +406,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           ack[loop1] = COM_RX_DATA[loop1];
         }
       }
+      sleep(1);
       send_data_uart(COM_UART, ack, sizeof(ack));
 
       return 33;
@@ -464,7 +466,8 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       //   ack[3] = 0x02;
       //   ack[4] = 0x00;
       //   ack[5] =0xdd;
-      //   send_data_uart(COM_UART, ack, sizeof(ack));
+      //   sleep(1);
+      send_data_uart(COM_UART, ack, sizeof(ack));
 
       //   // send_
       //   // sleep(3);
@@ -589,6 +592,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                  __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
                  __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
                  __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
+          sleep(1);
           send_data_uart(COM_UART, ack, sizeof(ack));
           perform_file_operations(&__file_operations);
         }
@@ -598,6 +602,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         */
         else if (cmds[0] == 0xee && cmds[1] == 0xaa && cmds[2] == 0xaa)
         {
+          sleep(1);
           send_data_uart(COM_UART, ack, sizeof(ack));
 
           syslog(LOG_DEBUG, "--------- kill switch deactivated\n");
@@ -608,6 +613,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         */
         else if (cmds[0] == 0xee && cmds[1] == 0xee && cmds[2] == 0xee)
         {
+          sleep(1);
           send_data_uart(COM_UART, ack, sizeof(ack));
 
           syslog(LOG_DEBUG, "---------kill switch activated\n");
@@ -642,6 +648,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           syslog(LOG_DEBUG, "ADCS MCU ID has been received\n");
           if (cmds[1] == 0x53 && cmds[2] == 0xCE)
           {
+            sleep(1);
             send_data_uart(COM_UART, ack, sizeof(ack));
             syslog(LOG_DEBUG, "------------  ADCS mission turned on (command received using radio frequency)--------------\n");
             if (cmds[0] == 0xA0)
@@ -661,6 +668,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             ack[6] = 0x62;
             ack[7] = 0x7e;
 
+            sleep(1);
             send_data_uart(COM_UART, ack, sizeof(ack));
             syslog(LOG_DEBUG, "----------------Incorrect command for ADCS mission---------------\n");
           }
@@ -677,6 +685,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             turn_msn_on_off(2, 1);
             syslog(LOG_DEBUG, "------------------------  cam mission turned on (Command received from COM using RF)------------------\n");
 
+            sleep(1);
             send_data_uart(COM_UART, ack, sizeof(ack));
             cam_operation();
             turn_msn_on_off(2, 0);
@@ -692,6 +701,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             ack[5] = 0x63;
             ack[6] = 0x62;
             ack[7] = 0x7e;
+            sleep(1);
             send_data_uart(COM_UART, ack, sizeof(ack));
             syslog(LOG_DEBUG, "------------Incorrect command\n");
           }
@@ -705,6 +715,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           syslog(LOG_DEBUG, "EPDM MCU ID has been received\n");
           if (cmds[0] == 0xEC && cmds[1] == 0xCF && cmds[2] == 0xCF)
           {
+            sleep(1);
             send_data_uart(COM_UART, ack, sizeof(ack));
 
             syslog(LOG_DEBUG, "----------------EPDM  turned on ------------------\n");
@@ -721,6 +732,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             ack[5] = 0x63;
             ack[6] = 0x62;
             ack[7] = 0x7e;
+            sleep(1);
             send_data_uart(COM_UART, ack, sizeof(ack));
             syslog(LOG_DEBUG, "------------Incorrect command received for EPDM-----------\n");
           }
@@ -754,16 +766,18 @@ static int COM_TASK(int argc, char *argv[])
   int ret = -1;
   uint8_t rx_data[COM_RX_CMD_SIZE] = {'\0'};
   gpio_write(GPIO_3V3_COM_EN, 0);
-	gpio_write(GPIO_3V3_COM_EN, false); 	// Enable COM systems
+  gpio_write(GPIO_3V3_COM_EN, false); // Enable COM systems
 
   sleep(1);
   syslog(LOG_DEBUG, "***************************Turning on COM MSN...***************************\n");
   gpio_write(GPIO_3V3_COM_EN, 1);
-	gpio_write(GPIO_3V3_COM_EN, true); 	// Enable COM systems
+  gpio_write(GPIO_3V3_COM_EN, true); // Enable COM systems
 
-  usleep(2000000);
+  // usleep(2000000);
+  sleep(5);
   ret = handshake_COM(data); // tx rx data is flushed before closing the file
-  usleep(PRINT_DELAY * 100);
+  // usleep(PRINT_DELAY * 100);
+  sleep(1);
   if (ret == 0)
   {
     syslog(LOG_DEBUG, "Successful handshake with COM\n");
@@ -778,11 +792,12 @@ static int COM_TASK(int argc, char *argv[])
       COM_HANDSHAKE_STATUS = 1;
     }
   }
-  if(COM_HANDSHAKE_STATUS == 1){
-     send_beacon_data();
+  if (COM_HANDSHAKE_STATUS == 1)
+  {
+    send_beacon_data();
     //  stm32_rtc_initialize();
   }
-  
+
   for (;;)
   {
     if (COM_HANDSHAKE_STATUS == 1)
@@ -797,12 +812,11 @@ void send_beacon()
 {
   for (;;)
   {
-    if (COM_HANDSHAKE_STATUS == 1 )
+    if (COM_HANDSHAKE_STATUS == 1)
     {
       send_beacon_data();
-    
     }
-      sleep(90);
+    sleep(90);
     // usleep(100000);
   }
 }
@@ -884,7 +898,12 @@ int handshake_COM(uint8_t *ack)
   ioctl(fd, TCFLSH, 2);
   ioctl(fd, TCDRN, NULL);
   printf("flused tx rx buffer\n");
-  close(fd);
+  if (close(fd) < 0)
+  {
+    close(fd);
+    printf("Failed to close COM UART: %s\n", strerror(errno));
+  }
+  sleep(1);
   return 0;
 }
 
@@ -1095,7 +1114,11 @@ int handshake_MSN_ADCS(uint8_t subsystem, uint8_t *ack)
   }
   else
   {
-    close(fd);
+    if (close(fd) < 0)
+    {
+      if (close(fd) < 0)
+        printf("Failed to close COM uART: %s\n", strerror(errno));
+    }
     return 1;
   }
 
@@ -1105,7 +1128,10 @@ int handshake_MSN_ADCS(uint8_t subsystem, uint8_t *ack)
   ioctl(fd, TCFLSH, 2);
   ioctl(fd, TCDRN, NULL);
   printf("Flushed TX/RX buffer\n");
-  close(fd);
+  if (close(fd) < 0)
+  {
+    printf("Failed to close COM UART %s\n", strerror(errno));
+  }
   return 0;
 }
 
@@ -1303,7 +1329,13 @@ int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
   ioctl(fd, TCFLSH, 2);
   ioctl(fd, TCDRN, NULL);
   printf("drained and flushed tx rx buffer\n");
-  close(fd);
+  if (close(fd) < 0)
+  {
+    if (close(fd) < 0)
+    {
+      printf("Failed to close COM UART: %s\n", strerror(errno));
+    }
+  }
   return ret;
 }
 /****************************************************************************
@@ -1542,7 +1574,11 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
   printf("flused tx rx buffer\n");
   ioctl(fd, TCDRN, NULL);
   printf("drained tx rx buffer\n");
-  close(fd);
+  if (close(fd) < 0)
+  {
+    close(fd);
+    printf("Failed to close COM_UART: %s\n", strerror(errno));
+  }
   return wr1;
 }
 
@@ -1580,7 +1616,11 @@ void truncate_text_file(struct FILE_OPERATIONS *file_operations)
     syslog(LOG_SYSLOG, "Error opening file: %s\n", file_operations->filepath);
   }
   file_close(&truncate_ptr);
-  close(fd);
+  if (close(fd) < 0)
+  {
+    close(fd);
+    printf("Failed to close COM UART: %s\n", strerror(errno));
+  }
   return 0;
 }
 
@@ -1844,6 +1884,14 @@ Declaring structure necessary for collecting HK data
 //     usleep(50);
 //   }
 // }
+void global_reset()
+{
+  for (;;)
+  {
+    sleep(86400);
+    gpio_write(GPIO_GBL_RST, true);
+  }
+}
 
 /****************************************************************************
  * Name: main
@@ -1851,10 +1899,10 @@ Declaring structure necessary for collecting HK data
 int main(int argc, FAR char *argv[])
 {
   int hand = 5;
-      printf("************************************************\n");
-      printf("***********S2S commander app************\n");
+  printf("************************************************\n");
+  printf("***********S2S commander app************\n");
 
-      printf("********ANtenna deployement starting************\n");
+  printf("********ANtenna deployement starting************\n");
 
   // Antenna_Deployment(argc, argv);
 
@@ -1933,6 +1981,32 @@ int main(int argc, FAR char *argv[])
     else
     {
 
+      bool g_reset_task_started = false;
+      if (g_reset_task_started)
+      {
+        printf("[Reset TASK] Task already started.\n");
+        return EXIT_SUCCESS;
+      }
+      else
+      {
+        printf("[Reset TASK] Task  started.\n");
+        int retval = task_create("RESET_TASK_APP", 100, 600, global_reset, NULL);
+        if (retval < 0)
+        {
+          printf("unable to create RESET_TASK_APP task\n");
+          for (int i = 0; i < 4; i++)
+          {
+            retval = task_create("RESET_TASK_APP", 100, 600, global_reset, NULL);
+            if (retval >= 0)
+            {
+              g_reset_task_started = true;
+              break;
+              return 0;
+            }
+          }
+          return -1;
+        }
+      }
       if (g_commander_task_started)
       {
         printf("[COMMANDER TASK] Task already started.\n");
@@ -1940,15 +2014,16 @@ int main(int argc, FAR char *argv[])
       }
       else
       {
-        int retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
+        int retval = task_create("COMMANDER_TASK_APP", 100, 10096, COM_TASK, NULL);
         if (retval < 0)
         {
           printf("unable to create COMMANDER_TASK_APP task\n");
           for (int i = 0; i < 4; i++)
           {
-            retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
+            retval = task_create("COMMANDER_TASK_APP", 100, 10096, COM_TASK, NULL);
             if (retval >= 0)
             {
+              g_commander_task_started = true;
               break;
               return 0;
             }
@@ -1973,6 +2048,7 @@ int main(int argc, FAR char *argv[])
             retval = task_create("BEACON_TASK_APP", 100, 1000, send_beacon, NULL);
             if (retval >= 0)
             {
+              g_beacon_task_started = true;
               break;
               return 0;
             }
@@ -1999,7 +2075,6 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
 
   gpio_write(GPIO_MSN1_EM_EN, false);
   gpio_write(GPIO_MSN2_EN, false);
-  
 
   // gpio_write(GPIO_MSN_3V3_EM_EN, state);
   // gpio_write(GPIO_DCDC_MSN_3V3_2_EN, state);
@@ -2141,10 +2216,16 @@ int send_beacon_data()
       // fd= send_data_uart(COM_UART, beacon_data, sizeof(beacon_data));
       //  fd = send_data_uart(COM_UART, test, sizeof(test));
 
-      printf("beacon data size %d\n", fd);
+      printf("beacon data size %d\n", sizeof(beacon_data));
       fd = open(COM_UART, O_WRONLY);
+      int count;
       if (fd < 0)
       {
+        do
+        {
+          fd = open(COM_UART, O_WRONLY);
+          count += 1;
+        } while (open(COM_UART, O_WRONLY) >= 0 | count < 5);
         printf("unable to open: %s\n", COM_UART);
         return -1;
       }
@@ -2228,7 +2309,8 @@ void Antenna_Deployment(int argc, char *argv[])
   do
   {
     sleep(1);
-    printf("%d second has passesd\n", i);
+    if (i > 25)
+      printf("%d second has passesd\n", i);
     i++;
   } while (i < 30);
 
@@ -2254,9 +2336,9 @@ void Antenna_Deployment(int argc, char *argv[])
       gpio_write(GPIO_BURNER_EN, false);
       // usleep(1000 * 1000 * 2); // 2 seconds
       sleep(10);
+      printf("%d Antenna deployment sequence completed\n", i);
     }
   }
-  printf("Antenna deployment sequence complete\n");
   // ant_check.ANT_DEP_STAT = DEPLOYED;
   // ant_check.UL_STATE
   // // store_flag_data(&ant_check);
@@ -2332,6 +2414,7 @@ void adcs_operation(uint8_t mode)
     sleep(1);
     mission_data("/adcs.txt", &cam, counter1);
     uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+    sleep(1);
     send_data_uart(COM_UART, ack, sizeof(ack));
   }
 }
@@ -2340,6 +2423,7 @@ void cam_operation()
   if (MISSION_STATUS.ADCS_MISSION == false && MISSION_STATUS.EPDM_MISSION == false && MISSION_STATUS.CAM_MISSION == false)
   {
     MISSION_STATUS.CAM_MISSION = true;
+    MISSION_STATUS.FLASH_OPERATION = true;
     int hand;
     turn_msn_on_off(2, 0);
     sleep(1);
@@ -2393,6 +2477,7 @@ void cam_operation()
       close(fd2);
 
       turn_msn_on_off(2, 0);
+      MISSION_STATUS.FLASH_OPERATION = false;
       MISSION_STATUS.CAM_MISSION = false;
 
       usleep(10000);
@@ -2400,6 +2485,7 @@ void cam_operation()
       sleep(2);
       mission_data("/cam.txt", &cam, counter1);
       uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+      sleep(1);
       send_data_uart(COM_UART, ack, sizeof(ack));
     }
   }
@@ -2465,6 +2551,7 @@ void epdm_operation()
     sleep(2);
     mission_data("/epdm.txt", &cam, counter1);
     uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+    sleep(1);
     send_data_uart(COM_UART, ack, sizeof(ack));
     // free(cam);
     // free()
