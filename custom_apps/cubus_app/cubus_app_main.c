@@ -78,6 +78,7 @@
 // Declare the instance of the struct
 uint8_t COM_HANDSHAKE_STATUS = 0;
 bool FLASH_OPERATION = false;
+bool COM_UART_BUSY = false;
 struct mission_status MISSION_STATUS = {false, false, false}; // Initialize all to false
 
 uint8_t beacon_status = 0;
@@ -816,7 +817,7 @@ void send_beacon()
     {
       send_beacon_data();
     }
-    sleep(90);
+    sleep(9);//TODO make it 90 later
     // usleep(100000);
   }
 }
@@ -826,24 +827,24 @@ void send_beacon()
  *
  * COM will be in digipeater mode till a digipeating message is received and digipeated
  ****************************************************************************/
-void digipeater_mode(uint8_t *data) // TODO beacon 2 paxi disable garna milni enable garna namilni tara 2 agadi chai enable garna namilni
-{
-  receive_data_uart(COM_UART, data, 29);
-  for (int i = 29; i < 84; i++)
-  {
-    data[i] = 0xff;
-  }
-  // send_data_uart(COM_UART, data, 84);
-  /*To delete*/
-  if (send_data_uart(COM_UART, data, 84) > 0)
-  {
-    syslog(LOG_DEBUG, "***************************digipeating data is ***************************\n ");
-    for (int i = 0; i < 85; i++)
-      printf("%02x ", data);
-    printf("***************************digipeating successful***************************\n :");
-  }
-  /*To delete*/
-}
+// void digipeater_mode(uint8_t *data) // TODO beacon 2 paxi disable garna milni enable garna namilni tara 2 agadi chai enable garna namilni
+// {
+//   receive_data_uart(COM_UART, data, 29);
+//   for (int i = 29; i < 84; i++)
+//   {
+//     data[i] = 0xff;
+//   }
+//   // send_data_uart(COM_UART, data, 84);
+//   /*To delete*/
+//   if (send_data_uart(COM_UART, data, 84) > 0)
+//   {
+//     syslog(LOG_DEBUG, "***************************digipeating data is ***************************\n ");
+//     for (int i = 0; i < 85; i++)
+//       printf("%02x ", data);
+//     printf("***************************digipeating successful***************************\n :");
+//   }
+//   /*To delete*/
+// }
 
 /****************************************************************************
  * COM handshake function
@@ -1442,7 +1443,7 @@ void serialize_beacon_b(uint8_t beacon_data[BEACON_DATA_SIZE])
   beacon_data[25] = ((s2s_beacon_type_b.MAG_X >> 8) & 0xff) * 100;
   beacon_data[26] = ((s2s_beacon_type_b.MAG_X) & 0xff) * 100;
   beacon_data[27] = ((s2s_beacon_type_b.MAG_Y >> 8) & 0xff) * 100;
-  (beacon_data[28] = (s2s_beacon_type_b.MAG_Y) & 0xff) * 100;
+  beacon_data[28] = ((s2s_beacon_type_b.MAG_Y) & 0xff) * 100;
   beacon_data[29] = (s2s_beacon_type_b.MAG_Z >> 8 & 0xff) * 100;
   beacon_data[30] = (s2s_beacon_type_b.MAG_Z & 0xff) * 100;
   beacon_data[31] = s2s_beacon_type_b.CHK_CRC; // TODO::  last rst
@@ -1529,57 +1530,68 @@ void Make_Beacon_Data(uint8_t type)
  ****************************************************************************/
 int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
 {
-  double fd;
-  int i;
-  int count = 0, ret;
-  printf("Turning on  4V dcdc line..\n");
-  gpio_write(GPIO_DCDC_4V_EN, 1);
-  printf("Turning on COM 4V line..\n");
-  gpio_write(GPIO_COM_4V_EN, 1);
-  printf("Opening uart dev path : %s\n", dev_path);
-  fd = open(dev_path, O_WRONLY);
+  if (COM_UART_BUSY == false)
+  {
+    COM_UART_BUSY = true;
+    double fd;
+    int i;
+    int count = 0, ret;
+    int wr1;
 
-  if (fd < 0)
-  {
-    printf("error opening %s\n", dev_path);
-    return fd;
-  }
-  int wr1 = write(fd, data, size);
-  if (wr1 < 0)
-  {
-    printf("Unable to write data\n");
+    fd = open(dev_path, O_WRONLY);
+
+    if (fd < 0)
+    {
+      printf("error opening %s\n", dev_path);
+      return fd;
+    }
+    else
+    {
+      printf("Turning on  4V dcdc line..\n");
+      gpio_write(GPIO_DCDC_4V_EN, 1);
+      printf("Turning on COM 4V line..\n");
+      gpio_write(GPIO_COM_4V_EN, 1);
+      printf("Opening uart dev path : %s\n", dev_path);
+      wr1 = write(fd, data, size);
+      if (wr1 < 0)
+      {
+        printf("Unable to write data\n");
+        return wr1;
+      }
+      printf("\n%d bytes written\n", wr1);
+      // printf("\ndata is %\n", wr1);
+      for (int i = 0; i < size; i++)
+      {
+        {
+          printf("%d ", data[i]);
+        }
+      }
+      sleep(2);
+      printf("Turning off  4v DCDC line..\n");
+      int x = 0;
+      while (x < 200000)
+      {
+        x += 200;
+        usleep(200);
+      }
+
+      gpio_write(GPIO_DCDC_4V_EN, 0);
+      // printf("Turning off COM 4V line..\n");
+      gpio_write(GPIO_COM_4V_EN, 0);
+      ioctl(fd, TCFLSH, 2);
+      printf("flused tx rx buffer\n");
+      ioctl(fd, TCDRN, NULL);
+      printf("drained tx rx buffer\n");
+      if (close(fd) < 0)
+      {
+        close(fd);
+        printf("Failed to close COM_UART: %s\n", strerror(errno));
+      }
+    }
+    COM_UART_BUSY = false;
+
     return wr1;
   }
-  printf("\n%d bytes written\n", wr1);
-  // printf("\ndata is %\n", wr1);
-  for (int i = 0; i < size; i++)
-  {
-    {
-      printf("%d ", data[i]);
-    }
-  }
-  sleep(2);
-  printf("Turning off  4v DCDC line..\n");
-  int x = 0;
-  while (x < 200000)
-  {
-    x += 200;
-    usleep(200);
-  }
-
-  gpio_write(GPIO_DCDC_4V_EN, 0);
-  // printf("Turning off COM 4V line..\n");
-  gpio_write(GPIO_COM_4V_EN, 0);
-  ioctl(fd, TCFLSH, 2);
-  printf("flused tx rx buffer\n");
-  ioctl(fd, TCDRN, NULL);
-  printf("drained tx rx buffer\n");
-  if (close(fd) < 0)
-  {
-    close(fd);
-    printf("Failed to close COM_UART: %s\n", strerror(errno));
-  }
-  return wr1;
 }
 
 /*
@@ -2039,7 +2051,7 @@ int main(int argc, FAR char *argv[])
       }
       else
       {
-        int retval = task_create("BEACON_TASK_APP", 100, 1000, send_beacon, NULL);
+        int retval = task_create("BEACON_TASK_APP", 100, 1096, send_beacon, NULL);
         if (retval < 0)
         {
           printf("unable to create BEACON_TASK_APP task\n");
@@ -2217,41 +2229,42 @@ int send_beacon_data()
       //  fd = send_data_uart(COM_UART, test, sizeof(test));
 
       printf("beacon data size %d\n", sizeof(beacon_data));
-      fd = open(COM_UART, O_WRONLY);
-      int count;
-      if (fd < 0)
-      {
-        do
-        {
-          fd = open(COM_UART, O_WRONLY);
-          count += 1;
-        } while (open(COM_UART, O_WRONLY) >= 0 | count < 5);
-        printf("unable to open: %s\n", COM_UART);
-        return -1;
-      }
-      sleep(2);
+      send_data_uart(COM_UART,beacon_data, sizeof(beacon_data));
+      // fd = open(COM_UART, O_WRONLY);
+      // int count;
+      // if (fd < 0)
+      // {
+      //   do
+      //   {
+      //     fd = open(COM_UART, O_WRONLY);
+      //     count += 1;
+      //   } while (open(COM_UART, O_WRONLY) >= 0 | count < 5);
+      //   printf("unable to open: %s\n", COM_UART);
+      //   return -1;
+      // }
+      // sleep(2);
 
-      printf("Turning on  4v dcdc line..\n");
-      gpio_write(GPIO_DCDC_4V_EN, 1);
-      printf("Turning on COM 4V line..\n");
-      gpio_write(GPIO_COM_4V_EN, 1);
+      // printf("Turning on  4v dcdc line..\n");
+      // gpio_write(GPIO_DCDC_4V_EN, 1);
+      // printf("Turning on COM 4V line..\n");
+      // gpio_write(GPIO_COM_4V_EN, 1);
 
-      int ret = write(fd, beacon_data, BEACON_DATA_SIZE);
-      usleep(10000);
-      if (ret < 0)
-      {
-        printf("unable to send data\n");
-        for (int i = 0; i < BEACON_DATA_SIZE; i++)
-        {
-          ret = write(fd, &beacon_data[i], 1);
-          usleep(1000);
-        }
-        if (ret < 0)
-        {
-          printf("Unable to send data through byte method..\n");
-          return -1;
-        }
-      }
+      // int ret = write(fd, beacon_data, BEACON_DATA_SIZE);
+      // usleep(10000);
+      // if (ret < 0)
+      // {
+      //   printf("unable to send data\n");
+      //   for (int i = 0; i < BEACON_DATA_SIZE; i++)
+      //   {
+      //     ret = write(fd, &beacon_data[i], 1);
+      //     usleep(1000);
+      //   }
+      //   if (ret < 0)
+      //   {
+      //     printf("Unable to send data through byte method..\n");
+      //     return -1;
+      //   }
+      // }
 
       /*To delete*/
       if (beacon_status == 0)
@@ -2264,9 +2277,10 @@ int send_beacon_data()
         printf("\nbeacon 2:\n");
         digipeating = 1;
       }
+      printf("Beacon Type %d sequence complete\n", beacon_type);
+
       beacon_type = !beacon_type;
 
-      printf("Beacon Type %d sequence complete\n", beacon_type);
       // work_queue(HPWORK, &work_beacon, send_beacon_data, NULL, SEC2TICK(BEACON_DELAY));
     }
   }

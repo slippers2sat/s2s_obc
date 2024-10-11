@@ -188,20 +188,20 @@ int ads7953_daemon(int argc, FAR char *argv[])
       mean=(mean + sat_temps.temp_ant)/2;
     }
     if(counter % 50 == 0){
-      syslog(LOG_DEBUG,"MEan 50 is %f",mean);
+      // syslog(LOG_DEBUG,"MEan 50 is %f",mean);
      
     }
     counter++;
 
     // syslog(LOG_DEBUG,"Got temp value %f Temp %f",sat_temps.temp_ant, t5);
     if(counter% 450 ==0){
-      syslog(LOG_DEBUG,"MEan 450 is %f\n",mean);
+      // syslog(LOG_DEBUG,"MEan 450 is %f\n",mean);
        struct file fptr;
        char log[20];
       int fd = file_open(&fptr, "/mnt/fs/mfm/mtd_mainstorage/adc_data.txt", O_CREAT | O_APPEND | O_WRONLY );
       sprintf(log,"%d,\0", (int16_t)mean);
       if(0 != file_write(&fptr, log,strlen(log))){
-        printf("File written succesfully\n");
+        // printf("File written succesfully\n");
       }
       // file_sync(&fptr);
       file_close(&fptr);
