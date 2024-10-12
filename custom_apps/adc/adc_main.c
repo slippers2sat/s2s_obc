@@ -269,13 +269,13 @@ int read_int_adc(FAR struct adc_state_s *g_adcstate,
       }
       else
       {
-        // //syslog(LOG_INFO, "Sample:\n");
-        // for (int i = 0; i < nsamples; i++)
-        // {
-        //   struct adc_msg_s temp = int_adc_sample[i];
-        //   //syslog(LOG_INFO, "%d: channel: %d value: %" PRId32 "\n",
-        //         i, temp.am_channel, temp.am_data);
-        // }
+        //syslog(LOG_INFO, "Sample:\n");
+        for (int i = 0; i < nsamples; i++)
+        {
+          struct adc_msg_s temp = int_adc_sample[i];
+          syslog(LOG_INFO, "%d: channel: %d value: %" PRId32 "\n",
+                i, temp.am_channel, temp.am_data);
+        }
       }
     }
 
@@ -555,13 +555,19 @@ int adc_daemon(int argc, FAR char *argv[])
     int_adc.C_sp2 = int_adc1_temp[12];
     int_adc.C_sp3 = int_adc1_temp[13];
     int_adc.C_4v = int_adc3_temp[0];
+    for(int i=0;i<14;i++){
+      printf("| %f |",i, int_adc1_temp[i]);
+    }
+    printf("\n");
+      sleep(2);
+
     int_adc.timestamp = orb_absolute_time();
 
     if(OK != orb_publish(ORB_ID(sat_int_adc_msg), adc_afd, &int_adc))
     {
       //syslog(LOG_ERR,"[adc_main] Sat int adc publish failed.\n");
     }
-    usleep(500000);
+    usleep(100000);
   } // for(;;)
 
   ret = orb_unadvertise(adc_afd);

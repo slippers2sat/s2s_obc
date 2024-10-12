@@ -72,15 +72,6 @@ static struct adc_state_s g_adcstate1;
 #ifdef CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC3
 static struct adc_state_s g_adcstate3;
 #endif
-
-int elapsed = 0;
-int required = 10;
-
-int ret;
-int i = 0;
-char buffer[255] = {'\0'};
-struct file file_p;
-
 #ifdef CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1
 int_adc_config_s adc1_config;
 struct adc_msg_s int_adc1_sample[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE];
@@ -90,6 +81,16 @@ struct adc_msg_s int_adc1_sample[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE];
 int_adc_config_s adc3_config;
 struct adc_msg_s int_adc3_sample[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC3_GROUPSIZE];
 #endif
+
+int elapsed = 0;
+int required = 10;
+
+int ret;
+int i = 0;
+char buffer[255] = {'\0'};
+struct file file_p;
+
+
 
 #ifdef CONFIG_CUSTOM_APPS_CUBUS_USE_EXT_ADC
 ext_adc_config_s ext_adc_config;
