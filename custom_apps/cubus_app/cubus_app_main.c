@@ -22,6 +22,7 @@
  * Included Files
  ****************************************************************************/
 // #include "ads7953_raw_msg.h"
+#include <pthread.h>
 #include <sys/ioctl.h>
 #include "cubus_app_main.h"
 #include "common_functions.h"
@@ -224,6 +225,60 @@ void watchdog_refresh_task(int fd);
 int configure_watchdog(int fd, int timeout);
 void send_beacon();
 /*Private function prototypes declaration end */
+
+/****************************************************************************
+ * Send data from UART through any UART path
+ ****************************************************************************/
+int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
+{
+  double fd;
+  int i;
+  int count = 0, ret;
+  printf("Turning on  4V dcdc line..\n");
+  gpio_write(GPIO_DCDC_4V_EN, 1);
+  printf("Turning on COM 4V line..\n");
+  gpio_write(GPIO_COM_4V_EN, 1);
+  printf("Opening uart dev path : %s\n", dev_path);
+  fd = open_uart(COM_UART);
+  if (fd < 0)
+  {
+    printf("error opening %s\n", dev_path);
+    return fd;
+  }
+  int wr1 = write(fd, data, size);
+  if (wr1 < 0)
+  {
+    printf("Unable to write data\n");
+    return wr1;
+  }
+  printf("\n%d bytes written\n", wr1);
+  // printf("\ndata is %\n", wr1);
+  for (int i = 0; i < size; i++)
+  {
+    {
+      printf("%d ", data[i]);
+    }
+  }
+  sleep(2);
+  printf("Turning off  4v DCDC line..\n");
+  int x = 0;
+  while (x < 200000)
+  {
+    x += 200;
+    usleep(200);
+  }
+
+  gpio_write(GPIO_DCDC_4V_EN, 0);
+  // printf("Turning off COM 4V line..\n");
+  gpio_write(GPIO_COM_4V_EN, 0);
+  ioctl(fd, TCFLSH, 2);
+  printf("flused tx rx buffer\n");
+  ioctl(fd, TCDRN, NULL);
+  printf("drained tx rx buffer\n");
+  close_uart(fd);
+  return wr1;
+}
+
 int receive_telecommand_rx(uint8_t *COM_RX_DATA)
 { // TODO sth to do with parsing
   uint8_t useful_command[12];
@@ -1303,7 +1358,7 @@ int gpio_write(uint32_t pin, uint8_t mode)
 int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
 {
   int fd, ret;
-  fd = open(dev_path, O_RDONLY);
+  fd = open_uart(COM_UART) ;//open(dev_path, O_RDONLY);
   if (fd < 0)
   {
     printf("Unable to open %s\n", dev_path);
@@ -1330,13 +1385,15 @@ int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
   ioctl(fd, TCFLSH, 2);
   ioctl(fd, TCDRN, NULL);
   printf("drained and flushed tx rx buffer\n");
-  if (close(fd) < 0)
-  {
-    if (close(fd) < 0)
-    {
-      printf("Failed to close COM UART: %s\n", strerror(errno));
-    }
-  }
+  // if (close(fd) < 0)
+  // {
+  //   if (close(fd) < 0)
+  //   {
+  //     printf("Failed to close COM UART: %s\n", strerror(errno));
+  //   }
+  // }
+  close_uart(fd);
+  usleep(10000);
   return ret;
 }
 /****************************************************************************
@@ -1528,70 +1585,89 @@ void Make_Beacon_Data(uint8_t type)
 /****************************************************************************
  * Send data from UART through any UART path
  ****************************************************************************/
-int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
-{
-  if (COM_UART_BUSY == false)
-  {
-    COM_UART_BUSY = true;
-    double fd;
-    int i;
-    int count = 0, ret;
-    int wr1;
+// int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
+// {
+//   if (COM_UART_BUSY == false)
+//   {
+//     COM_UART_BUSY = true;
+//     double fd;
+//     int i;
+//     int count = 0, ret;
+//     int wr1;
 
-    fd = open(dev_path, O_WRONLY);
+//     fd = open(dev_path, O_WRONLY);
 
-    if (fd < 0)
-    {
-      printf("error opening %s\n", dev_path);
-      return fd;
+//     if (fd < 0)
+//     {
+//       printf("error opening %s\n", dev_path);
+//       return fd;
+//     }
+//     else
+//     {
+//       printf("Turning on  4V dcdc line..\n");
+//       gpio_write(GPIO_DCDC_4V_EN, 1);
+//       printf("Turning on COM 4V line..\n");
+//       gpio_write(GPIO_COM_4V_EN, 1);
+//       printf("Opening uart dev path : %s\n", dev_path);
+//       wr1 = write(fd, data, size);
+//       if (wr1 < 0)
+//       {
+//         printf("Unable to write data\n");
+//         return wr1;
+//       }
+//       printf("\n%d bytes written\n", wr1);
+//       // printf("\ndata is %\n", wr1);
+//       for (int i = 0; i < size; i++)
+//       {
+//         {
+//           printf("%d ", data[i]);
+//         }
+//       }
+//       sleep(2);
+//       printf("Turning off  4v DCDC line..\n");
+//       int x = 0;
+//       while (x < 200000)
+//       {
+//         x += 200;
+//         usleep(200);
+//       }
+
+//       gpio_write(GPIO_DCDC_4V_EN, 0);
+//       // printf("Turning off COM 4V line..\n");
+//       gpio_write(GPIO_COM_4V_EN, 0);
+//       ioctl(fd, TCFLSH, 2);
+//       printf("flused tx rx buffer\n");
+//       ioctl(fd, TCDRN, NULL);
+//       printf("drained tx rx buffer\n");
+//       if (close(fd) < 0)
+//       {
+//         close(fd);
+//         printf("Failed to close COM_UART: %s\n", strerror(errno));
+//       }
+//     }
+//     COM_UART_BUSY = false;
+
+//     return wr1;
+//   }
+// }
+
+pthread_mutex_t uart_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+
+int open_uart(const char *uart_dev) {
+    pthread_mutex_lock(&uart_mutex);
+    int fd = open(uart_dev, O_RDWR );
+    if (fd < 0) {
+        syslog(LOG_ERR, "Failed to open UART %s: %d", uart_dev, errno);
     }
-    else
-    {
-      printf("Turning on  4V dcdc line..\n");
-      gpio_write(GPIO_DCDC_4V_EN, 1);
-      printf("Turning on COM 4V line..\n");
-      gpio_write(GPIO_COM_4V_EN, 1);
-      printf("Opening uart dev path : %s\n", dev_path);
-      wr1 = write(fd, data, size);
-      if (wr1 < 0)
-      {
-        printf("Unable to write data\n");
-        return wr1;
-      }
-      printf("\n%d bytes written\n", wr1);
-      // printf("\ndata is %\n", wr1);
-      for (int i = 0; i < size; i++)
-      {
-        {
-          printf("%d ", data[i]);
-        }
-      }
-      sleep(2);
-      printf("Turning off  4v DCDC line..\n");
-      int x = 0;
-      while (x < 200000)
-      {
-        x += 200;
-        usleep(200);
-      }
+    pthread_mutex_unlock(&uart_mutex);
+    return fd;
+}
 
-      gpio_write(GPIO_DCDC_4V_EN, 0);
-      // printf("Turning off COM 4V line..\n");
-      gpio_write(GPIO_COM_4V_EN, 0);
-      ioctl(fd, TCFLSH, 2);
-      printf("flused tx rx buffer\n");
-      ioctl(fd, TCDRN, NULL);
-      printf("drained tx rx buffer\n");
-      if (close(fd) < 0)
-      {
-        close(fd);
-        printf("Failed to close COM_UART: %s\n", strerror(errno));
-      }
-    }
-    COM_UART_BUSY = false;
-
-    return wr1;
-  }
+void close_uart(int fd) {
+    pthread_mutex_lock(&uart_mutex);
+    close(fd);
+    pthread_mutex_unlock(&uart_mutex);
 }
 
 /*
@@ -2122,7 +2198,7 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
 // //COM
 void send_flash_data(uint8_t *beacon_data)
 {
-  int fd = open(COM_UART, O_RDWR);
+  int fd = open_uart(COM_UART);//open(COM_UART, O_RDWR);
   int ret2;
   if (fd < 0)
   {
@@ -2182,6 +2258,7 @@ void send_flash_data(uint8_t *beacon_data)
       }
     }
   }
+  close_uart(fd);
 }
 
 // COM
