@@ -182,7 +182,7 @@ typedef struct {
 	uint8_t UL_STATE;			//uplink success
 	uint8_t OPER_MODE;			//operation modes
 	uint8_t KILL_SWITCH_STAT;	//kill switch status
-	uint8_t FILLER;				//to make sure data is stored in internal flash 
+	uint8_t RST_COUNT;				//to make sure data is stored in internal flash 
 }CRITICAL_FLAGS;
 
 typedef enum _OPERA_MODES {

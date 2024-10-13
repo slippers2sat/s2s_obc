@@ -26,6 +26,7 @@ config CUSTOM_APPS_MPU6500_STACKSIZE
 	int "MPU6500 stack size"
 	default DEFAULT_TASK_STACKSIZE
 
+
 config IMU_NO
   int "no of IMU devices"
   default 1

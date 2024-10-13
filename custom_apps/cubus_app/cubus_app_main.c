@@ -42,9 +42,29 @@
 
 // #include "com_app_main.h"
 #include "gpio_definitions.h"
+#include <sensor/adc.h>
 
 #include <nuttx/sensors/sensor.h>
 #include <nuttx/sensors/lis3mdl.h>
+
+#include <sensor/accel.h>
+#include <sensor/gyro.h>
+
+#include <time.h>
+#include <fcntl.h>
+
+#include <poll.h>
+#include <sched.h>
+#include <math.h>
+
+#define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
+float x[8], y[8];
+int ads7953_receiver(int argc, FAR char *argv[]);
+
+void convert1(data);
+void subscribe_and_retrieve_data();
+void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel);
+
 /****************************************************************************
  * COM TASK task
  ****************************************************************************/
@@ -75,10 +95,9 @@
 #define ANT_DEP_DELAY 30 * 60
 #define BEACON_DELAY 180
 
-
 /*INT adc added
-*/
-int ret, elapsed =0, required = 10;
+ */
+int ret, elapsed = 0, required = 10;
 #if defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1) || defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC3)
 static void adc_devpath(FAR struct adc_state_s *adc, FAR const char *devpath);
 #endif
@@ -137,7 +156,7 @@ uint8_t RX_DATA_EPDM[48] = {'\0'};
 uint8_t digipeating = 1;
 // int Execute_EPDM();
 extern ext_adc_s ext_adc_data[EXT_ADC_MAX_CHANNELS];
-extern CRITICAL_FLAGS critic_flags;
+ CRITICAL_FLAGS critic_flags;
 
 CRITICAL_FLAGS test_flags;
 
@@ -225,6 +244,8 @@ typedef struct
 /*Private variable end*/
 
 /*Private function prototypes declaration start*/
+void make_satellite_health();
+void print_satellite_health_data(satellite_health_s *sat_health);
 
 void incorrect_command(uint8_t *ack);
 // int gpio_write1(uint32_t pin, uint8_t mode);
@@ -282,12 +303,12 @@ int read_int_adc1()
    * samples that we collect before returning.  Otherwise, we never return
    */
 
-  printf("adc_main: g_adcstate.count: %d\n", g_adcstate1.count);
+  // printf("adc_main: g_adcstate.count: %d\n", g_adcstate1.count);
 
-  /* Open the ADC device for reading */
+  // /* Open the ADC device for reading */
 
-  printf("adc_main: Hardware initialized. Opening the ADC device: %s\n",
-         g_adcstate1.devpath);
+  // printf("adc_main: Hardware initialized. Opening the ADC device: %s\n",
+  //        g_adcstate1.devpath);
 
   /* Opening internal ADC1 */
   adc1_config.fd = open(CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_DEVPATH, O_RDONLY);
@@ -332,7 +353,7 @@ int read_int_adc1()
     adc1_config.readsize = CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE * sizeof(struct adc_msg_s);
     adc1_config.nbytes = read(adc1_config.fd, int_adc1_sample, adc1_config.readsize);
 
-    printf("Readsize: %d \n nbytes: %d\n CUSTOM_APPS_CUBUS_INT_ADC_GROUPSIZE : %d \n ADCSTATE READCOUNT: %d \r\n", adc1_config.readsize, adc1_config.nbytes, CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE, g_adcstate1.count);
+    // printf("Readsize: %d \n nbytes: %d\n CUSTOM_APPS_CUBUS_INT_ADC_GROUPSIZE : %d \n ADCSTATE READCOUNT: %d \r\n", adc1_config.readsize, adc1_config.nbytes, CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE, g_adcstate1.count);
 
     /* Handle unexpected return values */
     if (adc1_config.nbytes < 0)
@@ -360,18 +381,35 @@ int read_int_adc1()
       int nsamples = adc1_config.nbytes / sizeof(struct adc_msg_s);
       if (nsamples * sizeof(struct adc_msg_s) != adc1_config.nbytes)
       {
-        printf("adc_main: read size=%ld is not a multiple of "
-               "sample size=%d, Ignoring\n",
-               (long)adc1_config.nbytes, sizeof(struct adc_msg_s));
+        // printf("adc_main: read size=%ld is not a multiple of "
+        //        "sample size=%d, Ignoring\n",
+        //        (long)adc1_config.nbytes, sizeof(struct adc_msg_s));
       }
       else
       {
-        printf("Sample:\n");
-        for (int i = 0; i < nsamples; i++)
-        {
-          printf("%d: channel: %d value: %" PRId32 "\n",
-                 i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
-        }
+        //Print int adc values
+        // printf("Sample:\n");
+        // for (int i = 0; i < nsamples; i++)
+        // {
+        //   printf("%d: channel: %d value: %" PRId32 "\n",
+        //          i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
+        // }
+        sat_health.raw_v = int_adc1_sample[12].am_data;
+        sat_health.sol_p1_c = int_adc1_sample[14].am_data;
+        sat_health.sol_p2_c = int_adc1_sample[15].am_data;
+        sat_health.sol_p3_c = int_adc1_sample[8].am_data;
+        sat_health.sol_p4_c = int_adc1_sample[7].am_data;
+        sat_health.sol_p5_c = int_adc1_sample[6].am_data;
+        sat_health.sol_t_c = int_adc1_sample[0].am_data;
+        // sat_health.rst_3v3_c = int_adc1_sample[i].am_data;
+        sat_health.raw_c = int_adc1_sample[12].am_data;
+        sat_health.v3_main_c = int_adc1_sample[4].am_data;
+        sat_health.v3_com_c = int_adc1_sample[3].am_data;
+        sat_health.v3_2_c = int_adc1_sample[13].am_data;
+        sat_health.v5_c = int_adc1_sample[2].am_data;
+        sat_health.unreg_c = int_adc1_sample[10].am_data;
+        sat_health.v4_c = int_adc1_sample[11].am_data;
+        sat_health.batt_c = int_adc1_sample[9].am_data;
       }
     }
 
@@ -541,7 +579,6 @@ errout:
 }
 #endif // CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC3
 
-
 int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
 {
   double fd;
@@ -618,11 +655,11 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   else
   {
     // Todo uncomment the line later
-    syslog(LOG_SYSLOG, "COmmand received %s\n", COM_RX_DATA);
+    // syslog(LOG_SYSLOG, "COmmand received %s\n", COM_RX_DATA);
     parse_command(COM_RX_DATA);
 
     uint8_t commands[COM_DATA_SIZE] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
-    printf("-------------parse command starting-------------\n");
+    printf("\n-------------parse command starting-------------\n");
 
     // // Check whether the received data in uart_com has initial 0x00 value or not if the initial is 0x00 then MCU_ID is supposed to be there at index 16, otherwise it is in index 17
     // parse_command(commands);
@@ -732,11 +769,11 @@ void incorrect_command(uint8_t *ack)
 void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
 {
   uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x7e};
-  syslog(LOG_DEBUG, "command received is :");
-  for (int i = 0; i < COM_DATA_SIZE; i++)
-  {
-    printf("%d ", COM_RX_DATA[i]);
-  }
+  // syslog(LOG_DEBUG, "command received is :");
+  // for (int i = 0; i < COM_DATA_SIZE; i++)
+  // {
+  //   printf("%d ", COM_RX_DATA[i]);
+  // }
   ack[83] = 0x7e;
   ack[82] = 0x7e;
   if (COM_RX_DATA[0] == 0x53)
@@ -755,6 +792,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         ack[3] = 0x02;
         ack[4] = 0xfc;
         ack[5] = 0xee;
+        ack[6] = 0x7e;
 
         // send_data_uart(COM_UART, ack1, sizeof(ack1));
       }
@@ -1177,16 +1215,21 @@ static int COM_TASK(int argc, char *argv[])
   }
 }
 
-void send_beacon()
+void send_beacon(int argc, char *argv)
 {
   for (;;)
   {
     if (COM_HANDSHAKE_STATUS == 1)
     {
+      read_int_adc1();
+      // read_int_adc3();
+      
+      make_satellite_health();
+      // ads7953_receiver(argc, argv);
       send_beacon_data();
-       
     }
-    sleep(30);//TODO make it 90 later
+    sleep(90); // TODO make it 90 later
+
     // usleep(100000);
   }
 }
@@ -1672,7 +1715,7 @@ int gpio_write(uint32_t pin, uint8_t mode)
 int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
 {
   int fd, ret;
-  fd = open_uart(COM_UART) ;//open(dev_path, O_RDONLY);
+  fd = open_uart(COM_UART); // open(dev_path, O_RDONLY);
   if (fd < 0)
   {
     printf("Unable to open %s\n", dev_path);
@@ -1737,8 +1780,8 @@ void serialize_beacon_a(uint8_t beacon_data[BEACON_DATA_SIZE])
   }
   // uint8_t beacon_data[BEACON_DATA_SIZE];
   beacon_data[0] = s2s_beacon_type_a.HEAD;
-  beacon_data[1] = s2s_beacon_type_a.TYPE;
-  beacon_data[2] = s2s_beacon_type_a.TIM_DAY;
+  beacon_data[1] = s2s_beacon_type_a.TYPE<<4 & s2s_beacon_type_a.TIM_DAY >>4 &0xff;
+  beacon_data[2] = (int8_t)s2s_beacon_type_a.TIM_DAY & 0xff;
   beacon_data[3] = s2s_beacon_type_a.TIM_HOUR;
 
   beacon_data[4] = (s2s_beacon_type_a.BAT_V >> 8) & 0Xff;
@@ -1823,13 +1866,22 @@ void serialize_beacon_b(uint8_t beacon_data[BEACON_DATA_SIZE])
 // COM_APP
 void Make_Beacon_Data(uint8_t type)
 {
-  switch (type)
+  // switch (type)
   {
-  case 1:
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    int16_t hour = tm_info->tm_hour;
+    int16_t minute = tm_info->tm_min;
+    int16_t second = tm_info->tm_sec;
+
+    int16_t year = tm_info->tm_year + 1900; // Year since 1900
+    int16_t month = tm_info->tm_mon + 1;    // Months since January
+    int16_t day = tm_info->tm_mday; 
+  // case 1:
     s2s_beacon_type_a.HEAD = 0x53;
     s2s_beacon_type_a.TYPE = 0;
-    s2s_beacon_type_a.TIM_DAY = 01;
-    s2s_beacon_type_a.TIM_HOUR = 01;
+    s2s_beacon_type_a.TIM_DAY = day;
+    s2s_beacon_type_a.TIM_HOUR = hour;
     s2s_beacon_type_a.BAT_V = sat_health.batt_volt;
     s2s_beacon_type_a.BAT_C = sat_health.batt_c;
     s2s_beacon_type_a.BAT_T = sat_health.temp_batt;
@@ -1856,15 +1908,16 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_a.KILL1_STAT = critic_flags.KILL_SWITCH_STAT;
     s2s_beacon_type_a.KILL2_STAT = critic_flags.KILL_SWITCH_STAT;
     s2s_beacon_type_a.UL_STAT = critic_flags.UL_STATE;
+    // break;
 
-    // s2s_beacon_type_a.OBC_RESET_COUNT = ;  //TODO
-    // s2s_beacon_type_a.LAST_RESET = ;       //TODO
+    s2s_beacon_type_a.OBC_RESET_COUNT = critic_flags.RST_COUNT;  //TODO
+    s2s_beacon_type_a.LAST_RESET = 0xff;       //TODO
     // s2s_beacon_type_a.CHK_CRC = ;          //TODO
 
-  case 2:
+  // case 2:
     s2s_beacon_type_b.HEAD = 0x53;
     s2s_beacon_type_b.TYPE = 1;
-    s2s_beacon_type_b.TIM_DAY = 01;
+    s2s_beacon_type_b.TIM_DAY = day;
 
     s2s_beacon_type_b.SOL_P1_V = sat_health.sol_p1_v;
     s2s_beacon_type_b.SOL_P2_V = sat_health.sol_p2_v;
@@ -1891,6 +1944,8 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_b.MAG_X = (int16_t)sat_health.mag_x;
     s2s_beacon_type_b.MAG_Y = (int16_t)sat_health.mag_y;
     s2s_beacon_type_b.MAG_Z = (int16_t)sat_health.mag_z;
+    sleep(1);
+    // break;
 
     // s2s_beacon_type_b.CHK_CRC = ;  //TODO
   }
@@ -1967,21 +2022,23 @@ void Make_Beacon_Data(uint8_t type)
 
 pthread_mutex_t uart_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
-int open_uart(const char *uart_dev) {
-    pthread_mutex_lock(&uart_mutex);
-    int fd = open(uart_dev, O_RDWR );
-    if (fd < 0) {
-        syslog(LOG_ERR, "Failed to open UART %s: %d", uart_dev, errno);
-    }
-    pthread_mutex_unlock(&uart_mutex);
-    return fd;
+int open_uart(const char *uart_dev)
+{
+  pthread_mutex_lock(&uart_mutex);
+  int fd = open(uart_dev, O_RDWR);
+  if (fd < 0)
+  {
+    syslog(LOG_ERR, "Failed to open UART %s: %d", uart_dev, errno);
+  }
+  pthread_mutex_unlock(&uart_mutex);
+  return fd;
 }
 
-void close_uart(int fd) {
-    pthread_mutex_lock(&uart_mutex);
-    close(fd);
-    pthread_mutex_unlock(&uart_mutex);
+void close_uart(int fd)
+{
+  pthread_mutex_lock(&uart_mutex);
+  close(fd);
+  pthread_mutex_unlock(&uart_mutex);
 }
 
 /*
@@ -2290,7 +2347,10 @@ void global_reset()
 {
   for (;;)
   {
-    sleep(86400);
+    sleep(85400);
+    critic_flags.RST_COUNT += 1;
+    store_flag_data(critic_flags);
+    sleep(1000);
     gpio_write(GPIO_GBL_RST, true);
   }
 }
@@ -2301,6 +2361,8 @@ void global_reset()
 int main(int argc, FAR char *argv[])
 {
   int hand = 5;
+  bool g_mpu_task_started = false;
+
   printf("************************************************\n");
   printf("***********S2S commander app************\n");
 
@@ -2353,12 +2415,79 @@ int main(int argc, FAR char *argv[])
       gpio_write(GPIO_GBL_RST, true);
     }
   }
-  else if(strcmp(argv[1],"int") == 0){
-      for(int i=0;i<20;i++){
-        read_int_adc1();
-        read_int_adc3();
-      sleep(1);
+  else if (strcmp(argv[1], "mpu") == 0)
+  {
+    // printf("Starting MPU6500 data reader...\n");
+    // read_mpu6500_data();
+    if (g_mpu_task_started)
+    {
+      // printf("[MPU6500 TASK] Task already started.\n");
+      return EXIT_SUCCESS;
+    }
+    else
+    {
+      printf("[MPU6500 TASK] Task  started.\n");
+      // subscribe_and_retrieve_data(mag_scaled)
+      int retval = task_create("MPU6500_TASK_APP", 100, 1800, subscribe_and_retrieve_data, NULL);
+      if (retval < 0)
+      {
+        printf("unable to create MPU6500_TASK_APP task\n");
+        for (int i = 0; i < 4; i++)
+        {
+          retval = task_create("MPU6500_TASK_APP", 100, 1900, subscribe_and_retrieve_data, NULL);
+          if (retval >= 0)
+          {
+            g_mpu_task_started = true;
+            break;
+            return 0;
+          }
+        }
+        return -1;
       }
+    }
+    // ads7953_receiver(argc, argv);
+    // print_satellite_health_data(&sat_health);
+
+    sleep(1);
+  }
+  else if (strcmp(argv[1], "int") == 0)
+  {
+    // for (int i = 0; i < 20; i++)
+    {
+      // read_int_adc1();
+      // read_int_adc3();
+      // make_satellite_health();
+      bool g_adc_task_started = false;
+      if (g_adc_task_started)
+      {
+        printf("[Reset TASK] Task already started.\n");
+        return EXIT_SUCCESS;
+      }
+      else
+      {
+        printf("[ADC TASK] Task  started.\n");
+        int retval = task_create("ADC_TASK_APP", 100, 800, ads7953_receiver, NULL);
+        if (retval < 0)
+        {
+          printf("unable to create ADC_TASK_APP task\n");
+          for (int i = 0; i < 4; i++)
+          {
+            retval = task_create("ADC_TASK_APP", 100, 600, ads7953_receiver, NULL);
+            if (retval >= 0)
+            {
+              g_adc_task_started = true;
+              break;
+              return 0;
+            }
+          }
+          return -1;
+        }
+      }
+      // ads7953_receiver(argc, argv);
+      // print_satellite_health_data(&sat_health);
+
+      sleep(1);
+    }
   }
   else if (strcmp(argv[1], "ant") == 0)
   {
@@ -2454,10 +2583,36 @@ int main(int argc, FAR char *argv[])
           printf("unable to create BEACON_TASK_APP task\n");
           for (int i = 0; i < 4; i++)
           {
-            retval = task_create("BEACON_TASK_APP", 100, 1000, send_beacon, NULL);
+            retval = task_create("BEACON_TASK_APP", 100, 1200, send_beacon, NULL);
             if (retval >= 0)
             {
               g_beacon_task_started = true;
+              break;
+              return 0;
+            }
+          }
+          return -1;
+        }
+      }
+      if (g_mpu_task_started)
+      {
+        // printf("[MPU6500 TASK] Task already started.\n");
+        return EXIT_SUCCESS;
+      }
+      else
+      {
+        printf("[MPU6500 TASK] Task  started.\n");
+        // subscribe_and_retrieve_data(mag_scaled)
+        int retval = task_create("MPU6500_TASK_APP", 100, 1800, subscribe_and_retrieve_data, NULL);
+        if (retval < 0)
+        {
+          printf("unable to create MPU6500_TASK_APP task\n");
+          for (int i = 0; i < 4; i++)
+          {
+            retval = task_create("MPU6500_TASK_APP", 100, 1900, subscribe_and_retrieve_data, NULL);
+            if (retval >= 0)
+            {
+              g_mpu_task_started = true;
               break;
               return 0;
             }
@@ -2519,7 +2674,7 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
 // //COM
 void send_flash_data(uint8_t *beacon_data)
 {
-  int fd = open_uart(COM_UART);//open(COM_UART, O_RDWR);
+  int fd = open_uart(COM_UART); // open(COM_UART, O_RDWR);
   int ret2;
   if (fd < 0)
   {
@@ -2599,10 +2754,11 @@ int send_beacon_data()
     else
     {
       uint8_t beacon_data[BEACON_DATA_SIZE];
+      Make_Beacon_Data(beacon_type);
       switch (beacon_type)
       {
       case 0:
-
+        
         serialize_beacon_a(beacon_data);
         beacon_data[1] = 0xb1;
         beacon_data[2] = 0x51;
@@ -2627,7 +2783,7 @@ int send_beacon_data()
       //  fd = send_data_uart(COM_UART, test, sizeof(test));
 
       printf("beacon data size %d\n", sizeof(beacon_data));
-      send_data_uart(COM_UART,beacon_data, sizeof(beacon_data));
+      send_data_uart(COM_UART, beacon_data, sizeof(beacon_data));
       // fd = open(COM_UART, O_WRONLY);
       // int count;
       // if (fd < 0)
@@ -2665,17 +2821,17 @@ int send_beacon_data()
       // }
 
       /*To delete*/
-      if (beacon_status == 0)
+      if (beacon_data[1] == 0xb1)
       {
-        printf("\nbeacon 1:\n");
+        printf("\n------------beacon 1 sent-------------\n");
         digipeating = 0;
       }
       else
       {
-        printf("\nbeacon 2:\n");
+        printf("\n-------------beacon 2 sent-------------\n");
         digipeating = 1;
       }
-      printf("Beacon Type %d sequence complete\n", beacon_type);
+      // printf("Beacon Type %d sequence complete\n", beacon_type);
 
       beacon_type = !beacon_type;
 
@@ -3007,7 +3163,6 @@ void watchdog_refresh_task(int fd)
   }
 }
 
-
 /****************************************************************************
  * Name: int_adc1_data_convert
  *
@@ -3231,11 +3386,371 @@ static void adc_devpath(FAR struct adc_state_s *adc, FAR const char *devpath)
 }
 #endif
 
+void make_satellite_health()
+{
+#if defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1) || defined(CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC3)
+  float int_adc1_temp[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE] = {'\0'};
+  int_adc1_data_convert(int_adc1_temp);
+
+  float int_adc3_temp[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC3_GROUPSIZE] = {'\0'};
+  int_adc3_data_convert(int_adc3_temp);
+  /* External ADC data */
+  // sat_health.sol_t_v = (int16_t)ext_adc_data[0].processed_data;
+  // sat_health.raw_v = (int16_t)ext_adc_data[1].processed_data;
+  // sat_health.sol_p5_v = (int16_t)ext_adc_data[2].processed_data;
+  // sat_health.sol_p4_v = (int16_t)ext_adc_data[3].processed_data;
+  // sat_health.sol_p3_v = (int16_t)ext_adc_data[4].processed_data;
+  // sat_health.sol_p1_v = (int16_t)ext_adc_data[5].processed_data;
+  // sat_health.sol_p2_v = (int16_t)ext_adc_data[6].processed_data;
+
+  // sat_health.ant_temp_out = (float)ext_adc_data[8].processed_data;
+  // // sat_health.temp_batt = (int16_t)ext_adc_data[9].processed_data;
+  // sat_health.temp_bpb = (int16_t)ext_adc_data[10].processed_data;
+  // sat_health.temp_z = (int16_t)ext_adc_data[11].processed_data;
+
+  /* Internal ADC1 data */
+  sat_health.batt_c = (float)int_adc1_temp[9];
+  sat_health.sol_t_c = (float)int_adc1_temp[10];
+  sat_health.raw_c = (float)int_adc1_temp[11];
+
+  sat_health.unreg_c = (float)int_adc1_temp[0];
+  sat_health.v3_main_c = (float)int_adc1_temp[1];
+  sat_health.v3_com_c = (float)int_adc1_temp[2];
+  sat_health.v5_c = (float)int_adc1_temp[3];
+
+  sat_health.batt_volt = (float)int_adc1_temp[4];
+
+  sat_health.sol_p1_c = (float)int_adc1_temp[5];
+  sat_health.v3_2_c = (float)int_adc1_temp[6];
+  sat_health.sol_p4_c = (float)int_adc1_temp[7];
+  sat_health.sol_p5_c = (float)int_adc1_temp[8];
+
+  sat_health.sol_p2_c = (float)int_adc1_temp[12];
+  sat_health.sol_p3_c = (float)int_adc1_temp[13];
+
+  /* internal adc2 data*/
+  sat_health.v4_c = (float)int_adc3_temp[0];
+
+#endif
+}
+
 // void RUN_ADC(){
 //   // read_int_adc1();
 //   // read_int_adc3();
 //   ext_adc_main();
-  // make_satellite_health();
+// make_satellite_health();
 //   store_sat_health_data(&sat_health);
-//   print_satellite_health_data(&sat_health);
+// print_satellite_health_data(&sat_health);
 // }
+
+void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel)
+{
+  float root = 0;
+
+  if (channel == 16)
+  { // Battery temperature channel
+    float res = (adc_conv_buf[1] * 10000) / (2.5 * adc_conv_buf[1]);
+    float tempk = 3976 * 298 / (3976 + (298 * log10(10000 / res)));
+    temp_buf[1] = (tempk - 273) * 100;
+  }
+  else
+  {
+    root = sqrtf(
+        (5.506 * 5.506) +
+        (4 * 0.00176 * (870.6 + (adc_conv_buf[1] * 1000))));
+    temp_buf[1] = (((5.506 * root) / (2 * (-0.00176))) - 30) * 100;
+  }
+}
+void convert1(data)
+{
+  float root = sqrtf(
+      (5.506 * 5.506) +
+      (4 * 0.00176 * (870.6 + (data * 1000))));
+  float result = (((5.506 * root) / (2 * (-0.00176))) - 30) * 100;
+}
+
+int ads7953_receiver(int argc, FAR char *argv[])
+{
+  int raw_sub_fd = orb_subscribe(ORB_ID(ads7953_raw_msg));
+  int temp_sub_fd = orb_subscribe(ORB_ID(sat_temp_msg));
+  int volts_sub_fd = orb_subscribe(ORB_ID(sat_volts_msg));
+
+  struct pollfd fds[] = {
+      {.fd = raw_sub_fd, .events = POLLIN},
+      {.fd = temp_sub_fd, .events = POLLIN},
+      {.fd = volts_sub_fd, .events = POLLIN},
+  };
+
+  while (1)
+  {
+    // Poll for new data
+    int poll_ret = poll(fds, 3, 1000);
+
+    if (poll_ret == 0)
+    {
+      printf("Poll timeout\n");
+      continue;
+    }
+
+    if (poll_ret < 0)
+    {
+      printf("Poll error: %d\n", errno);
+      continue;
+    }
+
+    // Check for ads7953_raw_msg updates
+    if (fds[0].revents & POLLIN)
+    {
+      struct ads7953_raw_msg raw_msg;
+      orb_copy(ORB_ID(ads7953_raw_msg), raw_sub_fd, &raw_msg);
+
+      // printf("ads7953_raw_msg:\n");
+      printf("  timestamp: %" PRIu64 "\n", raw_msg.timestamp);
+      for (int i = 0; i < 7; ++i)
+      {
+        // printf("  Voltage Channel %d: %u (%.4f V)\n", i, raw_msg.volts_chan[i], raw_msg.volts_chan_volts[i]);
+      }
+      for (int i = 0; i < 8; ++i)
+      {
+        x[i] = raw_msg.temp_chan[i];
+        // printf("  Temperature Channel %d: %u (%.4f V)\n", i, raw_msg.temp_chan[i], raw_msg.temp_chan_volts[i]);
+      }
+      ADC_Temp_Conv(&x, &y, 8);
+    }
+
+    // Check for sat_temp_msg updates
+    if (fds[1].revents & POLLIN)
+    {
+      struct sat_temp_msg temp_msg;
+      orb_copy(ORB_ID(sat_temp_msg), temp_sub_fd, &temp_msg);
+      sat_health.temp_x = temp_msg.temp_2;
+      sat_health.temp_x1 = temp_msg.temp_3;
+      sat_health.temp_y = temp_msg.temp_4;
+      sat_health.temp_y1 = temp_msg.temp_5;
+      // sat_health.temp_z = 0;
+      // sat_health.temp_z1 = 0;
+      sat_health.temp_bpb = temp_msg.temp_bpb;
+      // sat_health.temp_obc = temp_msg.temp_obc;//TODO add temp of MCU
+      // // sat_health.temp_com = temp_msg.;
+      sat_health.temp_batt = temp_msg.batt_temp;
+      // sat_health.batt_volt = ;
+
+      // int8_t rsv_cmd;
+
+      // int8_t ant_dep_stat;
+      // int8_t ul_state;
+      // int8_t oper_mode;
+      // int8_t msn_flag;
+      // int8_t rsv_flag;
+      // int8_t kill_switch;
+
+      // int16_t ant_temp_out;
+
+      // printf("sat_temp_msg:\n");
+      // printf("********************************************\n");
+      // printf("  timestamp: %" PRIu64 " | ", temp_msg.timestamp);
+      // printf("  batt_temp: %.4f \n ", temp_msg.batt_temp);
+      // printf("  temp_bpb: %.4f \n ", temp_msg.temp_bpb);
+      // printf("  temp_ant: %.4f \n", temp_msg.temp_ant);
+      // printf("  temp_z_pos: %.4f\n", temp_msg.temp_z_pos);
+      // printf("  temp_5: %.4f\n", temp_msg.temp_5);
+      // printf("  temp_4: %.4f\n", temp_msg.temp_4);
+      // printf("  temp_3: %.4f\n", temp_msg.temp_3);
+      // printf("  temp_2: %.4f\n", temp_msg.temp_2);
+    }
+
+    // Check for sat_volts_msg updates
+    if (fds[2].revents & POLLIN)
+    {
+      struct sat_volts_msg volts_msg;
+      orb_copy(ORB_ID(sat_volts_msg), volts_sub_fd, &volts_msg);
+      sat_health.sol_p1_v = volts_msg.volt_sp1;
+      sat_health.sol_p2_v = volts_msg.volt_sp2;
+      sat_health.sol_p3_v = volts_msg.volt_sp3;
+      sat_health.sol_p4_v = volts_msg.volt_sp4;
+      sat_health.sol_p5_v = volts_msg.volt_sp5;
+      sat_health.sol_t_v = volts_msg.volt_SolT;
+      // printf("sat_volts_msg:\n");
+      // printf("  timestamp: %" PRIu64 "\n", volts_msg.timestamp);
+      // printf("  volt_SolT: %.4f V\n", volts_msg.volt_SolT);
+      // printf("  volt_raw: %.4f V\n", volts_msg.volt_raw);
+      // printf("  volt_sp5: %.4f V\n", volts_msg.volt_sp5);
+      // printf("  volt_sp4: %.4f V\n", volts_msg.volt_sp4);
+      // printf("  volt_sp3: %.4f V\n", volts_msg.volt_sp3);
+      // printf("  volt_sp1: %.4f V\n", volts_msg.volt_sp1);
+      // printf("  volt_sp2: %.4f V\n", volts_msg.volt_sp2);
+    }
+
+    // usleep(500000);
+    sleep(1);
+  }
+
+  return 0;
+}
+
+void print_satellite_health_data(satellite_health_s *sat_health)
+{
+  printf(" *******************************************\r\n");
+  printf(" |   X axis acceleration    \t %f \t|\r\n", sat_health->accl_x);
+  printf(" |   Y axis acceleration    \t %f \t|\r\n", sat_health->accl_y);
+  printf(" |   Z axis acceleration    \t %f \t|\r\n", sat_health->accl_z);
+
+  printf(" |   X axis Gyro data       \t %f \t|\r\n", sat_health->gyro_x);
+  printf(" |   Y axis Gyro data       \t %f \t|\r\n", sat_health->gyro_y);
+  printf(" |   Z axis gyro data       \t %f \t|\r\n", sat_health->gyro_z);
+
+  printf(" |   X axis magnetic field  \t %f \t|\r\n", sat_health->mag_x);
+  printf(" |   Y axis magnetic field  \t %f \t|\r\n", sat_health->mag_y);
+  printf(" |   Z axis magnetic field  \t %f \t|\r\n", sat_health->mag_z);
+
+  printf(" |   Solar Panel 1 Voltage: \t %d \t|\r\n", sat_health->sol_p1_v);
+  printf(" |   Solar Panel 2 Voltage: \t %d \t|\r\n", sat_health->sol_p2_v);
+  printf(" |   Solar Panel 3 Voltage: \t %d \t|\r\n", sat_health->sol_p3_v);
+  printf(" |   Solar Panel 4 Voltage: \t %d \t|\r\n", sat_health->sol_p4_v);
+  printf(" |   Solar Panel 5 Voltage: \t %d \t|\r\n", sat_health->sol_p5_v);
+  printf(" |   Solar Panel T Voltage: \t %d \t|\r\n", sat_health->sol_t_v);
+  printf(" |--------------------------------------|\r\n");
+  printf(" |   Solar Panel 1 Current: \t %d \t|\r\n", sat_health->sol_p1_c);
+  printf(" |   Solar Panel 2 Current: \t %d \t|\r\n", sat_health->sol_p2_c);
+  printf(" |   Solar Panel 3 Current: \t %d \t|\r\n", sat_health->sol_p3_c);
+  printf(" |   Solar Panel 4 Current: \t %d \t|\r\n", sat_health->sol_p4_c);
+  printf(" |   Solar Panel 5 Current: \t %d \t|\r\n", sat_health->sol_p5_c);
+  printf(" |   Solar Panel T Current: \t %d \t|\r\n", sat_health->sol_t_c);
+  printf(" |--------------------------------------|\r\n");
+  printf(" |   Unreg Line Current:    \t %d \t|\r\n", sat_health->unreg_c);
+  printf(" |   Main 3v3 Current:      \t %d \t|\r\n", sat_health->v3_main_c);
+  printf(" |   COM 3v3 Current:       \t %d \t|\r\n", sat_health->v3_com_c);
+  printf(" |   5 Volts line Current:  \t %d \t|\r\n", sat_health->v5_c);
+  printf(" |   3v3 2 line Current:    \t %d \t|\r\n", sat_health->v3_2_c);
+  printf(" |--------------------------------------|\r\n");
+  printf(" |   Raw Current:           \t %d \t|\r\n", sat_health->raw_c);
+  printf(" |   Raw Voltage:           \t %d \t|\r\n", sat_health->raw_v);
+  printf(" |--------------------------------------|\r\n");
+  printf(" |   Battery Total Voltage: \t %d \t|\r\n", sat_health->batt_volt);
+  printf(" |   Battery Total Current: \t %d \t|\r\n", sat_health->batt_c);
+  printf(" |   Battery Temperature:   \t %d \t|\r\n", sat_health->temp_batt);
+  printf(" *********************************************\r\n");
+}
+
+// int subscribe_and_retrieve_data()
+// {
+//   int fd;
+//   int ret;
+
+//   struct orb_mag_scaled_s mag_scaled;
+
+//   /* Subscribe to the orb_mag_scaled topic */
+//   fd = orb_subscribe(ORB_ID(orb_mag_scaled));
+//   if (fd < 0)
+//   {
+//     syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic.\n");
+//     return;
+//   }
+
+//   /* Poll for new data */
+//   struct pollfd fds;
+//   fds.fd = fd;
+//   fds.events = POLLIN;
+
+//   while (1) // Infinite loop
+//   {
+//     if (poll(&fds, 1, -1) > 0) // Infinite timeout
+//     {
+//       if (fds.revents & POLLIN)
+//       {
+//         /* Copy the data from the orb */
+//         ret = orb_copy(ORB_ID(orb_mag_scaled), fd, &mag_scaled);
+//         if (ret < 0)
+//         {
+//           syslog(LOG_ERR, "ORB copy error, %d \n", ret);
+//           continue;
+//         }
+
+//         // Print the received data
+//         printf("Timestamp: %" PRIu64 "\n", mag_scaled.timestamp);
+//         printf("Mag_X: %.4f Mag_Y: %.4f Mag_Z: %.4f\n", mag_scaled.mag_x, mag_scaled.mag_y, mag_scaled.mag_z);
+//         printf("Acc_X: %.4f Acc_Y: %.4f Acc_Z: %.4f\n", mag_scaled.acc_x, mag_scaled.acc_y, mag_scaled.acc_z);
+//         printf("Gyro_X: %.4f Gyro_Y: %.4f Gyro_Z: %.4f\n", mag_scaled.gyro_x, mag_scaled.gyro_y, mag_scaled.gyro_z);
+//         printf("Temperature: %.2f\n", mag_scaled.temperature);
+//       }
+//     }
+//     else
+//     {
+//       syslog(LOG_ERR, "Poll error.\n");
+//     }
+//   }
+
+//   ret = orb_unsubscribe(fd);
+//   if (ret < 0)
+//   {
+//     syslog(LOG_ERR, "Orb unsubscribe Failed.\n");
+//   }
+//   return 0;
+// }
+void subscribe_and_retrieve_data(void)
+{
+  int fd;
+  int ret;
+
+  struct orb_mag_scaled_s mag_scaled;
+
+  /* Subscribe to the orb_mag_scaled topic */
+  fd = orb_subscribe(ORB_ID(orb_mag_scaled));
+  if (fd < 0)
+  {
+    syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic.\n");
+    return;
+  }
+
+  /* Poll for new data */
+  struct pollfd fds;
+  fds.fd = fd;
+  fds.events = POLLIN;
+
+  while (1) // Infinite loop
+  {
+    if (poll(&fds, 1, -1) > 0) // Infinite timeout
+    {
+      if (fds.revents & POLLIN)
+      {
+        /* Copy the data from the orb */
+        ret = orb_copy(ORB_ID(orb_mag_scaled), fd, &mag_scaled);
+        if (ret < 0)
+        {
+          syslog(LOG_ERR, "ORB copy error, %d \n", ret);
+          continue;
+        }
+
+        // Print the received data
+        // printf("Timestamp: %" PRIu64 "\n", mag_scaled.timestamp);
+        // printf("Mag_X: %.4f Mag_Y: %.4f Mag_Z: %.4f\n", mag_scaled.mag_x, mag_scaled.mag_y, mag_scaled.mag_z);
+        // printf("Acc_X: %.4f Acc_Y: %.4f Acc_Z: %.4f\n", mag_scaled.acc_x, mag_scaled.acc_y, mag_scaled.acc_z);
+        // printf("Gyro_X: %.4f Gyro_Y: %.4f Gyro_Z: %.4f\n", mag_scaled.gyro_x, mag_scaled.gyro_y, mag_scaled.gyro_z);
+        // printf("Temperature: %.2f\n", mag_scaled.temperature);
+        // sat_health.
+        sat_health.accl_x = mag_scaled.acc_x;
+        sat_health.accl_y = mag_scaled.acc_y;
+        sat_health.accl_z = mag_scaled.acc_z;
+        sat_health.gyro_x = mag_scaled.gyro_x;
+        sat_health.gyro_y = mag_scaled.gyro_y;
+        sat_health.gyro_z = mag_scaled.gyro_z;
+        sat_health.mag_x = mag_scaled.mag_x;
+        sat_health.mag_y = mag_scaled.mag_y;
+        sat_health.mag_z = mag_scaled.mag_z;
+      sat_health.temp_obc = mag_scaled.temperature;
+
+      }
+    }
+    else
+    {
+      syslog(LOG_ERR, "Poll error.\n");
+    }
+  }
+
+  ret = orb_unsubscribe(fd);
+  if (ret < 0)
+  {
+    syslog(LOG_ERR, "Orb unsubscribe Failed.\n");
+  }
+  return 0;
+}

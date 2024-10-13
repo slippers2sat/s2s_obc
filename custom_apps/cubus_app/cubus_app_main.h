@@ -60,6 +60,8 @@ struct data
     uint16_t data_size;
 };
 
+// ORB_DECLARE(mpu6500_imu_msg);
+// ORB_DEFINE(mpu6500_imu_msg, struct mpu6500_imu_msg, print_combined_msg);
 
 
 

@@ -185,12 +185,25 @@ static struct adc_priv_s adc0 =
  *     Called from the NSH library
  *
  ****************************************************************************/
+void rtc_alarm_callback(void) {
+    // Set GPIO pin high to trigger reset
+    stm32_gpiowrite(GPIO_GBL_RST, true);
+}
+
+void configure_rtc(void) {
+    rtc_initialize();
+    // rtc_set_alarm(60); // Set alarm for 24 hours
+    // rtc_enable_interrupt(rtc_alarm_callback);
+}
+
 
 int stm32_bringup(void)
 {
+  configure_rtc();
+
+  // rtc_initialize("/dev/rtc", 0);
 
   int ret;
-  
   stm32_gpiowrite(GPIO_MUX_EN,  false);
   stm32_gpiowrite(GPIO_SFM_MODE, false);
   // stm32_gpiowrite(GPIO_3V3_COM_EN,true);

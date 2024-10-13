@@ -257,10 +257,10 @@ void mission_data(char *filename, uint8_t *data, uint16_t size1)
 //   file_close(&fptr);
 // }
 
-int check_flag_data()
+int check_flag_data(CRITICAL_FLAGS rd_flags_int)
 {
 
-  CRITICAL_FLAGS rd_flags_int;
+  
 
   // uint8_t write_buffer[6];
   // uint8_t read_buffer[6];
@@ -453,6 +453,7 @@ int store_flag_data(CRITICAL_FLAGS *flag_data)
 
 // /*
 //  */
+
 // void Setup()
 // {
 //   int fd = 0;
@@ -503,50 +504,50 @@ int store_flag_data(CRITICAL_FLAGS *flag_data)
 // }
 
 // /*
-//  */
-void print_satellite_health_data(satellite_health_s *sat_health)
-{
-  printf(" *******************************************\r\n");
-  printf(" |   X axis acceleration    \t %f \t|\r\n", sat_health->accl_x);
-  printf(" |   Y axis acceleration    \t %f \t|\r\n", sat_health->accl_y);
-  printf(" |   Z axis acceleration    \t %f \t|\r\n", sat_health->accl_z);
+// //  */
+// void print_satellite_health_data(satellite_health_s *sat_health)
+// {
+//   printf(" *******************************************\r\n");
+//   printf(" |   X axis acceleration    \t %f \t|\r\n", sat_health->accl_x);
+//   printf(" |   Y axis acceleration    \t %f \t|\r\n", sat_health->accl_y);
+//   printf(" |   Z axis acceleration    \t %f \t|\r\n", sat_health->accl_z);
 
-  printf(" |   X axis Gyro data       \t %f \t|\r\n", sat_health->gyro_x);
-  printf(" |   Y axis Gyro data       \t %f \t|\r\n", sat_health->gyro_y);
-  printf(" |   Z axis gyro data       \t %f \t|\r\n", sat_health->gyro_z);
+//   printf(" |   X axis Gyro data       \t %f \t|\r\n", sat_health->gyro_x);
+//   printf(" |   Y axis Gyro data       \t %f \t|\r\n", sat_health->gyro_y);
+//   printf(" |   Z axis gyro data       \t %f \t|\r\n", sat_health->gyro_z);
 
-  printf(" |   X axis magnetic field  \t %f \t|\r\n", sat_health->mag_x);
-  printf(" |   Y axis magnetic field  \t %f \t|\r\n", sat_health->mag_y);
-  printf(" |   Z axis magnetic field  \t %f \t|\r\n", sat_health->mag_z);
+//   printf(" |   X axis magnetic field  \t %f \t|\r\n", sat_health->mag_x);
+//   printf(" |   Y axis magnetic field  \t %f \t|\r\n", sat_health->mag_y);
+//   printf(" |   Z axis magnetic field  \t %f \t|\r\n", sat_health->mag_z);
 
-  printf(" |   Solar Panel 1 Voltage: \t %d \t|\r\n", sat_health->sol_p1_v);
-  printf(" |   Solar Panel 2 Voltage: \t %d \t|\r\n", sat_health->sol_p2_v);
-  printf(" |   Solar Panel 3 Voltage: \t %d \t|\r\n", sat_health->sol_p3_v);
-  printf(" |   Solar Panel 4 Voltage: \t %d \t|\r\n", sat_health->sol_p4_v);
-  printf(" |   Solar Panel 5 Voltage: \t %d \t|\r\n", sat_health->sol_p5_v);
-  printf(" |   Solar Panel T Voltage: \t %d \t|\r\n", sat_health->sol_t_v);
-  printf(" |--------------------------------------|\r\n");
-  printf(" |   Solar Panel 1 Current: \t %d \t|\r\n", sat_health->sol_p1_c);
-  printf(" |   Solar Panel 2 Current: \t %d \t|\r\n", sat_health->sol_p2_c);
-  printf(" |   Solar Panel 3 Current: \t %d \t|\r\n", sat_health->sol_p3_c);
-  printf(" |   Solar Panel 4 Current: \t %d \t|\r\n", sat_health->sol_p4_c);
-  printf(" |   Solar Panel 5 Current: \t %d \t|\r\n", sat_health->sol_p5_c);
-  printf(" |   Solar Panel T Current: \t %d \t|\r\n", sat_health->sol_t_c);
-  printf(" |--------------------------------------|\r\n");
-  printf(" |   Unreg Line Current:    \t %d \t|\r\n", sat_health->unreg_c);
-  printf(" |   Main 3v3 Current:      \t %d \t|\r\n", sat_health->v3_main_c);
-  printf(" |   COM 3v3 Current:       \t %d \t|\r\n", sat_health->v3_com_c);
-  printf(" |   5 Volts line Current:  \t %d \t|\r\n", sat_health->v5_c);
-  printf(" |   3v3 2 line Current:    \t %d \t|\r\n", sat_health->v3_2_c);
-  printf(" |--------------------------------------|\r\n");
-  printf(" |   Raw Current:           \t %d \t|\r\n", sat_health->raw_c);
-  printf(" |   Raw Voltage:           \t %d \t|\r\n", sat_health->raw_v);
-  printf(" |--------------------------------------|\r\n");
-  printf(" |   Battery Total Voltage: \t %d \t|\r\n", sat_health->batt_volt);
-  printf(" |   Battery Total Current: \t %d \t|\r\n", sat_health->batt_c);
-  printf(" |   Battery Temperature:   \t %d \t|\r\n", sat_health->temp_batt);
-  printf(" *********************************************\r\n");
-}
+//   printf(" |   Solar Panel 1 Voltage: \t %d \t|\r\n", sat_health->sol_p1_v);
+//   printf(" |   Solar Panel 2 Voltage: \t %d \t|\r\n", sat_health->sol_p2_v);
+//   printf(" |   Solar Panel 3 Voltage: \t %d \t|\r\n", sat_health->sol_p3_v);
+//   printf(" |   Solar Panel 4 Voltage: \t %d \t|\r\n", sat_health->sol_p4_v);
+//   printf(" |   Solar Panel 5 Voltage: \t %d \t|\r\n", sat_health->sol_p5_v);
+//   printf(" |   Solar Panel T Voltage: \t %d \t|\r\n", sat_health->sol_t_v);
+//   printf(" |--------------------------------------|\r\n");
+//   printf(" |   Solar Panel 1 Current: \t %d \t|\r\n", sat_health->sol_p1_c);
+//   printf(" |   Solar Panel 2 Current: \t %d \t|\r\n", sat_health->sol_p2_c);
+//   printf(" |   Solar Panel 3 Current: \t %d \t|\r\n", sat_health->sol_p3_c);
+//   printf(" |   Solar Panel 4 Current: \t %d \t|\r\n", sat_health->sol_p4_c);
+//   printf(" |   Solar Panel 5 Current: \t %d \t|\r\n", sat_health->sol_p5_c);
+//   printf(" |   Solar Panel T Current: \t %d \t|\r\n", sat_health->sol_t_c);
+//   printf(" |--------------------------------------|\r\n");
+//   printf(" |   Unreg Line Current:    \t %d \t|\r\n", sat_health->unreg_c);
+//   printf(" |   Main 3v3 Current:      \t %d \t|\r\n", sat_health->v3_main_c);
+//   printf(" |   COM 3v3 Current:       \t %d \t|\r\n", sat_health->v3_com_c);
+//   printf(" |   5 Volts line Current:  \t %d \t|\r\n", sat_health->v5_c);
+//   printf(" |   3v3 2 line Current:    \t %d \t|\r\n", sat_health->v3_2_c);
+//   printf(" |--------------------------------------|\r\n");
+//   printf(" |   Raw Current:           \t %d \t|\r\n", sat_health->raw_c);
+//   printf(" |   Raw Voltage:           \t %d \t|\r\n", sat_health->raw_v);
+//   printf(" |--------------------------------------|\r\n");
+//   printf(" |   Battery Total Voltage: \t %d \t|\r\n", sat_health->batt_volt);
+//   printf(" |   Battery Total Current: \t %d \t|\r\n", sat_health->batt_c);
+//   printf(" |   Battery Temperature:   \t %d \t|\r\n", sat_health->temp_batt);
+//   printf(" *********************************************\r\n");
+// }
 
 // /*
 //  */

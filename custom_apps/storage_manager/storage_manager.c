@@ -33,6 +33,8 @@
 #include "common_functions_edited.h"
 #include "file_operations.h"
 
+void Setup();
+
 #define NB_LOWERHALFS 1
 // #include <sensor/adc.h>
 static struct work_s work_storage;
@@ -133,6 +135,7 @@ int main(int argc, FAR char *argv[])
   int ret;
 
   printf("[storage_manager] Starting task.\n");
+  Setup();
   if (g_storage_manager_started)
   {
     printf("[storage_manager] Task already started.\n");
@@ -287,3 +290,52 @@ int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filena
 //TODO WRITE A TASK OR WORK QUEUE FOR READING THE DATA/COMMAND EVERY SECOND AND PERFORM FLASH OPERATIONS
 
 void flash_operations(){}
+
+void Setup()
+{
+  int fd = 0;
+  struct file flp1, flp2, flp3, flp4;
+  fd = open_file_flash(&flp1, MFM_MAIN_STRPATH, file_name_sat_health, O_CREAT);
+  if (fd < 0)
+  {
+    syslog(LOG_ERR, "Could not create file named sat_health... \n");
+  }
+  file_close(&flp1);
+
+  /*delete this later
+  */
+     fd = open_file_flash(&flp1, MFM_MAIN_STRPATH, file_name_sat_health, O_TRUNC);
+  if (fd < 0)
+  {
+    syslog(LOG_ERR, "Could not create file named sat_health... \n");
+  }
+  file_close(&flp1);
+  close(fd);
+ return 0;
+/*
+  */
+  fd = open_file_flash(&flp2, MFM_MAIN_STRPATH, file_name_flag, O_CREAT);
+  if (fd < 0)
+  {
+    syslog(LOG_ERR, "Could not create flags.txt data file ... \n");
+  }
+  file_close(&flp2);
+
+  fd = open_file_flash(&flp3, MFM_MSN_STRPATH, file_name_cam_msn, O_CREAT);
+  if (fd < 0)
+  {
+    syslog(LOG_ERR, "could not create cam.txt msn file ...\n");
+  }
+  file_close(&flp3);
+
+  fd = open_file_flash(&flp4, MFM_MSN_STRPATH, file_name_epdm_msn, O_CREAT);
+  if (fd < 0)
+  {
+    syslog(LOG_ERR, "Could not create epdm.txt msn file\n");
+  }
+  file_close(&flp4);
+
+  syslog(LOG_INFO, "Checking initial flag data...\n");
+  check_flag_data();
+  print_critical_flag_data(&critic_flags);
+}
