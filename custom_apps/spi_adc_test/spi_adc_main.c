@@ -674,6 +674,93 @@
 
 //     return EXIT_SUCCESS;
 // }
-int main(){
+
+#include <stdio.h>
+#include <unistd.h>
+#include <signal.h>
+#include <time.h>
+#include <errno.h>
+#include <sys/ioctl.h>
+#include <fcntl.h>
+#include <nuttx/timers/rtc.h>
+
+/* Define the alarm signal */
+#define ALARM_SIGNAL SIGRTMIN
+
+/* Signal handler for the alarm */
+void alarm_handler(int signo, siginfo_t *info, void *context) {
+    if (signo == ALARM_SIGNAL) {
+        printf("Alarm triggered!\n");
+    }
+}
+
+/* Function to set the RTC alarm */
+int set_rtc_alarm(int fd, struct rtc_setalarm_s *alarm) {
+    return ioctl(fd, RTC_SET_ALARM, (unsigned long)((uintptr_t)alarm));
+}
+
+int main(int argc, char *argv[]) {
+    int fd;
+    struct rtc_setalarm_s alarm;
+    struct sigaction sa;
+    struct tm *tm_info;
+    time_t now;
+
+    /* Open the RTC device */
+    fd = open("/dev/rtc0", O_RDWR);
+    if (fd < 0) {
+        perror("open");
+        return 1;
+    }
+
+    /* Setup the signal handler */
+    sa.sa_sigaction = alarm_handler;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(ALARM_SIGNAL, &sa, NULL) < 0) {
+        perror("sigaction");
+        close(fd);
+        return 1;
+    }
+
+    while (1) {
+        /* Get the current time */
+        time(&now);
+        tm_info = gmtime(&now);
+
+        /* Set up the alarm structure */
+        alarm.id = 0;
+        alarm.pid = 0; // Notify the calling process
+
+        /* Copy the current time to the alarm time and add 10 seconds */
+        alarm.time.tm_sec = tm_info->tm_sec + 10;
+        alarm.time.tm_min = tm_info->tm_min;
+        alarm.time.tm_hour = tm_info->tm_hour;
+        alarm.time.tm_mday = tm_info->tm_mday;
+        alarm.time.tm_mon = tm_info->tm_mon;
+        alarm.time.tm_year = tm_info->tm_year;
+        alarm.time.tm_wday = tm_info->tm_wday;
+        alarm.time.tm_yday = tm_info->tm_yday;
+        alarm.time.tm_isdst = tm_info->tm_isdst;
+
+        if (alarm.time.tm_sec >= 60) {
+            alarm.time.tm_sec -= 60;
+            alarm.time.tm_min += 1;
+        }
+
+        /* Set the alarm */
+        if (set_rtc_alarm(fd, &alarm) < 0) {
+            perror("set_rtc_alarm");
+            close(fd);
+            return 1;
+        }
+
+        /* Wait for the alarm to trigger */
+        pause();
+    }
+
+    /* Close the RTC device */
+    close(fd);
     return 0;
 }
+

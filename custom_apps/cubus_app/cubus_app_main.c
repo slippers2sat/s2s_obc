@@ -1780,7 +1780,7 @@ void serialize_beacon_a(uint8_t beacon_data[BEACON_DATA_SIZE])
   }
   // uint8_t beacon_data[BEACON_DATA_SIZE];
   beacon_data[0] = s2s_beacon_type_a.HEAD;
-  beacon_data[1] = s2s_beacon_type_a.TYPE<<4 & s2s_beacon_type_a.TIM_DAY >>4 &0xff;
+  beacon_data[1] = s2s_beacon_type_a.TYPE<<4 & s2s_beacon_type_a.TIM_DAY << 4 &0xff;
   beacon_data[2] = (int8_t)s2s_beacon_type_a.TIM_DAY & 0xff;
   beacon_data[3] = s2s_beacon_type_a.TIM_HOUR;
 
@@ -1879,7 +1879,7 @@ void Make_Beacon_Data(uint8_t type)
     int16_t day = tm_info->tm_mday; 
   // case 1:
     s2s_beacon_type_a.HEAD = 0x53;
-    s2s_beacon_type_a.TYPE = 0;
+    s2s_beacon_type_a.TYPE = 0x00;
     s2s_beacon_type_a.TIM_DAY = day;
     s2s_beacon_type_a.TIM_HOUR = hour;
     s2s_beacon_type_a.BAT_V = sat_health.batt_volt;
@@ -1916,7 +1916,7 @@ void Make_Beacon_Data(uint8_t type)
 
   // case 2:
     s2s_beacon_type_b.HEAD = 0x53;
-    s2s_beacon_type_b.TYPE = 1;
+    s2s_beacon_type_b.TYPE = 0x01;
     s2s_beacon_type_b.TIM_DAY = day;
 
     s2s_beacon_type_b.SOL_P1_V = sat_health.sol_p1_v;
@@ -1929,21 +1929,17 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_b.SOL_P3_C = sat_health.sol_p3_c;
     s2s_beacon_type_b.SOL_P4_C = sat_health.sol_p4_c;
 
-    s2s_beacon_type_b.MAG_X = (int16_t)sat_health.mag_x;
-    s2s_beacon_type_b.MAG_Y = (int16_t)sat_health.mag_y;
-    s2s_beacon_type_b.MAG_Z = (int16_t)sat_health.mag_z;
+    s2s_beacon_type_b.MAG_X = (int16_t)(sat_health.mag_x * 100);
+    s2s_beacon_type_b.MAG_Y = (int16_t)(sat_health.mag_y * 100);
+    s2s_beacon_type_b.MAG_Z = (int16_t)(sat_health.mag_z * 100);
 
-    s2s_beacon_type_b.GYRO_X = (int16_t)sat_health.gyro_x;
-    s2s_beacon_type_b.GYRO_Y = (int16_t)sat_health.gyro_y;
-    s2s_beacon_type_b.GYRO_Z = (int16_t)sat_health.gyro_z;
+    s2s_beacon_type_b.GYRO_X = (int16_t)(sat_health.gyro_x * 100);
+    s2s_beacon_type_b.GYRO_Y = (int16_t)(sat_health.gyro_y * 100);
+    s2s_beacon_type_b.GYRO_Z = (int16_t)(sat_health.gyro_z * 100);
 
-    s2s_beacon_type_b.ACCL_X = (int16_t)sat_health.accl_x;
-    s2s_beacon_type_b.ACCL_Y = (int16_t)sat_health.accl_y;
-    s2s_beacon_type_b.ACCL_Z = (int16_t)sat_health.accl_z;
-
-    s2s_beacon_type_b.MAG_X = (int16_t)sat_health.mag_x;
-    s2s_beacon_type_b.MAG_Y = (int16_t)sat_health.mag_y;
-    s2s_beacon_type_b.MAG_Z = (int16_t)sat_health.mag_z;
+    s2s_beacon_type_b.ACCL_X = (int16_t)(sat_health.accl_x * 100);
+    s2s_beacon_type_b.ACCL_Y = (int16_t)(sat_health.accl_y * 100);
+    s2s_beacon_type_b.ACCL_Z = (int16_t)(sat_health.accl_z * 100);
     sleep(1);
     // break;
 
@@ -3051,6 +3047,9 @@ void cam_operation()
       usleep(10000);
       syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n", counter1);
       sleep(2);
+      cam[counter1++]=0xff;
+      cam[counter1++]=0xd9;
+
       mission_data("/cam.txt", &cam, counter1);
       uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
       sleep(1);
