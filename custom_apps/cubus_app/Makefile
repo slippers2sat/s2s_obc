@@ -37,5 +37,6 @@ CSRCS += common_functions.c
 CRSCS += imu_mag.c
 CRSCS += mission_operations.c
 CRSCS += com_app_main.c
+CRSCS += wdog.c
 
 include $(APPDIR)/Application.mk

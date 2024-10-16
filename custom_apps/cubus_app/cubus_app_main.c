@@ -57,6 +57,11 @@
 #include <sched.h>
 #include <math.h>
 
+// wdog include
+#include "watchdog.h"
+int wdog_fd = -1;
+// wdog
+
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
 float x[8], y[8];
 int ads7953_receiver(int argc, FAR char *argv[]);
@@ -156,7 +161,7 @@ uint8_t RX_DATA_EPDM[48] = {'\0'};
 uint8_t digipeating = 1;
 // int Execute_EPDM();
 extern ext_adc_s ext_adc_data[EXT_ADC_MAX_CHANNELS];
- CRITICAL_FLAGS critic_flags;
+CRITICAL_FLAGS critic_flags;
 
 CRITICAL_FLAGS test_flags;
 
@@ -387,13 +392,13 @@ int read_int_adc1()
       }
       else
       {
-        //Print int adc values
-        // printf("Sample:\n");
-        // for (int i = 0; i < nsamples; i++)
-        // {
-        //   printf("%d: channel: %d value: %" PRId32 "\n",
-        //          i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
-        // }
+        // Print int adc values
+        //  printf("Sample:\n");
+        //  for (int i = 0; i < nsamples; i++)
+        //  {
+        //    printf("%d: channel: %d value: %" PRId32 "\n",
+        //           i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
+        //  }
         sat_health.raw_v = int_adc1_sample[12].am_data;
         sat_health.sol_p1_c = int_adc1_sample[14].am_data;
         sat_health.sol_p2_c = int_adc1_sample[15].am_data;
@@ -584,47 +589,58 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
   double fd;
   int i;
   int count = 0, ret;
-  printf("Turning on  4V dcdc line..\n");
-  gpio_write(GPIO_DCDC_4V_EN, 1);
-  printf("Turning on COM 4V line..\n");
-  gpio_write(GPIO_COM_4V_EN, 1);
-  printf("Opening uart dev path : %s\n", dev_path);
+  int wr1;
   fd = open_uart(COM_UART);
   if (fd < 0)
   {
     printf("error opening %s\n", dev_path);
     return fd;
   }
-  int wr1 = write(fd, data, size);
-  if (wr1 < 0)
+  else
   {
-    printf("Unable to write data\n");
-    return wr1;
-  }
-  printf("\n%d bytes written\n", wr1);
-  // printf("\ndata is %\n", wr1);
-  for (int i = 0; i < size; i++)
-  {
-    {
-      printf("%d ", data[i]);
-    }
-  }
-  sleep(2);
-  printf("Turning off  4v DCDC line..\n");
-  int x = 0;
-  while (x < 200000)
-  {
-    x += 200;
-    usleep(200);
-  }
 
-  gpio_write(GPIO_DCDC_4V_EN, 0);
-  // printf("Turning off COM 4V line..\n");
-  gpio_write(GPIO_COM_4V_EN, 0);
-  ioctl(fd, TCFLSH, 2);
-  printf("flused tx rx buffer\n");
-  ioctl(fd, TCDRN, NULL);
-  printf("drained tx rx buffer\n");
+    printf("Turning on  4V dcdc line..\n");
+    gpio_write(GPIO_DCDC_4V_EN, 1);
+    printf("Turning on COM 4V line..\n");
+    gpio_write(GPIO_COM_4V_EN, 1);
+    printf("Opening uart dev path : %s\n", dev_path);
+    wr1 = write(fd, data, size);
+    if (wr1 < 0)
+    {
+      printf("Unable to write data\n");
+      return wr1;
+    }
+    else
+    {
+      wr1 = write(fd, data, size);
+    }
+
+    // printf("\ndata is %\n", wr1);
+    for (int i = 0; i < size; i++)
+    {
+      {
+        printf("%d ", data[i]);
+      }
+    }
+    sleep(2);
+    printf("Turning off  4v DCDC line..\n");
+    int x = 0;
+    while (x < 200000)
+    {
+      x += 200;
+      usleep(200);
+    }
+
+    gpio_write(GPIO_DCDC_4V_EN, 0);
+    // printf("Turning off COM 4V line..\n");
+    gpio_write(GPIO_COM_4V_EN, 0);
+    ioctl(fd, TCFLSH, 2);
+    printf("flused tx rx buffer\n");
+    ioctl(fd, TCDRN, NULL);
+    printf("drained tx rx buffer\n");
+    printf("\n%d bytes written\n", wr1);
+    pet_counter = 0; // TODO rethink on this later internal wdog
+  }
   close_uart(fd);
   return wr1;
 }
@@ -1189,6 +1205,7 @@ static int COM_TASK(int argc, char *argv[])
   {
     syslog(LOG_DEBUG, "Successful handshake with COM\n");
     COM_HANDSHAKE_STATUS = 1;
+    // wdog_fd = open(DEVNAME, O_RDONLY);
   }
   if (ret != 0)
   {
@@ -1223,7 +1240,7 @@ void send_beacon(int argc, char *argv)
     {
       read_int_adc1();
       // read_int_adc3();
-      
+
       make_satellite_health();
       // ads7953_receiver(argc, argv);
       send_beacon_data();
@@ -1780,7 +1797,7 @@ void serialize_beacon_a(uint8_t beacon_data[BEACON_DATA_SIZE])
   }
   // uint8_t beacon_data[BEACON_DATA_SIZE];
   beacon_data[0] = s2s_beacon_type_a.HEAD;
-  beacon_data[1] = s2s_beacon_type_a.TYPE<<4 & s2s_beacon_type_a.TIM_DAY << 4 &0xff;
+  beacon_data[1] = s2s_beacon_type_a.TYPE << 4 & s2s_beacon_type_a.TIM_DAY << 4 & 0xff;
   beacon_data[2] = (int8_t)s2s_beacon_type_a.TIM_DAY & 0xff;
   beacon_data[3] = s2s_beacon_type_a.TIM_HOUR;
 
@@ -1876,8 +1893,8 @@ void Make_Beacon_Data(uint8_t type)
 
     int16_t year = tm_info->tm_year + 1900; // Year since 1900
     int16_t month = tm_info->tm_mon + 1;    // Months since January
-    int16_t day = tm_info->tm_mday; 
-  // case 1:
+    int16_t day = tm_info->tm_mday;
+    // case 1:
     s2s_beacon_type_a.HEAD = 0x53;
     s2s_beacon_type_a.TYPE = 0x00;
     s2s_beacon_type_a.TIM_DAY = day;
@@ -1910,11 +1927,11 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_a.UL_STAT = critic_flags.UL_STATE;
     // break;
 
-    s2s_beacon_type_a.OBC_RESET_COUNT = critic_flags.RST_COUNT;  //TODO
-    s2s_beacon_type_a.LAST_RESET = 0xff;       //TODO
+    s2s_beacon_type_a.OBC_RESET_COUNT = critic_flags.RST_COUNT; // TODO
+    s2s_beacon_type_a.LAST_RESET = 0xff;                        // TODO
     // s2s_beacon_type_a.CHK_CRC = ;          //TODO
 
-  // case 2:
+    // case 2:
     s2s_beacon_type_b.HEAD = 0x53;
     s2s_beacon_type_b.TYPE = 0x01;
     s2s_beacon_type_b.TIM_DAY = day;
@@ -2201,7 +2218,7 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
           for (int j = 0; j < size_of_buffer; j++)
           {
             flash_data[j + 3] = data_retrieved[j];
-            printf("%02x|%c ", data_retrieved[j], data_retrieved[j]); // Print in hexadecimal format
+            printf("%02x ", data_retrieved[j]); // Print in hexadecimal format
           }
           loop1 += 1;
           flash_data[0] = 0x53;
@@ -2358,7 +2375,7 @@ int main(int argc, FAR char *argv[])
 {
   int hand = 5;
   bool g_mpu_task_started = false;
-
+  bool g_wdog_task_started = false;
   printf("************************************************\n");
   printf("***********S2S commander app************\n");
 
@@ -2368,29 +2385,29 @@ int main(int argc, FAR char *argv[])
 
   // watchdog code
   //  {
-  //     if (g_wdog_task_started)
-  //    {
-  //      printf("[Watchdog TASK] Task already started.\n");
-  //      return EXIT_SUCCESS;
-  //    }
-  //    else
-  //    {
-  //      int retval = task_create("WATCHDOG_TASK", 50, 4096, WDG_TASK, NULL);
-  //      if (retval < 0)
-  //      {
-  //        printf("unable to create WATCHDOG_TASK task\n");
-  //        for (int i = 0; i < 4; i++)
-  //        {
-  //          retval = task_create("WATCHDOG_TASK", 100, 4096, WDG_TASK, NULL);
-  //          if (retval >= 0)
-  //          {
-  //            break;
-  //            return 0;
-  //          }
-  //        }
-  //        return -1;
-  //      }
-  //    }
+  if (g_wdog_task_started)
+  {
+    printf("[Watchdog TASK] Task already started.\n");
+    return EXIT_SUCCESS;
+  }
+  else
+  {
+    int retval = task_create("WATCHDOG_TASK", 50, 4096, watchdog_task, NULL);
+    if (retval < 0)
+    {
+      printf("unable to create WATCHDOG_TASK task\n");
+      for (int i = 0; i < 4; i++)
+      {
+        retval = task_create("WATCHDOG_TASK", 100, 896, watchdog_task, NULL);
+        if (retval >= 0)
+        {
+          break;
+          return 0;
+        }
+      }
+      return -1;
+    }
+  }
   //  }
 
   // Setup();//TODO this setup is used to create a text file first if not created. the process will be handled by storage app
@@ -2410,6 +2427,10 @@ int main(int argc, FAR char *argv[])
     {
       gpio_write(GPIO_GBL_RST, true);
     }
+  }
+  else if (strcmp(argv[1], "internal") == 0)
+  {
+    print_critical_flag_data(&test_flags);
   }
   else if (strcmp(argv[1], "mpu") == 0)
   {
@@ -2506,8 +2527,8 @@ int main(int argc, FAR char *argv[])
   /*TODO : REMOVE LATER Independent testing*/
   else
   {
-    bool g_wdg_task_started = false;
-    if (g_wdg_task_started)
+    bool g_watchdog_task_started = false;
+    if (g_watchdog_task_started)
     {
       printf("[WDG TASK] Task already started.\n");
       return EXIT_SUCCESS;
@@ -2624,7 +2645,6 @@ int main(int argc, FAR char *argv[])
     return 0;
   }
 }
-
 // //COM
 int turn_msn_on_off(uint8_t subsystem, uint8_t state)
 {
@@ -2677,55 +2697,60 @@ void send_flash_data(uint8_t *beacon_data)
     printf("unable to open: %s\n", COM_UART);
     return -1;
   }
-  sleep(2);
-
-  printf("Turning on  4v dcdc line..\n");
-  gpio_write(GPIO_DCDC_4V_EN, 1);
-  printf("Turning on COM 4V line..\n");
-  gpio_write(GPIO_COM_4V_EN, 1);
-
-  uint8_t ack_com[43];
-  int ret = write(fd, beacon_data, BEACON_DATA_SIZE);
-  usleep(10000);
-  if (ret < 0)
-  {
-    printf("unable to send data\n");
-    for (int i = 0; i < BEACON_DATA_SIZE - 1; i++)
-    {
-      ret = write(fd, &beacon_data[i], 1);
-      syslog(LOG_DEBUG, "%02x ", beacon_data[i]);
-      usleep(1000);
-    }
-    if (ret < 0)
-    {
-      printf("Unable to send data through byte method..\n");
-      return -1;
-    }
-    ret2 = read(fd, ack_com, sizeof(ack_com));
-  }
   else
   {
-    if (ret2 >= 0)
+    sleep(2);
+
+    printf("Turning on  4v dcdc line..\n");
+    gpio_write(GPIO_DCDC_4V_EN, 1);
+    printf("Turning on COM 4V line..\n");
+    gpio_write(GPIO_COM_4V_EN, 1);
+
+    uint8_t ack_com[43];
+    int ret = write(fd, beacon_data, BEACON_DATA_SIZE);
+    usleep(10000);
+    if (ret < 0)
     {
-      printf("Flash data sent to COM successfully\n");
-      printf("data is:::::::: %s\n", beacon_data);
+      printf("unable to send data\n");
+      for (int i = 0; i < BEACON_DATA_SIZE - 1; i++)
+      {
+        ret = write(fd, &beacon_data[i], 1);
+        syslog(LOG_DEBUG, "%02x ", beacon_data[i]);
+        usleep(1000);
+      }
+      if (ret < 0)
+      {
+        printf("Unable to send data through byte method..\n");
+        return -1;
+      }
+      ret2 = read(fd, ack_com, sizeof(ack_com));
     }
     else
     {
-      ret = write(fd, beacon_data, BEACON_DATA_SIZE);
-      usleep(10000);
-      if (ret < 0)
+      pet_counter = 0; // TODO rethink on this later internal wdog
+
+      if (ret2 >= 0)
       {
-        printf("unable to send data\n");
-        for (int i = 0; i < BEACON_DATA_SIZE; i++)
-        {
-          ret = write(fd, &beacon_data[i], 1);
-          usleep(1000);
-        }
+        printf("Flash data sent to COM successfully\n");
+        printf("data is:::::::: %s\n", beacon_data);
+      }
+      else
+      {
+        ret = write(fd, beacon_data, BEACON_DATA_SIZE);
+        usleep(10000);
         if (ret < 0)
         {
-          printf("Unable to send data through byte method..\n");
-          return -1;
+          printf("unable to send data\n");
+          for (int i = 0; i < BEACON_DATA_SIZE; i++)
+          {
+            ret = write(fd, &beacon_data[i], 1);
+            usleep(1000);
+          }
+          if (ret < 0)
+          {
+            printf("Unable to send data through byte method..\n");
+            return -1;
+          }
         }
       }
     }
@@ -2754,7 +2779,7 @@ int send_beacon_data()
       switch (beacon_type)
       {
       case 0:
-        
+
         serialize_beacon_a(beacon_data);
         beacon_data[1] = 0xb1;
         beacon_data[2] = 0x51;
@@ -3047,8 +3072,8 @@ void cam_operation()
       usleep(10000);
       syslog(LOG_DEBUG, "TOtal data received %d\n CAM operation success\n", counter1);
       sleep(2);
-      cam[counter1++]=0xff;
-      cam[counter1++]=0xd9;
+      cam[counter1++] = 0xff;
+      cam[counter1++] = 0xd9;
 
       mission_data("/cam.txt", &cam, counter1);
       uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
@@ -3125,26 +3150,26 @@ void epdm_operation()
   }
 }
 
-int configure_watchdog(int fd, int timeout)
-{
-  /* Set the watchdog timeout */
-  int ret = ioctl(fd, WDIOC_SETTIMEOUT, (unsigned long)timeout);
-  if (ret < 0)
-  {
-    perror("Failed to set watchdog timeout");
-    return -1;
-  }
+// int configure_watchdog(int fd, int timeout)
+// {
+//   /* Set the watchdog timeout */
+//   int ret = ioctl(fd, WDIOC_SETTIMEOUT, (unsigned long)timeout);
+//   if (ret < 0)
+//   {
+//     perror("Failed to set watchdog timeout");
+//     return -1;
+//   }
 
-  /* Start the watchdog */
-  ret = ioctl(fd, WDIOC_START, 0);
-  if (ret < 0)
-  {
-    perror("Failed to start watchdog");
-    return -1;
-  }
+//   /* Start the watchdog */
+//   ret = ioctl(fd, WDIOC_START, 0);
+//   if (ret < 0)
+//   {
+//     perror("Failed to start watchdog");
+//     return -1;
+//   }
 
-  return 0;
-}
+//   return 0;
+// }
 
 void watchdog_refresh_task(int fd)
 {
@@ -3736,8 +3761,7 @@ void subscribe_and_retrieve_data(void)
         sat_health.mag_x = mag_scaled.mag_x;
         sat_health.mag_y = mag_scaled.mag_y;
         sat_health.mag_z = mag_scaled.mag_z;
-      sat_health.temp_obc = mag_scaled.temperature;
-
+        sat_health.temp_obc = mag_scaled.temperature;
       }
     }
     else

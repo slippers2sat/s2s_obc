@@ -200,6 +200,7 @@ void configure_rtc(void) {
 int stm32_bringup(void)
 {
   configure_rtc();
+  configure_rtc();
 
   // rtc_initialize("/dev/rtc", 0);
 

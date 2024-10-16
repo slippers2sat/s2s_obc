@@ -1,93 +1,100 @@
-#ifndef __APPS_EXAMPLES_WATCHDOG_MAIN_H
-#define __APPS_EXAMPLES_WATCHDOG_MAIN_H
 
 /****************************************************************************
- * Included Files
+ * apps/examples/watchdog/watchdog_task.c
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.
+ *
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <stdint.h>
-#include <sys/types.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <nuttx/timers/watchdog.h>
+#include <time.h>
+#include "wdog.h"
+#include <nuttx/sched.h> // For task management
+// #include <nuttx/task.h>   // For task APIs
 
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
+#define DEVNAME "/dev/iwdg0"
+#define TIMEOUT 29000       // 10 seconds in milliseconds
+#define PING_INTERVAL 10 // 1 second for pinging
+#define STACK_SIZE 848       // Stack size for the watchdog task
 
-#define DEVNAME_SIZE 16
-
-/****************************************************************************
- * Public Types
- ****************************************************************************/
-
-struct wdog_example_s
+int pet_counter = 0;
+// Watchdog task function
+static int watchdog_task(int argc, char *argv[])
 {
-  uint32_t pingtime;
-  uint32_t pingdelay;
-  uint32_t timeout;
-  char devname[DEVNAME_SIZE];
-};
+  int fd = open(DEVNAME, O_RDONLY);
+  if (fd < 0)
+  {
+    printf("Failed to open %s: %d\n", DEVNAME, errno);
+    return -1;
+  }
 
-/****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
+  // Set the watchdog timeout to 10 seconds
+  if (ioctl(fd, WDIOC_SETTIMEOUT, (unsigned long)(TIMEOUT / 1000)) < 0)
+  {
+    printf("Failed to set timeout: %d\n", errno);
+    close(fd);
+    return -1;
+  }
+  else
+  {
+    printf("timeout set to %lu", (unsigned long)(TIMEOUT / 1000));
+  }
 
-/****************************************************************************
- * Name: wdog_help
- *
- * Description:
- *   Show help information for the watchdog example application.
- *
- ****************************************************************************/
+  // Start the watchdog timer
+  if (ioctl(fd, WDIOC_START, 0) < 0)
+  {
+    printf("Failed to start watchdog: %d\n", errno);
+    close(fd);
+    return -1;
+  }
 
-void wdog_help(void);
+  // Ping the watchdog every second
+  while (1)
+  {
+    // usleep(PING_INTERVAL * 1000); // Sleep for 1 second
 
-/****************************************************************************
- * Name: arg_string
- *
- * Description:
- *   Extract a string argument from the command line.
- *
- * Input Parameters:
- *   arg - Pointer to the command line argument
- *   value - Pointer to the extracted value
- *
- * Returned Value:
- *   Number of arguments consumed
- *
- ****************************************************************************/
+    // Pet the watchdog
+    if (pet_counter <=10)
+    {
+      if (ioctl(fd, WDIOC_KEEPALIVE, 0) < 0)
+      {
+        printf("Failed to keep alive: %d\n", errno);
+        // Handle the failure condition as needed
+      }
+      else
+      {
+        printf("Watchdog petted!\n");
+        pet_counter += 1;
+        sleep(10);
+      }
+    }
+  }
 
-int arg_string(FAR char **arg, FAR char **value);
+  // Stop the watchdog (never reached in this case)
+  ioctl(fd, WDIOC_STOP, 0);
+  close(fd);
+  return 0; // Return success
+}
 
-/****************************************************************************
- * Name: arg_decimal
- *
- * Description:
- *   Extract a decimal argument from the command line.
- *
- * Input Parameters:
- *   arg - Pointer to the command line argument
- *   value - Pointer to the extracted value
- *
- * Returned Value:
- *   Number of arguments consumed
- *
- ****************************************************************************/
+// // Main function to create the watchdog task
+// int main(int argc, FAR char *argv[])
+// {
+//     // Create the watchdog task
+//     pid_t wdog_pid = task_create("watchdog_task", 100, STACK_SIZE, watchdog_task, NULL);
+//     if (wdog_pid < 0)
+//     {
+//         printf("Failed to create watchdog task: %d\n", errno);
+//         return EXIT_FAILURE;
+//     }
 
-int arg_decimal(FAR char **arg, FAR long *value);
-
-/****************************************************************************
- * Name: parse_args
- *
- * Description:
- *   Parse command line arguments for the watchdog example application.
- *
- * Input Parameters:
- *   wdog - Pointer to the watchdog example state structure
- *   argc - Number of arguments
- *   argv - Array of arguments
- *
- ****************************************************************************/
-
-void parse_args(FAR struct wdog_example_s *wdog, int argc, FAR char **argv);
-
-#endif /* __APPS_EXAMPLES_WATCHDOG_MAIN_H */
+//     return EXIT_SUCCESS;
+// }
