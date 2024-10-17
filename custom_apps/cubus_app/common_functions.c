@@ -403,6 +403,7 @@ int check_flag_data(CRITICAL_FLAGS rd_flags_int)
     }
   }
   file_close(&fp);
+  close(fd);
   syslog(LOG_INFO, "Flags data check and write complete.... \n");
   // leave_critical_section(flags);
   return 0;
@@ -566,6 +567,8 @@ void print_critical_flag_data(CRITICAL_FLAGS *flags)
   printf(" |   Operation Mode            \t %d \t|\r\n", flags->OPER_MODE);
   printf(" |   Reservation Table Flag    \t %d \t|\r\n", flags->RSV_FLAG);
   printf(" |   Command uplink status     \t %d \t|\r\n", flags->UL_STATE);
+  printf(" |   Reset counter     \t %d \t|\r\n", flags->RST_COUNT);
+  
   printf(" ********************************************\r\n");
 }
 
