@@ -26,6 +26,7 @@
 #define PING_INTERVAL 10 // 1 second for pinging
 #define STACK_SIZE 848   // Stack size for the watchdog task
 
+extern CRITICAL_FLAGS critic_flags;
 int pet_counter = 0;
 // Watchdog task function
 static int watchdog_task(int argc, char *argv[])
@@ -59,8 +60,9 @@ static int watchdog_task(int argc, char *argv[])
       close(fd);
       return -1;
     }
-    else{
-      syslog(LOG_DEBUG,"Watchdog started &&&&&&&&&&&&&&&&&************\n");
+    else
+    {
+      syslog(LOG_DEBUG, "Watchdog started &&&&&&&&&&&&&&&&&************\n");
     }
 
     // Ping the watchdog every second
@@ -78,10 +80,29 @@ static int watchdog_task(int argc, char *argv[])
         }
         else
         {
-        //  if(pet_counter % 6 == 0)
-          printf("Watchdog petted! %d\n",pet_counter);
+          //  if(pet_counter % 6 == 0)
+          // printf("Watchdog petted! %d\n", pet_counter);
           pet_counter += 1;
           sleep(10);
+        }
+      }
+      else
+      {
+        printf("WDOG timeout reached!!!!!!!Reset soon!");
+        if (ioctl(fd, WDIOC_KEEPALIVE, 0) < 0)
+        {
+          printf("Failed to keep alive: %d\n", errno);
+          // Handle the failure condition as needed
+        }
+        else
+        {
+          //  if(pet_counter % 6 == 0)
+          printf("Watchdog petted! %d\n", pet_counter);
+          // pet_counter += 1;
+          critic_flags.RST_COUNT = critic_flags.RST_COUNT + 1;
+          store_flag_data(&critic_flags);
+          ioctl(fd, WDIOC_KEEPALIVE, 0);
+          sleep(30);
         }
       }
     }
