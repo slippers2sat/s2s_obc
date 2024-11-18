@@ -61,7 +61,7 @@
 #include "watchdog.h"
 int wdog_fd = -1;
 // wdog
-
+#define ANT_DEPLOY_TIME 1
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
 float x[8], y[8];
 int ads7953_receiver(int argc, FAR char *argv[]);
@@ -272,6 +272,35 @@ void watchdog_refresh_task(int fd);
 
 int configure_watchdog(int fd, int timeout);
 void send_beacon();
+void save_critics_flags(const CRITICAL_FLAGS *flags) {
+    int fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_WRONLY | O_CREAT, 0644);
+    if (fd < 0) {
+        perror("Failed to open flags.txt for writing");
+        return;
+    }
+    write(fd, flags, sizeof(CRITICAL_FLAGS));
+    close(fd);
+}
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+
+int load_critics_flags(CRITICAL_FLAGS *flags) {
+    int fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_RDONLY);
+    if (fd < 0) {
+        perror("Failed to open flags.txt for reading");
+        return -1;
+    }
+    ssize_t bytesRead = read(fd, flags, sizeof(CRITICAL_FLAGS));
+    close(fd);
+    if (bytesRead != sizeof(CRITICAL_FLAGS)) {
+        perror("Failed to read complete flags data");
+        return -1;
+    }
+    return 0;
+}
+
 /*Private function prototypes declaration end */
 
 /****************************************************************************
@@ -391,12 +420,12 @@ int read_int_adc1()
       else
       {
         // Print int adc values
-        //  printf("Sample:\n");
-        //  for (int i = 0; i < nsamples; i++)
-        //  {
-        //    printf("%d: channel: %d value: %" PRId32 "\n",
-        //           i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
-        //  }
+        printf("\nSample:\n");
+        for (int i = 0; i < nsamples; i++)
+        {
+          printf("%d: channel: %d value: %" PRId32 "\n",
+                 i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
+        }
         sat_health.raw_v = int_adc1_sample[12].am_data;
         sat_health.sol_p1_c = int_adc1_sample[14].am_data;
         sat_health.sol_p2_c = int_adc1_sample[15].am_data;
@@ -911,137 +940,145 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                     Command to perform flash operations by the OBC
                     */
 
-      { // __file_operations.cmd = COM_RX_DATA[HEADER + 1];
-        syslog(LOG_DEBUG, "OBC MCU ID has been received\n");
-        // break; // TO remove this later
-        if (cmds[0] == 0xCA | cmds[0] == 0x1D)
+        if (cmds[0] == 0x1a && cmds[1] == 0xe0 && cmds[2] == 0x1e)
         {
-          struct FILE_OPERATIONS __file_operations = {
-              .cmd = 0x00,
-              .number_of_packets = {0}, // Initialize all elements to 0
-              .filepath = {'\0'},       // Initialize as an empty string
-              .address = {0},           // Initialize all elements to 0
-              .rsv_table = {0},         // Initialize all elements to 0
-              .mcu_id = 0xda};
-
-          __file_operations.cmd = cmds[0];
-          // __file_operations.select_file = ;
-          if ((COM_RX_DATA[HEADER + 2] == 0xD1) || (COM_RX_DATA[HEADER + 2] == 0xD2))
-          {
-            __file_operations.select_flash = MAIN_FLASH_MEMORY;
-            if ((COM_RX_DATA[HEADER + 2] == 0xD2))
-              strcpy(__file_operations.filepath, MFM_MSN_STRPATH);
-            else
-              strcpy(__file_operations.filepath, MFM_MAIN_STRPATH);
-          }
-          if ((COM_RX_DATA[HEADER + 2] == 0xD3) || (COM_RX_DATA[HEADER + 2] == 0xD4))
-          {
-            __file_operations.select_flash = SHARED_FLASH_MEMORY;
-            if ((COM_RX_DATA[HEADER + 2] == 0xD3))
-              strcpy(__file_operations.filepath, SFM_MAIN_STRPATH);
-            else
-              strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
-          }
-          char filename[7][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam.txt", "/epdm.txt", "/adcs.txt"};
-
-          if ((cmds[2] == 0xF1))
-          {
-            __file_operations.select_file = FLAGS;
-            __file_operations.mcu_id = 0xad;
-
-            strcat(__file_operations.filepath, "/flags.txt");
-            syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
-          }
-          else if ((cmds[2] == 0xF2))
-          {
-            __file_operations.mcu_id = 218;
-            __file_operations.select_file = SATELLITE_HEALTH;
-            strcat(__file_operations.filepath, "/satHealth.txt");
-            syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
-          }
-          else if ((cmds[2] == 0xF3))
-          {
-            __file_operations.mcu_id = 0xda;
-
-            __file_operations.select_file = SATELLITE_LOG;
-            strcat(__file_operations.filepath, "/satHealth.txt");
-          }
-          else if ((cmds[2] == 0xF4))
-          {
-            __file_operations.mcu_id = 0xad;
-
-            __file_operations.select_file = RESERVATION_TABLE;
-            strcat(__file_operations.filepath, "/reservation_table.txt");
-          }
-          else if ((cmds[2] == 0xF5))
-          {
-            strcat(__file_operations.filepath, "/cam.txt");
-            __file_operations.mcu_id = 0x0c;
-
-            __file_operations.select_file = CAMERA_TXT;
-          }
-          else if ((cmds[2] == 0xF6))
-          {
-            __file_operations.mcu_id = 0x0b;
-
-            __file_operations.select_file = EPDM_TXT;
-            strcat(__file_operations.filepath, "/epdm.txt");
-          }
-          else if ((cmds[2] == 0xF7))
-          {
-            __file_operations.select_file = ADCS_TXT;
-            __file_operations.mcu_id = 0x0d;
-            strcat(__file_operations.filepath, "/adcs.txt");
-          }
-
-          // TODO check reservation table here
-
-          __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
-          __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
-
-          // TODO check address here
-          __file_operations.address[0] = COM_RX_DATA[HEADER + 6];
-          __file_operations.address[1] = COM_RX_DATA[HEADER + 7];
-          __file_operations.address[2] = COM_RX_DATA[HEADER + 8];
-          __file_operations.address[3] = COM_RX_DATA[HEADER + 9];
-
-          // TODO check for number of packets here
-          __file_operations.number_of_packets[0] = COM_RX_DATA[HEADER + 10];
-          __file_operations.number_of_packets[1] = COM_RX_DATA[HEADER + 11];
-
-          syslog(LOG_DEBUG, "mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
-                 __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
-                 __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
-                 __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
+          printf("\n-------------------Satellite reset command received-----------------\n Resets in 2 seconds\n");
           sleep(1);
-          send_data_uart(COM_UART, ack, sizeof(ack));
-          perform_file_operations(&__file_operations);
+          gpio_write(GPIO_GBL_RST, true);
         }
+        { // __file_operations.cmd = COM_RX_DATA[HEADER + 1];
+          syslog(LOG_DEBUG, "OBC MCU ID has been received\n");
+          // break; // TO remove this later
+          if (cmds[0] == 0xCA | cmds[0] == 0x1D)
+          {
+            struct FILE_OPERATIONS __file_operations = {
+                .cmd = 0x00,
+                .number_of_packets = {0}, // Initialize all elements to 0
+                .filepath = {'\0'},       // Initialize as an empty string
+                .address = {0},           // Initialize all elements to 0
+                .rsv_table = {0},         // Initialize all elements to 0
+                .mcu_id = 0xda};
 
-        /*
-        Command for disabling status of KILL SWITCH
-        */
-        else if (cmds[0] == 0xee && cmds[1] == 0xaa && cmds[2] == 0xaa)
-        {
-          sleep(1);
-          send_data_uart(COM_UART, ack, sizeof(ack));
+            __file_operations.cmd = cmds[0];
+            // __file_operations.select_file = ;
+            if ((COM_RX_DATA[HEADER + 2] == 0xD1) || (COM_RX_DATA[HEADER + 2] == 0xD2))
+            {
+              __file_operations.select_flash = MAIN_FLASH_MEMORY;
+              if ((COM_RX_DATA[HEADER + 2] == 0xD2))
+                strcpy(__file_operations.filepath, MFM_MSN_STRPATH);
+              else
+                strcpy(__file_operations.filepath, MFM_MAIN_STRPATH);
+            }
+            if ((COM_RX_DATA[HEADER + 2] == 0xD3) || (COM_RX_DATA[HEADER + 2] == 0xD4))
+            {
+              __file_operations.select_flash = SHARED_FLASH_MEMORY;
+              if ((COM_RX_DATA[HEADER + 2] == 0xD3))
+                strcpy(__file_operations.filepath, SFM_MAIN_STRPATH);
+              else
+                strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
+            }
+            char filename[7][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam.txt", "/epdm.txt", "/adcs.txt"};
 
-          syslog(LOG_DEBUG, "--------- kill switch deactivated\n");
+            if ((cmds[2] == 0xF1))
+            {
+              __file_operations.select_file = FLAGS;
+              __file_operations.mcu_id = 0xad;
+
+              strcat(__file_operations.filepath, "/flags.txt");
+              syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
+            }
+            else if ((cmds[2] == 0xF2))
+            {
+              __file_operations.mcu_id = 218;
+              __file_operations.select_file = SATELLITE_HEALTH;
+              strcat(__file_operations.filepath, "/satHealth.txt");
+              syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
+            }
+            else if ((cmds[2] == 0xF3))
+            {
+              __file_operations.mcu_id = 0xda;
+
+              __file_operations.select_file = SATELLITE_LOG;
+              strcat(__file_operations.filepath, "/satHealth.txt");
+            }
+            else if ((cmds[2] == 0xF4))
+            {
+              __file_operations.mcu_id = 0xad;
+
+              __file_operations.select_file = RESERVATION_TABLE;
+              strcat(__file_operations.filepath, "/reservation_table.txt");
+            }
+            else if ((cmds[2] == 0xF5))
+            {
+              strcat(__file_operations.filepath, "/cam.txt");
+              __file_operations.mcu_id = 0x0c;
+
+              __file_operations.select_file = CAMERA_TXT;
+            }
+            else if ((cmds[2] == 0xF6))
+            {
+              __file_operations.mcu_id = 0x0b;
+
+              __file_operations.select_file = EPDM_TXT;
+              strcat(__file_operations.filepath, "/epdm.txt");
+            }
+            else if ((cmds[2] == 0xF7))
+            {
+              __file_operations.select_file = ADCS_TXT;
+              __file_operations.mcu_id = 0x0d;
+              strcat(__file_operations.filepath, "/adcs.txt");
+            }
+
+            // TODO check reservation table here
+
+            __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
+            __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
+
+            // TODO check address here
+            __file_operations.address[0] = COM_RX_DATA[HEADER + 6];
+            __file_operations.address[1] = COM_RX_DATA[HEADER + 7];
+            __file_operations.address[2] = COM_RX_DATA[HEADER + 8];
+            __file_operations.address[3] = COM_RX_DATA[HEADER + 9];
+
+            // TODO check for number of packets here
+            __file_operations.number_of_packets[0] = COM_RX_DATA[HEADER + 10];
+            __file_operations.number_of_packets[1] = COM_RX_DATA[HEADER + 11];
+
+            syslog(LOG_DEBUG, "mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
+                   __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
+                   __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
+                   __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
+            sleep(1);
+            send_data_uart(COM_UART, ack, sizeof(ack));
+            perform_file_operations(&__file_operations);
+          }
+
+          /*
+          Command for disabling status of KILL SWITCH
+          */
+          else if (cmds[0] == 0xee && cmds[1] == 0xaa && cmds[2] == 0xaa)
+          {
+            sleep(1);
+            send_data_uart(COM_UART, ack, sizeof(ack));
+            critic_flags.KILL_SWITCH_STAT = KILL_SW_OFF;
+            store_flag_data(&critic_flags);
+            syslog(LOG_DEBUG, "--------- kill switch deactivated\n");
+          }
+
+          /*
+          Command for enabling status of KILL SWITCH
+          */
+          else if (cmds[0] == 0xee && cmds[1] == 0xee && cmds[2] == 0xee)
+          {
+            sleep(1);
+            send_data_uart(COM_UART, ack, sizeof(ack));
+            critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
+            store_flag_data(&critic_flags);
+            syslog(LOG_DEBUG, "---------kill switch activated\n");
+          }
         }
-
-        /*
-        Command for enabling status of KILL SWITCH
-        */
-        else if (cmds[0] == 0xee && cmds[1] == 0xee && cmds[2] == 0xee)
-        {
-          sleep(1);
-          send_data_uart(COM_UART, ack, sizeof(ack));
-
-          syslog(LOG_DEBUG, "---------kill switch activated\n");
-        }
-      }
-      /* code */
-      break;
+        /* code */
+        break;
 
       case COM_MCU:
         // Command to ENABLE Digipeater misison
@@ -1189,9 +1226,10 @@ static int COM_TASK(int argc, char *argv[])
   gpio_write(GPIO_3V3_COM_EN, 0);
   gpio_write(GPIO_3V3_COM_EN, false); // Enable COM systems
 
-  sleep(1);
+  sleep(3);
   syslog(LOG_DEBUG, "***************************Turning on COM MSN...***************************\n");
   gpio_write(GPIO_3V3_COM_EN, 1);
+  sleep(3);
   gpio_write(GPIO_3V3_COM_EN, true); // Enable COM systems
 
   // usleep(2000000);
@@ -1946,10 +1984,10 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_a.X1_T = sat_health.temp_x1;
     s2s_beacon_type_a.X_T = sat_health.temp_x;
 
-    s2s_beacon_type_a.SOL_P1_STAT = sat_health.sol_p1_v >= 2 ? 1 : 0; // check from power, max power draw is 0.6 watt
-    s2s_beacon_type_a.SOL_P2_STAT = sat_health.sol_p2_v >= 2 ? 1 : 0;
-    s2s_beacon_type_a.SOL_P3_STAT = sat_health.sol_p3_v >= 2 ? 1 : 0;
-    s2s_beacon_type_a.SOL_P4_STAT = sat_health.sol_p4_v >= 2 ? 1 : 0;
+    s2s_beacon_type_a.SOL_P1_STAT = sat_health.sol_p1_v >= 1 ? 1 : 0; // check from power, max power draw is 0.6 watt
+    s2s_beacon_type_a.SOL_P2_STAT = sat_health.sol_p2_v >= 1 ? 1 : 0;
+    s2s_beacon_type_a.SOL_P3_STAT = sat_health.sol_p3_v >= 1 ? 1 : 0;
+    s2s_beacon_type_a.SOL_P4_STAT = sat_health.sol_p4_v >= 1 ? 1 : 0;
 
     s2s_beacon_type_a.ANT_STAT = critic_flags.ANT_DEP_STAT;
     s2s_beacon_type_a.KILL1_STAT = critic_flags.KILL_SWITCH_STAT;
@@ -1976,9 +2014,9 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_b.SOL_P3_C = sat_health.sol_p3_c;
     s2s_beacon_type_b.SOL_P4_C = sat_health.sol_p4_c;
 
-    s2s_beacon_type_b.MAG_X = (int16_t)(sat_health.mag_x * 100);
-    s2s_beacon_type_b.MAG_Y = (int16_t)(sat_health.mag_y * 100);
-    s2s_beacon_type_b.MAG_Z = (int16_t)(sat_health.mag_z * 100);
+    s2s_beacon_type_b.MAG_X = (int16_t)((int16_t)sat_health.mag_x * 100);
+    s2s_beacon_type_b.MAG_Y = (int16_t)((int16_t)sat_health.mag_y * 100);
+    s2s_beacon_type_b.MAG_Z = (int16_t)((int16_t)sat_health.mag_z * 100);
 
     s2s_beacon_type_b.GYRO_X = (int16_t)(sat_health.gyro_x * 100);
     s2s_beacon_type_b.GYRO_Y = (int16_t)(sat_health.gyro_y * 100);
@@ -2332,6 +2370,10 @@ void perform_file_operations(struct FILE_OPERATIONS *file_operations)
   case 0x1d:
     FLASH_OPERATION = true;
     MISSION_STATUS.FLASH_OPERATION = true;
+    printf("Turning on  4v dcdc line..\n");
+    gpio_write(GPIO_DCDC_4V_EN, 1);
+    printf("Turning on COM 4V line..\n");
+    gpio_write(GPIO_COM_4V_EN, 1);
     download_file_from_flash(file_operations, data_retrieved, SIZE_OF_DATA_DOWNLOAD);
     printf("*****Download command received**************\nsize:%d\n***********************\ncmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
            sizeof(data_retrieved), file_operations->cmd, file_operations->select_flash, file_operations->select_file, file_operations->rsv_table[1], file_operations->rsv_table[0], file_operations->filepath,
@@ -2339,6 +2381,10 @@ void perform_file_operations(struct FILE_OPERATIONS *file_operations)
            file_operations->number_of_packets[3], file_operations->number_of_packets[2], file_operations->number_of_packets[1], file_operations->number_of_packets[0]);
 
     printf("-------Data download function has been called\n");
+        printf("Turning off  4v dcdc line..\n");
+    gpio_write(GPIO_DCDC_4V_EN, 0);
+    printf("Turning off COM 4V line..\n");
+    gpio_write(GPIO_COM_4V_EN, 0);
     MISSION_STATUS.FLASH_OPERATION = false;
     FLASH_OPERATION = false;
     break;
@@ -2394,11 +2440,30 @@ void global_reset()
     // sleep(300);
     sleep(75400);
     critic_flags.RST_COUNT = critic_flags.RST_COUNT + 1;
-    store_flag_data(&critic_flags);
+    // store_flag_data(&critic_flags);
+    save_critics_flags(&critic_flags);
     print_critical_flag_data(&critic_flags);
     sleep(10000);
     gpio_write(GPIO_GBL_RST, true);
   }
+}
+
+int create_task(const char *name, int priority, int stack_size, main_t entry)
+{
+  const int MAX_RETRY_COUNT = 4;
+
+  int retval;
+  for (int i = 0; i < MAX_RETRY_COUNT; i++)
+  {
+    retval = task_create(name, priority, stack_size, entry, NULL);
+    if (retval >= 0)
+    {
+      return retval;
+    }
+    printf("Failed to create %s task. Retry %d/%d\n", name, i + 1, MAX_RETRY_COUNT);
+    sleep(1); // Wait before retrying
+  }
+  return -1;
 }
 
 /****************************************************************************
@@ -2432,33 +2497,56 @@ int main(int argc, FAR char *argv[])
       gpio_write(GPIO_GBL_RST, true);
     }
   }
+  else if (strcmp(argv[1], "com") == 0)
+  {
+    int retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
+    if (retval < 0)
+    {
+      printf("unable to create MPU6500_TASK_APP task\n");
+      for (int i = 0; i < 4; i++)
+      {
+        retval = task_create("MPU6500_TASK_APP", 100, 9600, COM_TASK, NULL);
+        if (retval >= 0)
+        {
+          g_mpu_task_started = true;
+          break;
+          return 0;
+        }
+      }
+      return -1;
+    }
+  }
+  else if (strcmp(argv[1], "ext_flash_manual") == 0)
+  {
+    CRITICAL_FLAGS mfm_flags = {0xff};
+    mfm_flags.ANT_DEP_STAT = DEPLOYED;
+    mfm_flags.RST_COUNT = 0x00;
+    mfm_flags.UL_STATE = UL_NOT_RX;
+    store_flag_data(&mfm_flags);
+  }
   else if (strcmp(argv[1], "internal") == 0)
   {
     CRITICAL_FLAGS rd_flags_int = {0x00};
-
-    int fd = open("/dev/intflash", O_RDWR);
+    // check_flag_data();
+    struct file truncate_ptr;
+    int fd;
+    char path1 = "/mnt/fs/mfm/mtd_mainstorage/flags.txt";
+    fd = file_open(&truncate_ptr, "/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_TRUNC);
     if (fd >= 0)
-    { // internal flash file opened successfully
-      syslog(LOG_INFO, "Printing Internal flash flag data.\n");
-      up_progmem_read(FLAG_DATA_INT_ADDR, &critic_flags, sizeof(critic_flags));
-      // for(int i=0;i<6;i++){
-      //   critic_flags
-      // }
-      print_critical_flag_data(&critic_flags);
-
-      up_progmem_write(FLAG_DATA_INT_ADDR, &rd_flags_int, sizeof(rd_flags_int));
-    }
-    up_progmem_read(FLAG_DATA_INT_ADDR, &critic_flags, sizeof(critic_flags));
-
-    print_critical_flag_data(&critic_flags);
-    close(fd);
-    struct file fp;
-    int fd1 = open_file_flash(&fp, MFM_MAIN_STRPATH, file_name_flag, O_RDWR | O_TRUNC);
-    if (fd1 >= 0)
     {
-      // read_size_mfm = file_read(&fp, &rd_flags_mfm, sizeof(CRITICAL_FLAGS));
-      file_close(&fp);
+      syslog(LOG_SYSLOG, "File named %s has been truncated successfully.\n", path1);
     }
+    else
+    {
+      syslog(LOG_SYSLOG, "Error opening file: %s\n", path1);
+    }
+    file_close(&truncate_ptr);
+    if (close(fd) < 0)
+    {
+      close(fd);
+      printf("Failed to close COM UART: %s\n", strerror(errno));
+    }
+    return 0;
   }
   else if (strcmp(argv[1], "mpu") == 0)
   {
@@ -2499,6 +2587,28 @@ int main(int argc, FAR char *argv[])
 
     sleep(1);
   }
+  else if (strcmp(argv[1], "camera") == 0)
+  {
+    struct file cam;
+    uint8_t cam_data[3500];
+    MISSION_STATUS.FLASH_OPERATION = true;
+    printf("_______________________________________________________\n");
+
+    int cam_fd = open_file_flash(&cam, MFM_MAIN_STRPATH, "/cam.txt", O_RDONLY);
+    int ccc = file_seek(&cam, 0, SEEK_END);
+    int read_files = file_read(&cam, cam_data, ccc + 1);
+    if (read_files >= 0)
+    {
+      for (int i = 0; i < ccc + 1; i++)
+      {
+        printf("%02x ", cam_data[i]);
+      }
+      printf("_______________________________________________________\n");
+    }
+    file_close(&cam);
+    MISSION_STATUS.FLASH_OPERATION = false;
+  }
+
   else if (strcmp(argv[1], "int") == 0)
   {
     // for (int i = 0; i < 20; i++)
@@ -2515,13 +2625,13 @@ int main(int argc, FAR char *argv[])
       else
       {
         printf("[ADC TASK] Task  started.\n");
-        int retval = task_create("ADC_TASK_APP", 100, 800, ads7953_receiver, NULL);
+        int retval = task_create("ADC_TASK_APP", 100, 1400, ads7953_receiver, NULL);
         if (retval < 0)
         {
           printf("unable to create ADC_TASK_APP task\n");
           for (int i = 0; i < 4; i++)
           {
-            retval = task_create("ADC_TASK_APP", 100, 600, ads7953_receiver, NULL);
+            retval = task_create("ADC_TASK_APP", 100, 1600, ads7953_receiver, NULL);
             if (retval >= 0)
             {
               g_adc_task_started = true;
@@ -2532,9 +2642,6 @@ int main(int argc, FAR char *argv[])
           return -1;
         }
       }
-      // ads7953_receiver(argc, argv);
-      // print_satellite_health_data(&sat_health);
-
       sleep(1);
     }
   }
@@ -2559,6 +2666,16 @@ int main(int argc, FAR char *argv[])
   /*TODO : REMOVE LATER Independent testing*/
   else
   {
+    if (load_critics_flags(&critic_flags) != 0) {
+        // Handle error or initialize flags
+        memset(&critic_flags, 0, sizeof(CRITICAL_FLAGS));
+    }
+    if (critic_flags.ANT_DEP_STAT != DEPLOYED){
+     printf("antenna not deployed\n");
+    }
+    else{
+      printf("antenna already deployed\n");
+    }
     printf("************************************************\n");
     printf("***********S2S commander app************\n");
 
@@ -2566,159 +2683,126 @@ int main(int argc, FAR char *argv[])
 
     Antenna_Deployment(argc, argv);
     // sleep(10);
-    if (critic_flags.ANT_DEP_STAT == UNDEPLOYED && critic_flags.UL_STATE == UL_NOT_RX)
+    if (critic_flags.ANT_DEP_STAT != DEPLOYED && critic_flags.UL_STATE != UL_RX)
     {
       Antenna_Deployment(argc, argv);
     }
     else
     {
 
-      bool g_watchdog_task_started = false;
-      if (g_watchdog_task_started)
-      {
-        printf("[WDG TASK] Task already started.\n");
-        return EXIT_SUCCESS;
-      }
-      else
-      {
+      // printf("************************************************\n");
+      // printf("***********Waiting 24 hours************\n");
+      // printf("********ANtenna deployement starting************\n");
 
+      // Antenna_Deployment(argc, argv);
+      // if (critic_flags.ANT_DEP_STAT != DEPLOYED && critic_flags.UL_STATE != UL_RX)
+      // {
+      //   printf("Antenna still undeployed. Waiting for next 24 hours\n");
+      //   int count = 0;
+      //   do
+      //   {
+      //     printf("%d hours passed.\n", count);
+      //     sleep(3600);
+      //     count += 1;
+      //   } while (count < 24);
+      //   Antenna_Deployment(argc, argv);
+      // }
+      // else
+      {
+        bool g_watchdog_task_started = false;
         bool g_reset_task_started = false;
-        if (g_reset_task_started)
+
+        if (g_watchdog_task_started)
         {
-          printf("[Reset TASK] Task already started.\n");
-          return EXIT_SUCCESS;
+          printf("[WDG TASK] Task already started.\n");
         }
         else
         {
-          printf("[Reset TASK] Task  started.\n");
-          int retval = task_create("RESET_TASK_APP", 100, 1200, global_reset, NULL);
-          if (retval < 0)
+          int retval = create_task("RESET_TASK_APP", 100, 1500, global_reset);
+          if (retval >= 0)
           {
-            printf("unable to create RESET_TASK_APP task\n");
-            for (int i = 0; i < 4; i++)
-            {
-              retval = task_create("RESET_TASK_APP", 100, 1500, global_reset, NULL);
-              if (retval >= 0)
-              {
-                g_reset_task_started = true;
-                break;
-                return 0;
-              }
-            }
-            return -1;
+            g_reset_task_started = true;
+            printf("[Reset TASK] Task started.\n");
+          }
+          else
+          {
+            printf("Unable to create RESET_TASK_APP task\n");
           }
         }
+
         if (g_commander_task_started)
         {
           printf("[COMMANDER TASK] Task already started.\n");
-          return EXIT_SUCCESS;
         }
         else
         {
-          int retval = task_create("COMMANDER_TASK_APP", 100, 10096, COM_TASK, NULL);
-          if (retval < 0)
+          int retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
+
+          // int retval = task_create("ADC_TASK_APP", 100, 12, ads7953_receiver, NULL);
+          // int retval = create_task("COMMANDER_TASK_APP", 100, 10096, COM_TASK);
+          if (retval >= 0)
           {
-            printf("unable to create COMMANDER_TASK_APP task\n");
-            for (int i = 0; i < 4; i++)
-            {
-              retval = task_create("COMMANDER_TASK_APP", 100, 10096, COM_TASK, NULL);
-              if (retval >= 0)
-              {
-                g_commander_task_started = true;
-                break;
-                return 0;
-              }
-            }
-            return -1;
+            g_commander_task_started = true;
+          }
+          else
+          {
+            printf("Unable to create COMMANDER_TASK_APP task\n");
           }
         }
-        printf("************************************************\n");
+
         if (g_beacon_task_started)
         {
           printf("[BEACON TASK] Task already started.\n");
-          return EXIT_SUCCESS;
         }
         else
         {
-          int retval = task_create("BEACON_TASK_APP", 100, 1096, send_beacon, NULL);
-          if (retval < 0)
+          int retval = create_task("BEACON_TASK_APP", 100, 2800, send_beacon);
+          if (retval >= 0)
           {
-            printf("unable to create BEACON_TASK_APP task\n");
-            for (int i = 0; i < 4; i++)
-            {
-              retval = task_create("BEACON_TASK_APP", 100, 1200, send_beacon, NULL);
-              if (retval >= 0)
-              {
-                g_beacon_task_started = true;
-                break;
-                return 0;
-              }
-            }
-            return -1;
+            g_beacon_task_started = true;
+          }
+          else
+          {
+            printf("Unable to create BEACON_TASK_APP task\n");
           }
         }
+
         if (g_mpu_task_started)
         {
           printf("[MPU6500 TASK] Task already started.\n");
-          return EXIT_SUCCESS;
         }
         else
         {
-          // printf("[MPU6500 TASK] Task  started.\n");
-          // // subscribe_and_retrieve_data(mag_scaled)
-          // int retval = task_create("MPU6500_TASK_APP", 100, 2800, subscribe_and_retrieve_data, NULL);
-          // if (retval < 0)
-          // {
-          //   printf("unable to create MPU6500_TASK_APP task\n");
-          //   for (int i = 0; i < 4; i++)
-          //   {
-          //     retval = task_create("MPU6500_TASK_APP", 100, 2900, subscribe_and_retrieve_data, NULL);
-          //     if (retval >= 0)
-          //     {
-          //       g_mpu_task_started = true;
-          //       break;
-          //       return 0;
-          //     }
-          //   }
-          //   return -1;
-          // }
+          int retval = create_task("MPU6500_TASK_APP", 100, 2048, subscribe_and_retrieve_data);
+          if (retval >= 0)
+          {
+            g_mpu_task_started = true;
+          }
+          else
+          {
+            printf("Unable to create MPU6500_TASK_APP task\n");
+          }
         }
 
-        // {
-
-        //   bool g_adc_task_started = false;
-        //   if (g_adc_task_started)
-        //   {
-        //     printf("[Reset TASK] Task already started.\n");
-        //     return EXIT_SUCCESS;
-        //   }
-        //   else
-        //   {
-        //     printf("[ADC TASK] Task  started.\n");
-        //     int retval = task_create("ADC_TASK_APP", 100, 1800, ads7953_receiver, NULL);
-        //     if (retval < 0)
-        //     {
-        //       printf("unable to create ADC_TASK_APP task\n");
-        //       for (int i = 0; i < 4; i++)
-        //       {
-        //         retval = task_create("ADC_TASK_APP", 100, 2600, ads7953_receiver, NULL);
-        //         if (retval >= 0)
-        //         {
-        //           g_adc_task_started = true;
-        //           break;
-        //           return 0;
-        //         }
-        //       }
-        //       return -1;
-        //     }
-        //   }
-        //   sleep(1);
-        // }
+        bool g_adc_task_started = false;
+        if (g_adc_task_started)
+        {
+          printf("[ADC TASK] Task already started.\n");
+        }
+        else
+        {
+          int retval = create_task("ADC_TASK_APP", 100, 2048, ads7953_receiver);
+          if (retval >= 0)
+          {
+            g_adc_task_started = true;
+          }
+          else
+          {
+            printf("Unable to create ADC_TASK_APP task\n");
+          }
+        }
         printf("************************************************\n");
-        // }
-        // TODO: after checking flags data are being written/read correctly, we'll enable satellite health things as well and have a basic complete work queue functions except UART
       }
-      return 0;
     }
   }
   return 0;
@@ -2768,6 +2852,10 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
 // //COM
 void send_flash_data(uint8_t *beacon_data)
 {
+  printf("Turning on 4v dcdc line..\n");
+  gpio_write(GPIO_DCDC_4V_EN, 1);
+  printf("Turning on COM 4V line..\n");
+  gpio_write(GPIO_COM_4V_EN, 1);
   int fd = open_uart(COM_UART); // open(COM_UART, O_RDWR);
   int ret2;
   if (fd < 0)
@@ -2779,10 +2867,7 @@ void send_flash_data(uint8_t *beacon_data)
   {
     sleep(2);
 
-    printf("Turning on  4v dcdc line..\n");
-    gpio_write(GPIO_DCDC_4V_EN, 1);
-    printf("Turning on COM 4V line..\n");
-    gpio_write(GPIO_COM_4V_EN, 1);
+
 
     uint8_t ack_com[43];
     int ret = write(fd, beacon_data, BEACON_DATA_SIZE);
@@ -2833,6 +2918,11 @@ void send_flash_data(uint8_t *beacon_data)
       }
     }
   }
+  sleep(1);
+  printf("Turning off 4v dcdc line..\n");
+  gpio_write(GPIO_DCDC_4V_EN, 0);
+  printf("Turning off COM 4V line..\n");
+  gpio_write(GPIO_COM_4V_EN, 0);
   close_uart(fd);
 }
 
@@ -2883,6 +2973,11 @@ int send_beacon_data()
 
       printf("beacon data size %d\n", sizeof(beacon_data));
       send_data_uart(COM_UART, beacon_data, sizeof(beacon_data));
+      uint8_t x[43], ret2;
+      ret2 = receive_data_uart(COM_UART, x,sizeof(x));
+      if(ret2 < 0){
+        
+      }
       // fd = open(COM_UART, O_WRONLY);
       // int count;
       // if (fd < 0)
@@ -2940,33 +3035,33 @@ int send_beacon_data()
   return 0;
 }
 
-void FirstFunction()
-{
-  CRITICAL_FLAGS rd_flags_int;
-  struct file fp;
+// void FirstFunction()
+// {
+//   CRITICAL_FLAGS rd_flags_int;
+//   struct file fp;
 
-  CRITICAL_FLAGS rd_flags_mfm = {0xff};
-  uint8_t mfm_have_data = 0;
-  ssize_t read_size_mfm = 0;
+//   CRITICAL_FLAGS rd_flags_mfm = {0xff};
+//   uint8_t mfm_have_data = 0;
+//   ssize_t read_size_mfm = 0;
 
-  int fd = open("/dev/intflash", O_RDWR);
-  if (fd >= 0)
-  { // internal flash file opened successfully
-    syslog(LOG_INFO, "Printing Internal flash flag data.\n");
-    up_progmem_read(FLAG_DATA_INT_ADDR, &rd_flags_int, sizeof(rd_flags_int));
-    print_critical_flag_data(&rd_flags_int);
-  }
-  else
-  {
-    syslog(LOG_ERR, "Error opening internal flash atempt 1......\n ");
-  }
-  close(fd);
-  int fd1 = open_file_flash(&fp, MFM_MAIN_STRPATH, file_name_flag, O_RDWR);
-  if (fd1 >= 0)
-  {
-    read_size_mfm = file_read(&fp, &rd_flags_mfm, sizeof(CRITICAL_FLAGS));
-  }
-}
+//   int fd = open("/dev/intflash", O_RDWR);
+//   if (fd >= 0)
+//   { // internal flash file opened successfully
+//     syslog(LOG_INFO, "Printing Internal flash flag data.\n");
+//     up_progmem_read(FLAG_DATA_INT_ADDR, &rd_flags_int, sizeof(rd_flags_int));
+//     print_critical_flag_data(&rd_flags_int);
+//   }
+//   else
+//   {
+//     syslog(LOG_ERR, "Error opening internal flash atempt 1......\n ");
+//   }
+//   close(fd);
+//   int fd1 = open_file_flash(&fp, MFM_MAIN_STRPATH, file_name_flag, O_RDWR);
+//   if (fd1 >= 0)
+//   {
+//     read_size_mfm = file_read(&fp, &rd_flags_mfm, sizeof(CRITICAL_FLAGS));
+//   }
+// }
 
 // //Commander //COM
 // // TODO: add work queue to antenna deployment
@@ -2974,23 +3069,29 @@ void Antenna_Deployment(int argc, char *argv[])
 {
   int i = 0;
   int retval, retval1 = 0;
+  CRITICAL_FLAGS rd_flags_int = {0};
+  // CRITICAL_FLAGS rd_flags_mfm = {255, 255, 255, 255, 255, 255}; // = {0xff};
+  ssize_t read_size_mfm = 0;
 
   check_flag_data();
 
   printf("\n----------------Antenna Deployment Flag: %d------------\n", critic_flags.ANT_DEP_STAT);
 
   // If the antenna is undeployed and no uplink received, perform deployment
-  if (critic_flags.ANT_DEP_STAT == UNDEPLOYED && critic_flags.UL_STATE == UL_NOT_RX)
+  if (critic_flags.ANT_DEP_STAT != DEPLOYED || critic_flags.UL_STATE != UL_RX)
   {
+    printf("****************************************\n*************************************************\n**************************************\n");
+    printf("ANtenna not deployed\n-----------------Antenna deployment starting-----------------\n");
+    printf("****************************************\n*************************************************\n**************************************\n");
     do
     {
-      sleep(60); // 60
+      sleep(10); // 60
       i++;
-      if (i > 25)
+      // if (ANT_DEPLOY_TIME - i > 70)
       {
-        printf("Antenna flag deploying in %d seconds...\n", 30 - i);
+        printf("------------Antenna flag deploying in %d minutes-----------\n", ANT_DEPLOY_TIME - i);
       }
-    } while (i <= 30);
+    } while (i < ANT_DEPLOY_TIME);
 
     printf("Entering antenna deployment sequence\n");
     for (int i = 0; i <= 2; i++)
@@ -3008,59 +3109,16 @@ void Antenna_Deployment(int argc, char *argv[])
 
     critic_flags.ANT_DEP_STAT = DEPLOYED;
     critic_flags.UL_STATE = UL_RX;
-    store_flag_data(&critic_flags);
-    struct file flag_ptr;
-    int fd;
-    fd = file_open(&flag_ptr, "/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_RDWR);
-    if (fd >= 0)
-    {
-      syslog(LOG_DEBUG, "File opened successfully\n");
-      int wr_size = write(&flag_ptr, &critic_flags, sizeof(critic_flags));
-      if (wr_size > 0)
-      {
-        syslog(LOG_DEBUG, "Write success\n");
-      }
-      file_close(&flag_ptr);
-    }
-    else
-      file_close(&flag_ptr);
+    // store_flag_data(&critic_flags);
+    
     printf("Updated flag data...\n");
   }
+  save_critics_flags(&critic_flags);
+  // memset(critics_flags, "\0", sizeof(critic_flags));
+  critic_flags.ANT_DEP_STAT = 0x00;
+  load_critics_flags(&critic_flags);
   print_critical_flag_data(&critic_flags);
 
-  // while (i <= 30);
-
-  // printf("Entering antenna deployment sequence\n");
-  // int retval, retval1 = 0;
-  // check_flag_data();
-
-  // // CRITICAL_FLAGS ant_check;
-  // // ant_check.ANT_DEP_STAT = critic_flags.ANT_DEP_STAT;
-  // printf("\n----------------Antenna Deployment Flag: %d------------\n", critic_flags.ANT_DEP_STAT);
-  // // TODO: add redundancy (check UL status along with antenna deployment status)
-  // if (critic_flags.ANT_DEP_STAT == UNDEPLOYED && critic_flags.UL_STATE == UL_NOT_RX)
-  // {
-  //   for (int i = 0; i <= 2; i++)
-  //   {
-  //     printf("Turning on burner circut\nAttempt: %d\n", i + 1);
-  //     retval = gpio_write(GPIO_BURNER_EN, true);
-  //     retval1 = gpio_write(GPIO_UNREG_EN, true);
-  //     // RUN_ADC();
-  //     // TODO : manage antenna deployement time
-  //     sleep(8); // 8 seconds
-  //     printf("Turning off burner circuit\n");
-  //     gpio_write(GPIO_UNREG_EN, false);
-  //     gpio_write(GPIO_BURNER_EN, false);
-  //     sleep(10);
-  //     printf("%d Antenna deployment sequence completed\n", i);
-  //   }
-
-  //   critic_flags.ANT_DEP_STAT = DEPLOYED;
-  //   critic_flags.UL_STATE = UL_RX;
-  //   store_flag_data(&critic_flags);
-  //   printf("Updated flag data...\n");
-  // }
-  // print_critical_flag_data(&critic_flags);
 }
 
 void adcs_operation(uint8_t mode)
@@ -3634,10 +3692,10 @@ int ads7953_receiver(int argc, FAR char *argv[])
 
   while (1)
   {
-    printf("----------------------------------------\n");
-    printf("Polling\n");
+    // printf("----------------------------------------\n");
+    // printf("Polling\n");
 
-    printf("----------------------------------------\n");
+    // printf("----------------------------------------\n");
 
     // Poll for new data
     int poll_ret = poll(fds, 3, 1000);
@@ -3702,17 +3760,17 @@ int ads7953_receiver(int argc, FAR char *argv[])
 
       // int16_t ant_temp_out;
 
-      printf("sat_temp_msg:\n");
-      printf("********************************************\n");
-      printf("  timestamp: %" PRIu64 " | ", temp_msg.timestamp);
-      printf("  batt_temp: %.4f \n ", temp_msg.batt_temp);
-      printf("  temp_bpb: %.4f \n ", temp_msg.temp_bpb);
-      printf("  temp_ant: %.4f \n", temp_msg.temp_ant);
-      printf("  temp_z_pos: %.4f\n", temp_msg.temp_z_pos);
-      printf("  temp_5: %.4f\n", temp_msg.temp_5);
-      printf("  temp_4: %.4f\n", temp_msg.temp_4);
-      printf("  temp_3: %.4f\n", temp_msg.temp_3);
-      printf("  temp_2: %.4f\n", temp_msg.temp_2);
+      // printf("sat_temp_msg:\n");
+      // printf("********************************************\n");
+      // printf("  timestamp: %" PRIu64 " | ", temp_msg.timestamp);
+      // printf("  batt_temp: %.4f \n ", temp_msg.batt_temp);
+      // printf("  temp_bpb: %.4f \n ", temp_msg.temp_bpb);
+      // printf("  temp_ant: %.4f \n", temp_msg.temp_ant);
+      // printf("  temp_z_pos: %.4f\n", temp_msg.temp_z_pos);
+      // printf("  temp_5: %.4f\n", temp_msg.temp_5);
+      // printf("  temp_4: %.4f\n", temp_msg.temp_4);
+      // printf("  temp_3: %.4f\n", temp_msg.temp_3);
+      // printf("  temp_2: %.4f\n", temp_msg.temp_2);
     }
 
     // Check for sat_volts_msg updates
@@ -3726,15 +3784,15 @@ int ads7953_receiver(int argc, FAR char *argv[])
       sat_health.sol_p4_v = volts_msg.volt_sp4;
       sat_health.sol_p5_v = volts_msg.volt_sp5;
       sat_health.sol_t_v = volts_msg.volt_SolT;
-      printf("sat_volts_msg:\n");
-      printf("  timestamp: %" PRIu64 "\n", volts_msg.timestamp);
-      printf("  volt_SolT: %.4f V\n", volts_msg.volt_SolT);
-      printf("  volt_raw: %.4f V\n", volts_msg.volt_raw);
-      printf("  volt_sp5: %.4f V\n", volts_msg.volt_sp5);
-      printf("  volt_sp4: %.4f V\n", volts_msg.volt_sp4);
-      printf("  volt_sp3: %.4f V\n", volts_msg.volt_sp3);
-      printf("  volt_sp1: %.4f V\n", volts_msg.volt_sp1);
-      printf("  volt_sp2: %.4f V\n", volts_msg.volt_sp2);
+      // printf("sat_volts_msg:\n");
+      // printf("  timestamp: %" PRIu64 "\n", volts_msg.timestamp);
+      // printf("  volt_SolT: %.4f V\n", volts_msg.volt_SolT);
+      // printf("  volt_raw: %.4f V\n", volts_msg.volt_raw);
+      // printf("  volt_sp5: %.4f V\n", volts_msg.volt_sp5);
+      // printf("  volt_sp4: %.4f V\n", volts_msg.volt_sp4);
+      // printf("  volt_sp3: %.4f V\n", volts_msg.volt_sp3);
+      // printf("  volt_sp1: %.4f V\n", volts_msg.volt_sp1);
+      // printf("  volt_sp2: %.4f V\n", volts_msg.volt_sp2);
     }
 
     // usleep(500000);
@@ -3857,8 +3915,9 @@ void subscribe_and_retrieve_data(void)
     syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic.\n");
     return;
   }
-  else{
-    syslog(LOG_DEBUG,"[READING DATA FROM IMU SENSORS]\n");
+  else
+  {
+    syslog(LOG_DEBUG, "[READING DATA FROM IMU SENSORS]\n");
   }
 
   /* Poll for new data */
@@ -3881,10 +3940,10 @@ void subscribe_and_retrieve_data(void)
         }
 
         // Print the received data
-        printf("Timestamp: %" PRIu64 "\n", mag_scaled.timestamp);
-        printf("Mag_X: %.4f Mag_Y: %.4f Mag_Z: %.4f\n", mag_scaled.mag_x, mag_scaled.mag_y, mag_scaled.mag_z);
-        printf("Acc_X: %.4f Acc_Y: %.4f Acc_Z: %.4f\n", mag_scaled.acc_x, mag_scaled.acc_y, mag_scaled.acc_z);
-        printf("Gyro_X: %.4f Gyro_Y: %.4f Gyro_Z: %.4f\n", mag_scaled.gyro_x, mag_scaled.gyro_y, mag_scaled.gyro_z);
+        // printf("Timestamp: %" PRIu64 "\n", mag_scaled.timestamp);
+        // printf("Mag_X: %.4f Mag_Y: %.4f Mag_Z: %.4f\n", mag_scaled.mag_x, mag_scaled.mag_y, mag_scaled.mag_z);
+        // printf("Acc_X: %.4f Acc_Y: %.4f Acc_Z: %.4f\n", mag_scaled.acc_x, mag_scaled.acc_y, mag_scaled.acc_z);
+        // printf("Gyro_X: %.4f Gyro_Y: %.4f Gyro_Z: %.4f\n", mag_scaled.gyro_x, mag_scaled.gyro_y, mag_scaled.gyro_z);
         // printf("Temperature: %.2f\n", mag_scaled.temperature);
         // sat_health.
         sat_health.accl_x = mag_scaled.acc_x;

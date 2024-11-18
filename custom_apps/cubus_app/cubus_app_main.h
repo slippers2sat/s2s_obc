@@ -53,7 +53,7 @@ struct orb_mag_s
   float temperature;
 };
 
-
+void write_to_mfm(char *path, CRITICAL_FLAGS *flag_data);
 struct data
 {
     void *data_struct;
