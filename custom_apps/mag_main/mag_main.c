@@ -115,7 +115,7 @@ int mag_daemon(int argc, FAR char *argv[])
   g_mpu6500_daemon_started = true;
   int fd_mpu;
   int afd_mpu;
-  int16_t imu_raw[7];
+  uint16_t imu_raw[7];
   // struct mpu6500_imu_msg imu0;
 
   /* advertie scaled mag topic */
@@ -150,17 +150,17 @@ int mag_daemon(int argc, FAR char *argv[])
       goto rd_err;
     }
 
-    mag_scaled.acc_x = (((imu_raw[0] & REG_HIGH_MASK) << 8) + ((imu_raw[0] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
+    mag_scaled.acc_x = (((imu_raw[0] & REG_HIGH_MASK) << 8) + ((imu_raw[0] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL ;
     mag_scaled.acc_y = (((imu_raw[1] & REG_HIGH_MASK) << 8) + ((imu_raw[1] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
     mag_scaled.acc_z = (((imu_raw[2] & REG_HIGH_MASK) << 8) + ((imu_raw[2] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
 
-    mag_scaled.gyro_x = (((imu_raw[4] & REG_HIGH_MASK) << 8) + ((imu_raw[4] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL;
+    mag_scaled.gyro_x = (((imu_raw[4] & REG_HIGH_MASK) << 8) + ((imu_raw[4] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL - 1996;
     mag_scaled.gyro_y = (((imu_raw[5] & REG_HIGH_MASK) << 8) + ((imu_raw[5] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL;
     mag_scaled.gyro_z = (((imu_raw[6] & REG_HIGH_MASK) << 8) + ((imu_raw[6] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL;
     mag_scaled.timestamp = orb_absolute_time();
 
     close(fd_mpu);
-    if (poll(&fds, 1, 3000) > 0)
+    if (poll(&fds, 1, 1000) > 0)
     {
       if (fds.revents & POLLIN)
       {
@@ -177,9 +177,9 @@ int mag_daemon(int argc, FAR char *argv[])
         printf("Timestamp: %lli \t", mag0.timestamp);
         syslog(LOG_DEBUG, "Temperature: %0.02f \t||", mag0.temperature);
       #endif
-        // printf("X : %0.02f \t", mag0.mag_x);
-        // printf("Y : %0.02f \t", mag0.mag_y);
-        // printf("Z : %0.02f \t\n", mag0.mag_z);
+        printf("X : %0.02f||%0.02f \t", mag0.mag_x, 0.14 * (mag0.mag_x -32768) );
+        printf("Y : %0.02f||%0.02f \t", mag0.mag_y, 0.14 * (mag0.mag_y -32768 ));
+        printf("Z : %0.02f||%0.02f \t\n", mag0.mag_z, 0.14 * (mag0.mag_z -32768) );
       }
       mag_scaled.mag_x = mag0.mag_x * 100;
       mag_scaled.mag_y = mag0.mag_y * 100;
@@ -187,27 +187,27 @@ int mag_daemon(int argc, FAR char *argv[])
       mag_scaled.temperature = mag0.temperature - 50;
       mag_scaled.timestamp = orb_absolute_time();
       
-      // printf("X : %0.02f \t", mag_scaled.acc_x);
-      //   printf("Y : %0.02f \t", mag_scaled.acc_y);
-      //   printf("Z : %0.02f \t\n", mag_scaled.acc_z);
-      //   printf("X : %0.02f \t", mag_scaled.gyro_x);
-      //   printf("Y : %0.02f \t", mag_scaled.gyro_y);
-      //   printf("Z : %0.02f \t\n", mag_scaled.gyro_z);
+      printf("Acc X : %0.02f \t", mag_scaled.acc_x);
+        printf("Y : %0.02f \t", mag_scaled.acc_y);
+        printf("Z : %0.02f \t\n", mag_scaled.acc_z);
+        printf("Gyro X : %0.02f \t", mag_scaled.gyro_x);
+        printf("Y : %0.02f \t", mag_scaled.gyro_y);
+        printf("Z : %0.02f \t\n", mag_scaled.gyro_z);
       // printf("X : %0.02f \t", mag_scaled.mag_x);
       //   printf("Y : %0.02f \t", mag_scaled.mag_y);
       //   printf("Z : %0.02f \t\n", mag_scaled.mag_z);
 
-      // if (OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
-      // {
-      //   syslog(LOG_ERR, "Orb Publish failed\n");
-      // }
+      if (OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
+      {
+        syslog(LOG_ERR, "Orb Publish failed\n");
+      }
     }
 
     if (OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
     {
       syslog(LOG_ERR, "Orb Publish mag failed\n");
     }
-    sleep(1);
+    usleep(10000);
   }
 
   ret = orb_unadvertise(afd);
