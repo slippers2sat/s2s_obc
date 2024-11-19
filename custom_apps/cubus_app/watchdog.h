@@ -23,7 +23,7 @@
 
 #define DEVNAME "/dev/iwdg0"
 #define TIMEOUT 29000    // 10 seconds in milliseconds
-#define PING_INTERVAL 12 // 1 second for pinging
+#define PING_INTERVAL 11 // 1 second for pinging
 #define STACK_SIZE 848   // Stack size for the watchdog task
 
 extern CRITICAL_FLAGS critic_flags;
@@ -71,7 +71,7 @@ static int watchdog_task(int argc, char *argv[])
       // usleep(PING_INTERVAL * 1000); // Sleep for 1 second
 
       // Pet the watchdog
-      if (pet_counter <= 10)
+      if (pet_counter <= 11)
       {
         if (ioctl(fd, WDIOC_KEEPALIVE, 0) < 0)
         {
@@ -80,8 +80,8 @@ static int watchdog_task(int argc, char *argv[])
         }
         else
         {
-           if(pet_counter % 5 == 0)
-          printf("Watchdog petted! %d\n", pet_counter);
+          if(pet_counter % 5 == 0)
+            printf("Watchdog petted! %d\n", pet_counter);
           pet_counter += 1;
           sleep(10);
         }

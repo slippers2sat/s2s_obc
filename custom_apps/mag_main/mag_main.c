@@ -177,9 +177,9 @@ int mag_daemon(int argc, FAR char *argv[])
         printf("Timestamp: %lli \t", mag0.timestamp);
         syslog(LOG_DEBUG, "Temperature: %0.02f \t||", mag0.temperature);
       #endif
-        printf("X : %0.02f||%0.02f \t", mag0.mag_x, 0.14 * (mag0.mag_x -32768) );
-        printf("Y : %0.02f||%0.02f \t", mag0.mag_y, 0.14 * (mag0.mag_y -32768 ));
-        printf("Z : %0.02f||%0.02f \t\n", mag0.mag_z, 0.14 * (mag0.mag_z -32768) );
+        // printf("X : %0.02f||%0.02f \t", mag0.mag_x, 0.14 * (mag0.mag_x -32768) );
+        // printf("Y : %0.02f||%0.02f \t", mag0.mag_y, 0.14 * (mag0.mag_y -32768 ));
+        // printf("Z : %0.02f||%0.02f \t\n", mag0.mag_z, 0.14 * (mag0.mag_z -32768) );
       }
       mag_scaled.mag_x = mag0.mag_x * 100;
       mag_scaled.mag_y = mag0.mag_y * 100;
@@ -187,12 +187,12 @@ int mag_daemon(int argc, FAR char *argv[])
       mag_scaled.temperature = mag0.temperature - 50;
       mag_scaled.timestamp = orb_absolute_time();
       
-      printf("Acc X : %0.02f \t", mag_scaled.acc_x);
-        printf("Y : %0.02f \t", mag_scaled.acc_y);
-        printf("Z : %0.02f \t\n", mag_scaled.acc_z);
-        printf("Gyro X : %0.02f \t", mag_scaled.gyro_x);
-        printf("Y : %0.02f \t", mag_scaled.gyro_y);
-        printf("Z : %0.02f \t\n", mag_scaled.gyro_z);
+      // printf("Acc X : %0.02f \t", mag_scaled.acc_x);
+      //   printf("Y : %0.02f \t", mag_scaled.acc_y);
+      //   printf("Z : %0.02f \t\n", mag_scaled.acc_z);
+      //   printf("Gyro X : %0.02f \t", mag_scaled.gyro_x);
+      //   printf("Y : %0.02f \t", mag_scaled.gyro_y);
+      //   printf("Z : %0.02f \t\n", mag_scaled.gyro_z);
       // printf("X : %0.02f \t", mag_scaled.mag_x);
       //   printf("Y : %0.02f \t", mag_scaled.mag_y);
       //   printf("Z : %0.02f \t\n", mag_scaled.mag_z);
