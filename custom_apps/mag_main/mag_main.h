@@ -11,5 +11,4 @@
 #include <sensor/mag.h>
 #include <nuttx/sensors/sensor.h>
 
-
 #endif //__CUSTOM_APPS_MAG_MAIN_H

@@ -65,6 +65,14 @@ struct mpu6500_imu_msg
 
 };
 
+struct sensor_accel imu_acc_data1;
+struct sensor_gyro imu_gyro_data1;
+struct mpu6500_imu_msg raw_imu1;
+void collect_imu_mag();
+
+void read_MPU6500(int fd, struct sensor_accel *acc_data, struct sensor_gyro *gyro_data, struct mpu6500_imu_msg *raw_imu1);
+
+
 ORB_DECLARE(mpu6500_imu_msg);
 
 static bool g_mpu6500_daemon_started;
@@ -131,107 +139,104 @@ int mag_daemon(int argc, FAR char *argv[])
 
   fds.fd = fd;
   fds.events = POLLIN;
-  int16_t imu[7];
   for (;;)
   {
-    // IMU
+//     // IMU
 
-    fd_mpu = open(CONFIG_IMU0_PATH, O_RDONLY);
-    if (fd_mpu < 0)
-    {
-      syslog(LOG_ERR, "[mpu6500] failed to open mpu6500.");
-      goto error;
-    }
+//     fd_mpu = open(CONFIG_IMU0_PATH, O_RDONLY);
+//     if (fd_mpu < 0)
+//     {
+//       syslog(LOG_ERR, "[mpu6500] failed to open mpu6500.");
+//       goto error;
+//     }
 
-    ret = read(fd_mpu, imu, sizeof(imu_raw));
+//     ret = read(fd_mpu, imu_raw, sizeof(imu_raw));
 
-    if (ret != sizeof(imu))
-    {
-      syslog(LOG_ERR, "Failed to read IMU data.\n");
-      goto rd_err;
-    }
-    printf("Raw values acc X: %.2f acc_Y :%.2f acc_z: %.2f\n",imu[0]/4096 ,imu[1]/4096, imu[2]/4096);
-    printf(" gyro X: %.2f gyro_Y :%.2f gyro_z: %.2f\n",imu[3]/32.8 ,imu[4]/32.8, imu[5]/32.8);
+//     if (ret != sizeof(imu_raw))
+//     {
+//       syslog(LOG_ERR, "Failed to read IMU data.\n");
+//       goto rd_err;
+//     }
 
-  //  // mag_scaled.acc_x
-  //  imu[0] = (((imu_raw[0] & REG_HIGH_MASK) << 8) + ((imu_raw[0] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL ;
-  //  // mag_scaled.acc_y
-  //  imu[1] = (((imu_raw[1] & REG_HIGH_MASK) << 8) + ((imu_raw[1] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
-  //  // mag_scaled.acc_z
-  //  imu[2] = (((imu_raw[2] & REG_HIGH_MASK) << 8) + ((imu_raw[2] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
+//     mag_scaled.acc_x = (((imu_raw[0] & REG_HIGH_MASK) << 8) + ((imu_raw[0] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL ;
+//     mag_scaled.acc_y = (((imu_raw[1] & REG_HIGH_MASK) << 8) + ((imu_raw[1] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
+//     mag_scaled.acc_z = (((imu_raw[2] & REG_HIGH_MASK) << 8) + ((imu_raw[2] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
 
-    mag_scaled.gyro_x = (((imu_raw[4] & REG_HIGH_MASK) << 8) + ((imu_raw[4] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL - 1996;
-    mag_scaled.gyro_y = (((imu_raw[5] & REG_HIGH_MASK) << 8) + ((imu_raw[5] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL;
-    mag_scaled.gyro_z = (((imu_raw[6] & REG_HIGH_MASK) << 8) + ((imu_raw[6] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL;
-    mag_scaled.timestamp = orb_absolute_time();
+//     mag_scaled.gyro_x = (((imu_raw[4] & REG_HIGH_MASK) << 8) + ((imu_raw[4] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL - 1996;
+//     mag_scaled.gyro_y = (((imu_raw[5] & REG_HIGH_MASK) << 8) + ((imu_raw[5] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL;
+//     mag_scaled.gyro_z = (((imu_raw[6] & REG_HIGH_MASK) << 8) + ((imu_raw[6] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL;
+//     mag_scaled.timestamp = orb_absolute_time();
 
-    close(fd_mpu);
-    if (poll(&fds, 1, 1000) > 0)
-    {
-      if (fds.revents & POLLIN)
-      {
-        ret = orb_copy_multi(fd, &mag0, sizeof(struct sensor_mag));
-        if (ret < 0)
-        {
-          syslog(LOG_ERR, "ORB copy error, %d \n", ret);
-          return ret;
-        }
+//     close(fd_mpu);
+//     if (poll(&fds, 1, 1000) > 0)
+//     {
+//       if (fds.revents & POLLIN)
+//       {
+//         ret = orb_copy_multi(fd, &mag0, sizeof(struct sensor_mag));
+//         if (ret < 0)
+//         {
+//           syslog(LOG_ERR, "ORB copy error, %d \n", ret);
+//           return ret;
+//         }
 
-        // syslog(LOG_INFO, "Copied data from orb_object.\n");
-      //TODO uncomment for logging
-      #ifdef LOGGING
-        printf("Timestamp: %lli \t", mag0.timestamp);
-        syslog(LOG_DEBUG, "Temperature: %0.02f \t||", mag0.temperature);
-      #endif
-        printf("X : %0.02f||%0.02f \t", mag0.mag_x, 0.14 * (mag0.mag_x -32768) );
-        printf("Y : %0.02f||%0.02f \t", mag0.mag_y, 0.14 * (mag0.mag_y -32768 ));
-        printf("Z : %0.02f||%0.02f \t\n", mag0.mag_z, 0.14 * (mag0.mag_z -32768) );
-      }
-      mag_scaled.mag_x = mag0.mag_x * 100;
-      mag_scaled.mag_y = mag0.mag_y * 100;
-      mag_scaled.mag_z = mag0.mag_z * 100;
-      mag_scaled.temperature = mag0.temperature - 50;
-      mag_scaled.timestamp = orb_absolute_time();
+//         // syslog(LOG_INFO, "Copied data from orb_object.\n");
+//       //TODO uncomment for logging
+//       #ifdef LOGGING
+//         printf("Timestamp: %lli \t", mag0.timestamp);
+//         syslog(LOG_DEBUG, "Temperature: %0.02f \t||", mag0.temperature);
+//       #endif
+//         printf("X : %0.02f||%0.02f \t", mag0.mag_x, 0.14 * (mag0.mag_x -32768) );
+//         printf("Y : %0.02f||%0.02f \t", mag0.mag_y, 0.14 * (mag0.mag_y -32768 ));
+//         printf("Z : %0.02f||%0.02f \t\n", mag0.mag_z, 0.14 * (mag0.mag_z -32768) );
+//       }
+//       mag_scaled.mag_x = mag0.mag_x * 100;
+//       mag_scaled.mag_y = mag0.mag_y * 100;
+//       mag_scaled.mag_z = mag0.mag_z * 100;
+//       mag_scaled.temperature = mag0.temperature - 50;
+//       mag_scaled.timestamp = orb_absolute_time();
       
-      printf("Acc X : %0.02f \t", mag_scaled.acc_x);
-        printf("Y : %0.02f \t", mag_scaled.acc_y);
-        printf("Z : %0.02f \t\n", mag_scaled.acc_z);
-        printf("Gyro X : %0.02f \t", mag_scaled.gyro_x);
-        printf("Y : %0.02f \t", mag_scaled.gyro_y);
-        printf("Z : %0.02f \t\n", mag_scaled.gyro_z);
-      // printf("X : %0.02f \t", mag_scaled.mag_x);
-      //   printf("Y : %0.02f \t", mag_scaled.mag_y);
-      //   printf("Z : %0.02f \t\n", mag_scaled.mag_z);
+//       printf("Acc X : %0.02f \t", mag_scaled.acc_x);
+//         printf("Y : %0.02f \t", mag_scaled.acc_y);
+//         printf("Z : %0.02f \t\n", mag_scaled.acc_z);
+//         printf("Gyro X : %0.02f \t", mag_scaled.gyro_x);
+//         printf("Y : %0.02f \t", mag_scaled.gyro_y);
+//         printf("Z : %0.02f \t\n", mag_scaled.gyro_z);
+//       // printf("X : %0.02f \t", mag_scaled.mag_x);
+//       //   printf("Y : %0.02f \t", mag_scaled.mag_y);
+//       //   printf("Z : %0.02f \t\n", mag_scaled.mag_z);
 
-      if (OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
-      {
-        syslog(LOG_ERR, "Orb Publish failed\n");
-      }
-    }
+//       if (OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
+//       {
+//         syslog(LOG_ERR, "Orb Publish failed\n");
+//       }
+//     }
 
-    if (OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
-    {
-      syslog(LOG_ERR, "Orb Publish mag failed\n");
-    }
-    usleep(10000);
+//     if (OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
+//     {
+//       syslog(LOG_ERR, "Orb Publish mag failed\n");
+//     }
+//     usleep(10000);
+//   }
+
+//   ret = orb_unadvertise(afd);
+//   if (ret < 0)
+//   {
+//     syslog(LOG_ERR, "Orb Unadvertise mag failed.\n");
+//   }
+
+//   ret = orb_unsubscribe(fd);
+
+//   if (ret < 0)
+//   {
+//     syslog(LOG_ERR, "Orb unsubscribe Failed.\n");
+  
+  collect_imu_mag();
+  sleep(3);
   }
 
-  ret = orb_unadvertise(afd);
-  if (ret < 0)
-  {
-    syslog(LOG_ERR, "Orb Unadvertise mag failed.\n");
-  }
-
-  ret = orb_unsubscribe(fd);
-
-  if (ret < 0)
-  {
-    syslog(LOG_ERR, "Orb unsubscribe Failed.\n");
-  }
-
-rd_err:
-  close(fd_mpu);
-error:
+// rd_err:
+//   close(fd_mpu);
+// error:
   return 0;
 }
 
@@ -263,6 +268,78 @@ int main(int argc, FAR char *argv[])
 
   printf("[mag] mag_daemon started\n");
 }
+void collect_imu_mag()
+{
+  float acq_period = CONFIG_EXAMPLES_SENSOR_FUSION_SAMPLE_RATE / 1000.0f;
+  printf("Sensor Fusion example\n");
+  printf("Sample Rate: %.2f Hz\n", 1.0 / acq_period);
+  printf("got inside sensor_work");
+  int fd, fd_mag;
+
+  int16_t mag_data[4];
+
+  fd = open("/dev/mpu6500", O_RDONLY);
+  if (fd < 0)
+  {
+    printf("Failed to open mpu6500\n");
+    return; // This might create an issue
+  }
+
+  
+  read_MPU6500(fd, &imu_acc_data1, &imu_gyro_data1, &raw_imu1);
+  // read_lis3mdl(fd_mag, &raw_imu1, mag_data);
+
+  // printf("Timestamp: %f  Temperature: %f\n"
+  //        "Accelerometer X: %f | Y: %f | Z: %f\n"
+  //        "Gyroscope X: %f | Y: %f | Z: %f\n"
+  //        "Magnetometer X: %f | Y: %f | Z: %f\n",
+  //        imu_acc_data1.timestamp, imu_acc_data1.temperature,
+  //        imu_acc_data1.x, imu_acc_data1.y, imu_acc_data1.z,
+  //        imu_gyro_data1.x, imu_gyro_data1.y, imu_gyro_data1.z
+  //       //  ,
+  //       //  raw_imu1.mag_x, raw_imu1.mag_y, raw_imu1.mag_z
+  //        );
+  printf("************************************************\n");
+
+  close(fd);
+  close(fd_mag);
+
+ }
+void read_MPU6500(int fd, struct sensor_accel *acc_data, struct sensor_gyro *gyro_data, struct mpu6500_imu_msg *raw_imu1)
+{
+  int16_t raw_data[7];
+  memset(raw_imu1, 0, sizeof(struct mpu6500_imu_msg));
+  int ret = read(fd, raw_data, sizeof(raw_data));
+  if (ret <= 0) //!= sizeof(raw_data))
+  {
+    printf("Failed to read accelerometer data\n");
+  }
+  else
+  {
+    raw_imu1->acc_x = ((raw_data[0] & REG_HIGH_MASK) << 8) + ((raw_data[0] & REG_LOW_MASK) >> 8);
+    raw_imu1->acc_y = ((raw_data[1] & REG_HIGH_MASK) << 8) + ((raw_data[1] & REG_LOW_MASK) >> 8);
+    raw_imu1->acc_z = ((raw_data[2] & REG_HIGH_MASK) << 8) + ((raw_data[2] & REG_LOW_MASK) >> 8);
+    raw_imu1->gyro_x = ((raw_data[4] & REG_HIGH_MASK) << 8) + ((raw_data[4] & REG_LOW_MASK) >> 8);
+    raw_imu1->gyro_y = ((raw_data[5] & REG_HIGH_MASK) << 8) + ((raw_data[5] & REG_LOW_MASK) >> 8);
+    raw_imu1->gyro_z = ((raw_data[6] & REG_HIGH_MASK) << 8) + ((raw_data[6] & REG_LOW_MASK) >> 8);
+  }
+
+  acc_data->x = raw_imu1->acc_x *9.8/ MPU6500_AFS_SEL;
+  acc_data->y = raw_imu1->acc_y *9.8/ MPU6500_AFS_SEL;
+  acc_data->z = raw_imu1->acc_z *9.8/ MPU6500_AFS_SEL;
+
+  gyro_data->x = raw_imu1->gyro_x / MPU6500_FS_SEL;
+  gyro_data->y = raw_imu1->gyro_y / MPU6500_FS_SEL;
+  gyro_data->z = raw_imu1->gyro_z / MPU6500_FS_SEL;
+  printf("Timestamp: %0.02f  Temperature: %0.02f\n"
+         "Accelerometer X: %0.02f | Y: %0.02f | Z: %0.02f\n"
+         "Gyroscope X: %0.02f | Y: %0.02f | Z: %0.02f\n",
+         
+        //  imu_acc_data1.timestamp, imu_acc_data1.temperature,
+         acc_data->x, acc_data->y, acc_data->z,
+         gyro_data->x, gyro_data->y, gyro_data->z);
+}
+
 
 // /****************************************************************************
 //  * custom_apps/mag_main/custom_hello.c
