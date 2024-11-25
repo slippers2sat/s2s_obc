@@ -131,6 +131,7 @@ int mag_daemon(int argc, FAR char *argv[])
 
   fds.fd = fd;
   fds.events = POLLIN;
+  int16_t imu[7];
   for (;;)
   {
     // IMU
@@ -142,17 +143,22 @@ int mag_daemon(int argc, FAR char *argv[])
       goto error;
     }
 
-    ret = read(fd_mpu, imu_raw, sizeof(imu_raw));
+    ret = read(fd_mpu, imu, sizeof(imu_raw));
 
-    if (ret != sizeof(imu_raw))
+    if (ret != sizeof(imu))
     {
       syslog(LOG_ERR, "Failed to read IMU data.\n");
       goto rd_err;
     }
+    printf("Raw values acc X: %.2f acc_Y :%.2f acc_z: %.2f\n",imu[0]/4096 ,imu[1]/4096, imu[2]/4096);
+    printf(" gyro X: %.2f gyro_Y :%.2f gyro_z: %.2f\n",imu[3]/32.8 ,imu[4]/32.8, imu[5]/32.8);
 
-    mag_scaled.acc_x = (((imu_raw[0] & REG_HIGH_MASK) << 8) + ((imu_raw[0] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL ;
-    mag_scaled.acc_y = (((imu_raw[1] & REG_HIGH_MASK) << 8) + ((imu_raw[1] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
-    mag_scaled.acc_z = (((imu_raw[2] & REG_HIGH_MASK) << 8) + ((imu_raw[2] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
+  //  // mag_scaled.acc_x
+  //  imu[0] = (((imu_raw[0] & REG_HIGH_MASK) << 8) + ((imu_raw[0] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL ;
+  //  // mag_scaled.acc_y
+  //  imu[1] = (((imu_raw[1] & REG_HIGH_MASK) << 8) + ((imu_raw[1] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
+  //  // mag_scaled.acc_z
+  //  imu[2] = (((imu_raw[2] & REG_HIGH_MASK) << 8) + ((imu_raw[2] & REG_LOW_MASK) >> 8)) / MPU6500_AFS_SEL;
 
     mag_scaled.gyro_x = (((imu_raw[4] & REG_HIGH_MASK) << 8) + ((imu_raw[4] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL - 1996;
     mag_scaled.gyro_y = (((imu_raw[5] & REG_HIGH_MASK) << 8) + ((imu_raw[5] & REG_LOW_MASK) >> 8)) / MPU6500_FS_SEL;
@@ -177,9 +183,9 @@ int mag_daemon(int argc, FAR char *argv[])
         printf("Timestamp: %lli \t", mag0.timestamp);
         syslog(LOG_DEBUG, "Temperature: %0.02f \t||", mag0.temperature);
       #endif
-        // printf("X : %0.02f||%0.02f \t", mag0.mag_x, 0.14 * (mag0.mag_x -32768) );
-        // printf("Y : %0.02f||%0.02f \t", mag0.mag_y, 0.14 * (mag0.mag_y -32768 ));
-        // printf("Z : %0.02f||%0.02f \t\n", mag0.mag_z, 0.14 * (mag0.mag_z -32768) );
+        printf("X : %0.02f||%0.02f \t", mag0.mag_x, 0.14 * (mag0.mag_x -32768) );
+        printf("Y : %0.02f||%0.02f \t", mag0.mag_y, 0.14 * (mag0.mag_y -32768 ));
+        printf("Z : %0.02f||%0.02f \t\n", mag0.mag_z, 0.14 * (mag0.mag_z -32768) );
       }
       mag_scaled.mag_x = mag0.mag_x * 100;
       mag_scaled.mag_y = mag0.mag_y * 100;
@@ -187,12 +193,12 @@ int mag_daemon(int argc, FAR char *argv[])
       mag_scaled.temperature = mag0.temperature - 50;
       mag_scaled.timestamp = orb_absolute_time();
       
-      // printf("Acc X : %0.02f \t", mag_scaled.acc_x);
-      //   printf("Y : %0.02f \t", mag_scaled.acc_y);
-      //   printf("Z : %0.02f \t\n", mag_scaled.acc_z);
-      //   printf("Gyro X : %0.02f \t", mag_scaled.gyro_x);
-      //   printf("Y : %0.02f \t", mag_scaled.gyro_y);
-      //   printf("Z : %0.02f \t\n", mag_scaled.gyro_z);
+      printf("Acc X : %0.02f \t", mag_scaled.acc_x);
+        printf("Y : %0.02f \t", mag_scaled.acc_y);
+        printf("Z : %0.02f \t\n", mag_scaled.acc_z);
+        printf("Gyro X : %0.02f \t", mag_scaled.gyro_x);
+        printf("Y : %0.02f \t", mag_scaled.gyro_y);
+        printf("Z : %0.02f \t\n", mag_scaled.gyro_z);
       // printf("X : %0.02f \t", mag_scaled.mag_x);
       //   printf("Y : %0.02f \t", mag_scaled.mag_y);
       //   printf("Z : %0.02f \t\n", mag_scaled.mag_z);

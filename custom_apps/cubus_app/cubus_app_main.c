@@ -69,6 +69,8 @@ int ads7953_receiver(int argc, FAR char *argv[]);
 void convert1(data);
 void subscribe_and_retrieve_data();
 void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel);
+void print_beacon_a();
+void print_beacon_b();
 
 /****************************************************************************
  * COM TASK task
@@ -812,14 +814,14 @@ void incorrect_command(uint8_t *ack)
 
 void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
 {
-  uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x7e};
+  uint8_t ack[BEACON_DATA_SIZE] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x7e};
   // syslog(LOG_DEBUG, "command received is :");
   // for (int i = 0; i < COM_DATA_SIZE; i++)
   // {
   //   printf("%d ", COM_RX_DATA[i]);
   // }
-  ack[83] = 0x7e;
-  ack[82] = 0x7e;
+  ack[BEACON_DATA_SIZE - 2] = 0x7e;
+  ack[BEACON_DATA_SIZE - 1] = 0x7e;
   if (COM_RX_DATA[0] == 0x53)
   { // SEND 85 BYTES BACK
     // 53 0A 2B 53 02 53 digipeating format
@@ -868,10 +870,23 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
   {
     printf("Digipeater command of size %d received\n",COM_RX_DATA[2]);
     printf("Digipeater msg is : \n");
-    for(int i=0;i<COM_RX_DATA[2];i++){
-      printf("%02x ", COM_RX_DATA[i]);
+    for(int i = 0;i<COM_RX_DATA[2];i++){
+      printf("%02x ", COM_RX_DATA[i + 22]);
     }
-    printf("\n");
+    printf("\n---------\n");
+    // COM_RX_DATA = 0x7e;
+    uint8_t digipeater_data[86]={'\0'};
+    digipeater_data[0] = 0x53;//TODO: save data with callsign to FM
+    // int fd = open(COM_UART, O_WRONLY);
+    for(int i= 1;i< BEACON_DATA_SIZE;i++){
+      if(i<=43) digipeater_data[i] = COM_RX_DATA[i];
+      // write(fd, digipeater_data[i],1);
+    }
+    // send_data_uart(COM_UART, &digipeater_data,86);
+    digipeater_data[BEACON_DATA_SIZE - 1] = 0x7e;
+    digipeater_data[BEACON_DATA_SIZE - 2] = 0x7e;
+
+      send_data_uart(COM_UART, digipeater_data, sizeof(digipeater_data));
     return;
   }
   else if (COM_RX_DATA[0] == 0x72)
@@ -1682,7 +1697,7 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
   // Writing handshake data
   ret = write(fd, ack, 7);
   close(fd);
-  // sleep(1);
+  sleep(1);
   fd = open(devpath, O_RDONLY | O_NONBLOCK); // Open in non-blocking mode
 
   printf("6 bytes written\n");
@@ -1866,7 +1881,7 @@ void serialize_beacon_a(uint8_t beacon_data[BEACON_DATA_SIZE])
 {
   for (int i = 0; i <= BEACON_DATA_SIZE; i++)
   {
-    beacon_data[83] = 0x00;
+    beacon_data[i] = 0x00;
     // }
     // beacon_data[84] = s2s_beacon_type_a.;
     // beacon_data[85] = s2s_beacon_type_a.;
@@ -1874,10 +1889,10 @@ void serialize_beacon_a(uint8_t beacon_data[BEACON_DATA_SIZE])
   // uint8_t beacon_data[BEACON_DATA_SIZE];
   beacon_data[0] = s2s_beacon_type_a.HEAD;
   beacon_data[1] = s2s_beacon_type_a.TYPE << 4 & s2s_beacon_type_a.TIM_DAY << 4 & 0xff;
-  beacon_data[2] = (int8_t)s2s_beacon_type_a.TIM_DAY & 0xff;
+  beacon_data[2] = (uint8_t)s2s_beacon_type_a.TIM_DAY & 0xff;
   beacon_data[4] = s2s_beacon_type_a.TIM_HOUR;
 
-  beacon_data[3] = 0x02;
+  beacon_data[3] = 0x01;
 
   beacon_data[1 + 4] = (s2s_beacon_type_a.BAT_V >> 8) & 0Xff;
   beacon_data[1 + 5] = s2s_beacon_type_a.BAT_V & 0xff;
@@ -1916,7 +1931,7 @@ void serialize_beacon_b(uint8_t beacon_data[BEACON_DATA_SIZE])
 {
   for (int i = 0; i <= BEACON_DATA_SIZE; i++)
   {
-    beacon_data[83] = 0x00;
+    beacon_data[i] = 0x00;
   }
   // uint8_t beacon_data[BEACON_DATA_SIZE];
   beacon_data[0] = s2s_beacon_type_b.HEAD;
@@ -1980,7 +1995,7 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_a.TYPE = 0x00;
     s2s_beacon_type_a.TIM_DAY = day;
     s2s_beacon_type_a.TIM_HOUR = hour;
-    s2s_beacon_type_a.BAT_V = sat_health.batt_volt;
+    s2s_beacon_type_a.BAT_V = sat_health.batt_volt ;
     s2s_beacon_type_a.BAT_C = sat_health.batt_c;
     s2s_beacon_type_a.BAT_T = sat_health.temp_batt;
 
@@ -2963,13 +2978,15 @@ int send_beacon_data()
 
         serialize_beacon_a(beacon_data);
         beacon_data[1] = 0xb1;
-        beacon_data[2] = 0x51;
+        beacon_data[2] = 0x21;
         beacon_data[83] = 0x7e;
+        print_beacon_a();
         break;
       case 1:
         serialize_beacon_b(beacon_data);
         beacon_data[1] = 0xb2;
-        beacon_data[2] = 0x51;
+        beacon_data[2] = 0x21;
+        print_beacon_b();
         break;
       default:
         printf("wrong case selected\n");
@@ -2987,10 +3004,10 @@ int send_beacon_data()
       printf("beacon data size %d\n", sizeof(beacon_data));
       send_data_uart(COM_UART, beacon_data, sizeof(beacon_data));
       uint8_t x[43], ret2;
-      ret2 = receive_data_uart(COM_UART, x,sizeof(x));
-      if(ret2 < 0){
+      // ret2 = receive_data_uart(COM_UART, x,sizeof(x));
+      // if(ret2 < 0){
         
-      }
+      // }
       // fd = open(COM_UART, O_WRONLY);
       // int count;
       // if (fd < 0)
@@ -3217,32 +3234,42 @@ void cam_operation()
 
     turn_msn_on_off(2, 1);
     sleep(4);
-    // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
     uint8_t data2[7] = {0x53, 0x0c, 0x0a, 0x0e, 0x01, 0x7e};
 
-    do
-    {
-      hand = handshake_MSN(2, data);
-    } while (hand < 0);
-    hand = 0;
-    uint8_t ret, fd;
-    char data[240];
-    sleep(1);
+    // do
+    // {
+    //   hand = handshake_MSN(2, data);
+    // } while (hand < 0);
+    // hand = 0;
+    // uint8_t ret, fd;
+    // // char data[240];
+    // sleep(1);
 
     // sleep(1);
-    do
+    // do
+    // {
+      // hand = handshake_MSN(3, data2);
+    // } while (hand < 0);
+    // sleep(3);
+    int fd = open(CAM_UART, O_WRONLY); // Open in non-blocking mode
+    if (fd < 0)
     {
-      hand = handshake_MSN(3, data2);
-    } while (hand < 0);
-    sleep(3);
-    // if(hand == 0)
+      printf("Error opening %s\n", CAM_UART);
+      usleep(PRINT_DELAY);
+      return -1;
+    }
+
+    // Writing handshake data
+    ret = write(fd, data2, 7);
+    close(fd);
+    if(hand == 0)
     {
       syslog(LOG_DEBUG, "Command %s sent\n", data2);
 
       int p = 0;
       uint8_t data3, data4;
       uint32_t counter1 = 0;
-      uint8_t cam[5500] = {'\0'};
+      uint8_t cam[11500] = {'\0'};
       int fd2 = open(CAM_UART, O_RDONLY);
       // sleep(10);
       sleep(3);
@@ -3262,7 +3289,28 @@ void cam_operation()
       }
       // cam[counter1]='\0';
       close(fd2);
-
+      counter1 = 0;
+      syslog(LOG_DEBUG,"__________________________________________");
+      syslog(LOG_DEBUG,"_____________________RGB camera_____________________");
+      fd2 = open(CAM_UART, O_RDONLY);
+      // sleep(10);
+      sleep(3);
+      while (1)
+      {
+        data4 = data3;
+        ret = read(fd2, &data3, 1);
+        printf("%02x ", data3);
+        cam[counter1] = data3;
+        if (data4 == 0xff && data3 == 0xd9)
+        {
+          break;
+        }
+        // if(data4== 0xff);
+        counter1++;
+        // break;
+      }
+      // cam[counter1]='\0';
+      close(fd2);
       turn_msn_on_off(2, 0);
       MISSION_STATUS.FLASH_OPERATION = false;
       MISSION_STATUS.CAM_MISSION = false;
@@ -3274,7 +3322,7 @@ void cam_operation()
       cam[counter1++] = 0xd9;
 
       mission_data("/cam.txt", &cam, counter1);
-      uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+      uint8_t ack[BEACON_DATA_SIZE] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e,0x7e,0x7e};
       sleep(1);
       send_data_uart(COM_UART, ack, sizeof(ack));
     }
@@ -3340,7 +3388,7 @@ void epdm_operation()
     syslog(LOG_DEBUG, "Total data received %d\n EPDM operation succeded\n", counter1);
     sleep(2);
     mission_data("/epdm.txt", &cam, counter1);
-    uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+    uint8_t ack[BEACON_DATA_SIZE] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e, 0x7e};
     sleep(1);
     send_data_uart(COM_UART, ack, sizeof(ack));
     // free(cam);
@@ -3640,7 +3688,7 @@ void make_satellite_health()
   sat_health.v3_com_c = (float)int_adc1_temp[2];
   sat_health.v5_c = (float)int_adc1_temp[3];
 
-  sat_health.batt_volt = (float)int_adc1_temp[4];
+  sat_health.batt_volt = (float)int_adc1_temp[4] * 10;
 
   sat_health.sol_p1_c = (float)int_adc1_temp[5];
   sat_health.v3_2_c = (float)int_adc1_temp[6];
@@ -3983,4 +4031,53 @@ void subscribe_and_retrieve_data(void)
     syslog(LOG_ERR, "Orb unsubscribe Failed.\n");
   }
   return 0;
+}
+void print_beacon_a(){
+   printf("-------------------------------------------------------\nHEAD: 0x%02X\n", s2s_beacon_type_a.HEAD);
+    printf("TYPE: %d\n", s2s_beacon_type_a.TYPE);
+    printf("TIM_DAY: %d\n", s2s_beacon_type_a.TIM_DAY);
+    printf("TIM_HOUR: %d\n", s2s_beacon_type_a.TIM_HOUR);
+    printf("BAT_V: %d\n", s2s_beacon_type_a.BAT_V);
+    printf("BAT_C: %d\n", s2s_beacon_type_a.BAT_C);
+    printf("BAT_T: %d\n", s2s_beacon_type_a.BAT_T);
+    printf("RAW_C: %d\n", s2s_beacon_type_a.RAW_C);
+    printf("SOL_TOT_V: %d\n", s2s_beacon_type_a.SOL_TOT_V);
+    printf("SOL_TOT_C: %d\n", s2s_beacon_type_a.SOL_TOT_C);
+    printf("-------------------------------------------------------\n");
+}
+void print_beacon_b() {
+    printf("---- Beacon B Data ----\n");
+    printf("HEAD: 0x%02X\n", s2s_beacon_type_b.HEAD);
+    printf("TYPE: 0x%02X\n", s2s_beacon_type_b.TYPE);
+    printf("TIM_DAY: 0x%02X\n", s2s_beacon_type_b.TIM_DAY);
+
+    printf("\nSolar Panel Voltages:\n");
+    printf("  SOL_P1_V: %d mV\n", s2s_beacon_type_b.SOL_P1_V);
+    printf("  SOL_P2_V: %d mV\n", s2s_beacon_type_b.SOL_P2_V);
+    printf("  SOL_P3_V: %d mV\n", s2s_beacon_type_b.SOL_P3_V);
+    printf("  SOL_P4_V: %d mV\n", s2s_beacon_type_b.SOL_P4_V);
+
+    printf("\nSolar Panel Currents:\n");
+    printf("  SOL_P1_C: %d mA\n", s2s_beacon_type_b.SOL_P1_C);
+    printf("  SOL_P2_C: %d mA\n", s2s_beacon_type_b.SOL_P2_C);
+    printf("  SOL_P3_C: %d mA\n", s2s_beacon_type_b.SOL_P3_C);
+    printf("  SOL_P4_C: %d mA\n", s2s_beacon_type_b.SOL_P4_C);
+
+    printf("\nGyroscope Data (in raw units):\n");
+    printf("  GYRO_X: %d\n", s2s_beacon_type_b.GYRO_X);
+    printf("  GYRO_Y: %d\n", s2s_beacon_type_b.GYRO_Y);
+    printf("  GYRO_Z: %d\n", s2s_beacon_type_b.GYRO_Z);
+
+    printf("\nAccelerometer Data (in raw units):\n");
+    printf("  ACCL_X: %d\n", s2s_beacon_type_b.ACCL_X);
+    printf("  ACCL_Y: %d\n", s2s_beacon_type_b.ACCL_Y);
+    printf("  ACCL_Z: %d\n", s2s_beacon_type_b.ACCL_Z);
+
+    printf("\nMagnetometer Data (in raw units):\n");
+    printf("  MAG_X: %d\n", s2s_beacon_type_b.MAG_X);
+    printf("  MAG_Y: %d\n", s2s_beacon_type_b.MAG_Y);
+    printf("  MAG_Z: %d\n", s2s_beacon_type_b.MAG_Z);
+
+    printf("\nChecksum CRC: 0x%02X\n", s2s_beacon_type_b.CHK_CRC);
+    printf("------------------------\n");
 }

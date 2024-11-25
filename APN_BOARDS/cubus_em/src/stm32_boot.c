@@ -124,7 +124,7 @@ void stm32_boardinitialize(void)
 	stm32_configgpio(GPIO_DCDC_4V_EN);
 	stm32_configgpio(GPIO_DCDC_5V_EN);
 	
-		stm32_configgpio(GPIO_COM_4V_BBM_EN);
+	stm32_configgpio(GPIO_COM_4V_BBM_EN);
 
 
 	stm32_configgpio(GPIO_3V3_COM_EN);

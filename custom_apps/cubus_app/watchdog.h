@@ -101,7 +101,7 @@ static int watchdog_task(int argc, char *argv[])
           // pet_counter += 1;
           critic_flags.RST_COUNT = critic_flags.RST_COUNT + 1;
           // store_flag_data(&critic_flags);
-          save_critics_flags(&critic_flags);
+          // save_critics_flags(&critic_flags);
 
           // ioctl(fd, WDIOC_KEEPALIVE, 0);
           sleep(5);
