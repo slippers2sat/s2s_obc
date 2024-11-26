@@ -25,6 +25,67 @@
 #include <nuttx/config.h>
 #include <stdio.h>
 #include "mag_main.h"
+#include <fcntl.h>
+
+#define REG_LOW_MASK 0xFF00
+#define REG_HIGH_MASK 0x00FF
+#define MPU6050_FS_SEL 32.8f
+#define MPU6050_AFS_SEL 4096.0f
+
+#ifndef CONFIG_MPU_PATH
+#define CONFIG_MPU_PATH "/dev/mpu6500"
+#endif
+struct mpu6500_imu_msg
+{
+  uint64_t timestamp;
+  float acc_x;
+  float acc_y;
+  float acc_z;
+  float temp;
+  float gyro_x;
+  float gyro_y;
+  float gyro_z;
+  float temperature;
+  int ANT_DEPLOYED;
+
+};
+
+
+void read_mpu6500_2(int fd, struct sensor_accel *acc_data, struct sensor_gyro *gyro_data, struct mpu6500_imu_msg *raw_imu)
+{
+    int16_t raw_data[7], conv_data[7];
+    memset(raw_imu, 0, sizeof(struct mpu6500_imu_msg));
+    int ret = read(fd, raw_data, sizeof(raw_data));
+    if (ret <= 0)
+    {
+        printf("Failed to read accelerometer data\n");
+    }
+    else
+    {
+      conv_data[0] = ((raw_data[0] & REG_HIGH_MASK) << 8) + ((raw_data[0] & REG_LOW_MASK) >> 8);
+      conv_data[1] = ((raw_data[1] & REG_HIGH_MASK) << 8) + ((raw_data[1] & REG_LOW_MASK) >> 8);
+      conv_data[2] = ((raw_data[2] & REG_HIGH_MASK) << 8) + ((raw_data[2] & REG_LOW_MASK) >> 8);
+      conv_data[3] = ((raw_data[4] & REG_HIGH_MASK) << 8) + ((raw_data[4] & REG_LOW_MASK) >> 8);
+      conv_data[4] = ((raw_data[5] & REG_HIGH_MASK) << 8) + ((raw_data[5] & REG_LOW_MASK) >> 8);
+      conv_data[5] = ((raw_data[6] & REG_HIGH_MASK) << 8) + ((raw_data[6] & REG_LOW_MASK) >> 8);
+    }
+    acc_data->x = conv_data[0] * 9.8 / MPU6050_AFS_SEL;
+    acc_data->y = conv_data[1] * 9.8 / MPU6050_AFS_SEL;
+    acc_data->z = conv_data[2] * 9.8 / MPU6050_AFS_SEL;
+
+    gyro_data->x = conv_data[3] / MPU6050_FS_SEL;
+    gyro_data->y = conv_data[4] / MPU6050_FS_SEL;
+    gyro_data->z = conv_data[5] / MPU6050_FS_SEL;
+
+    raw_imu->acc_x = acc_data->x;
+    raw_imu->acc_y = acc_data->y;
+    raw_imu->acc_z = acc_data->z;
+
+    raw_imu->gyro_x = (float) gyro_data->x ;
+    raw_imu->gyro_y = (float) gyro_data->y ;
+    raw_imu->gyro_z = (float) gyro_data->z ;
+
+}
 
 
 static bool g_mag_daemon_started;
@@ -85,8 +146,33 @@ int  mag_daemon(int argc, FAR char *argv[])
 
   fds.fd = fd;
   fds.events = POLLIN;
+
+  //
+   struct sensor_accel imu_acc_data;
+    struct sensor_gyro imu_gyro_data;
+    struct mpu6500_imu_msg raw_imu;
+
+    int fd1 = open("/dev/mpu6500", O_RDONLY);
+    if (fd1 < 0)
+    {
+        printf("Failed to open mpu6500\n");
+        return -1;
+    }
+
+  //
+
   for(;;)
   {
+    read_mpu6500_2(fd1, &imu_acc_data, &imu_gyro_data, &raw_imu);
+
+    printf(
+      // "Timestamp: %f  Temperature: %f\n"
+           "Accelerometer X: %f | Y: %f | Z: %f\n"
+           "Gyroscope X: %f | Y: %f | Z: %f\n",
+          //  imu_acc_data.timestamp, imu_acc_data.temperature,
+             raw_imu.acc_x,   raw_imu.acc_y,   raw_imu.acc_z,
+           raw_imu.gyro_x, raw_imu.gyro_y, raw_imu.gyro_z);
+    
     if (poll(&fds, 1, 3000) > 0)
     {
       if(fds.revents & POLLIN)
@@ -102,7 +188,7 @@ int  mag_daemon(int argc, FAR char *argv[])
 
         // printf("Timestamp: %lli \t", mag0.timestamp);
         // printf("Temperature: %0.02f \t", mag0.temperature);
-        printf("X : %0.02f \t", 0.058f * mag0.mag_x);
+        printf("Mag X : %0.02f \t", 0.058f * mag0.mag_x);
         printf("Y : %0.02f \t", 0.058f * mag0.mag_y);
         printf("Z : %0.02f \t\n", 0.058f * mag0.mag_z);
       }

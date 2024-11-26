@@ -4014,28 +4014,16 @@ void read_mpu6500(int fd, struct sensor_accel *acc_data, struct sensor_gyro *gyr
   sleep(2);
 }
 
+
 void subscribe_and_retrieve_data(void)
 {
-  // int fd1;
+  int fd;
   int ret;
-  struct sensor_accel imu_acc_data;
-  struct sensor_gyro imu_gyro_data;
-  struct mpu6500_imu_msg raw_imu;
-
-  int fd1 = open("/dev/mpu6500", O_RDONLY);
-  if (fd1 < 0)
-  {
-    printf("Failed to open mpu6500\n");
-    return -1;
-  }
-  // while(1){
-
-  // }
 
   struct orb_mag_scaled_s mag_scaled;
 
   /* Subscribe to the orb_mag_scaled topic */
-  int fd = orb_subscribe(ORB_ID(orb_mag_scaled));
+  fd = orb_subscribe(ORB_ID(orb_mag_scaled));
   if (fd < 0)
   {
     syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic.\n");
@@ -4057,8 +4045,6 @@ void subscribe_and_retrieve_data(void)
     {
       if (fds.revents & POLLIN)
       {
-        read_mpu6500(fd1, &imu_acc_data, &imu_gyro_data, &raw_imu);
-
         /* Copy the data from the orb */
         ret = orb_copy(ORB_ID(orb_mag_scaled), fd, &mag_scaled);
         if (ret < 0)
@@ -4068,8 +4054,8 @@ void subscribe_and_retrieve_data(void)
         }
 
         // Print the received data
-        printf("Timestamp: %" PRIu64 "\n", mag_scaled.timestamp);
-        printf("Mag_X: %.4f Mag_Y: %.4f Mag_Z: %.4f\n", mag_scaled.mag_x, mag_scaled.mag_y, mag_scaled.mag_z);
+        // printf("Timestamp: %" PRIu64 "\n", mag_scaled.timestamp);
+        // printf("Mag_X: %.4f Mag_Y: %.4f Mag_Z: %.4f\n", mag_scaled.mag_x, mag_scaled.mag_y, mag_scaled.mag_z);
         // printf("Acc_X: %.4f Acc_Y: %.4f Acc_Z: %.4f\n", mag_scaled.acc_x, mag_scaled.acc_y, mag_scaled.acc_z);
         // printf("Gyro_X: %.4f Gyro_Y: %.4f Gyro_Z: %.4f\n", mag_scaled.gyro_x, mag_scaled.gyro_y, mag_scaled.gyro_z);
         // printf("Temperature: %.2f\n", mag_scaled.temperature);
@@ -4099,6 +4085,7 @@ void subscribe_and_retrieve_data(void)
   }
   return 0;
 }
+
 void print_beacon_a()
 {
   printf("-------------------------------------------------------\nHEAD: 0x%02X\n", s2s_beacon_type_a.HEAD);
