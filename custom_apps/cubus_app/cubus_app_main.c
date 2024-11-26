@@ -90,7 +90,7 @@ void print_beacon_b();
 // Macro Definition
 #define COM_DATA_SIZE 44
 #define BEACON_DELAY 90
-#define BEACON_DATA_SIZE 85+1
+#define BEACON_DATA_SIZE 85 + 1
 #define ACK_DATA_SIZE 6 + 1
 #define COM_RX_CMD_SIZE 43
 #define COM_DG_MSG_SIZE 44
@@ -274,33 +274,38 @@ void watchdog_refresh_task(int fd);
 
 int configure_watchdog(int fd, int timeout);
 void send_beacon();
-void save_critics_flags(const CRITICAL_FLAGS *flags) {
-    int fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_WRONLY | O_CREAT, 0644);
-    if (fd < 0) {
-        perror("Failed to open flags.txt for writing");
-        return;
-    }
-    write(fd, flags, sizeof(CRITICAL_FLAGS));
-    close(fd);
+void save_critics_flags(const CRITICAL_FLAGS *flags)
+{
+  int fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_WRONLY | O_CREAT, 0644);
+  if (fd < 0)
+  {
+    perror("Failed to open flags.txt for writing");
+    return;
+  }
+  write(fd, flags, sizeof(CRITICAL_FLAGS));
+  close(fd);
 }
 
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 
-int load_critics_flags(CRITICAL_FLAGS *flags) {
-    int fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_RDONLY);
-    if (fd < 0) {
-        perror("Failed to open flags.txt for reading");
-        return -1;
-    }
-    ssize_t bytesRead = read(fd, flags, sizeof(CRITICAL_FLAGS));
-    close(fd);
-    if (bytesRead != sizeof(CRITICAL_FLAGS)) {
-        perror("Failed to read complete flags data");
-        return -1;
-    }
-    return 0;
+int load_critics_flags(CRITICAL_FLAGS *flags)
+{
+  int fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_RDONLY);
+  if (fd < 0)
+  {
+    perror("Failed to open flags.txt for reading");
+    return -1;
+  }
+  ssize_t bytesRead = read(fd, flags, sizeof(CRITICAL_FLAGS));
+  close(fd);
+  if (bytesRead != sizeof(CRITICAL_FLAGS))
+  {
+    perror("Failed to read complete flags data");
+    return -1;
+  }
+  return 0;
 }
 
 /*Private function prototypes declaration end */
@@ -669,7 +674,6 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
     printf("drained tx rx buffer\n");
     printf("\n%d bytes written\nwdog refreshed\n", wr1);
     pet_counter = 0; // TODO rethink on this later internal wdog
-
   }
   close_uart(fd);
   return wr1;
@@ -830,7 +834,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
     //   send_data_uart(COM_UART, COM_RX_DATA, sizeof(COM_RX_DATA));
     //   return 33;
     // }
-    // else 
+    // else
     if (COM_RX_DATA[0] == 0x53 & COM_RX_DATA[1] == 0xac & COM_RX_DATA[2] == 0x04)
     {
       if (COM_RX_DATA[3] == 0X02 & COM_RX_DATA[4] == 0XFC & COM_RX_DATA[5] == 0XEE)
@@ -866,27 +870,30 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       return 33;
     }
   }
-  else if (COM_RX_DATA[0] == 0x44 && digipeating == 1 && COM_RX_DATA[1] == 0x0a )
+  else if (COM_RX_DATA[0] == 0x44 && digipeating == 1 && COM_RX_DATA[1] == 0x0a)
   {
-    printf("Digipeater command of size %d received\n",COM_RX_DATA[2]);
+    printf("Digipeater command of size %d received\n", COM_RX_DATA[2]);
     printf("Digipeater msg is : \n");
-    for(int i = 0;i<COM_RX_DATA[2];i++){
+    for (int i = 0; i < COM_RX_DATA[2]; i++)
+    {
       printf("%02x ", COM_RX_DATA[i + 22]);
     }
     printf("\n---------\n");
     // COM_RX_DATA = 0x7e;
-    uint8_t digipeater_data[86]={'\0'};
-    digipeater_data[0] = 0x53;//TODO: save data with callsign to FM
+    uint8_t digipeater_data[86] = {'\0'};
+    digipeater_data[0] = 0x53; // TODO: save data with callsign to FM
     // int fd = open(COM_UART, O_WRONLY);
-    for(int i= 1;i< BEACON_DATA_SIZE;i++){
-      if(i<=43) digipeater_data[i] = COM_RX_DATA[i];
+    for (int i = 1; i < BEACON_DATA_SIZE; i++)
+    {
+      if (i <= 43)
+        digipeater_data[i] = COM_RX_DATA[i];
       // write(fd, digipeater_data[i],1);
     }
     // send_data_uart(COM_UART, &digipeater_data,86);
     digipeater_data[BEACON_DATA_SIZE - 1] = 0x7e;
     digipeater_data[BEACON_DATA_SIZE - 2] = 0x7e;
 
-      send_data_uart(COM_UART, digipeater_data, sizeof(digipeater_data));
+    send_data_uart(COM_UART, digipeater_data, sizeof(digipeater_data));
     return;
   }
   else if (COM_RX_DATA[0] == 0x72)
@@ -1940,7 +1947,6 @@ void serialize_beacon_b(uint8_t beacon_data[BEACON_DATA_SIZE])
 
   beacon_data[3] = 0x02;
 
-
   beacon_data[1 + 3] = s2s_beacon_type_b.SOL_P1_V;
   beacon_data[1 + 4] = s2s_beacon_type_b.SOL_P2_V;
   beacon_data[1 + 5] = s2s_beacon_type_b.SOL_P3_V;
@@ -1995,7 +2001,7 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_a.TYPE = 0x00;
     s2s_beacon_type_a.TIM_DAY = day;
     s2s_beacon_type_a.TIM_HOUR = hour;
-    s2s_beacon_type_a.BAT_V = sat_health.batt_volt ;
+    s2s_beacon_type_a.BAT_V = sat_health.batt_volt;
     s2s_beacon_type_a.BAT_C = sat_health.batt_c;
     s2s_beacon_type_a.BAT_T = sat_health.temp_batt;
 
@@ -2409,7 +2415,7 @@ void perform_file_operations(struct FILE_OPERATIONS *file_operations)
            file_operations->number_of_packets[3], file_operations->number_of_packets[2], file_operations->number_of_packets[1], file_operations->number_of_packets[0]);
 
     printf("-------Data download function has been called\n");
-        printf("Turning off  4v dcdc line..\n");
+    printf("Turning off  4v dcdc line..\n");
     gpio_write(GPIO_DCDC_4V_EN, 0);
     printf("Turning off COM 4V line..\n");
     gpio_write(GPIO_COM_4V_EN, 0);
@@ -2694,14 +2700,17 @@ int main(int argc, FAR char *argv[])
   /*TODO : REMOVE LATER Independent testing*/
   else
   {
-    if (load_critics_flags(&critic_flags) != 0) {
-        // Handle error or initialize flags
-        memset(&critic_flags, 0, sizeof(CRITICAL_FLAGS));
+    if (load_critics_flags(&critic_flags) != 0)
+    {
+      // Handle error or initialize flags
+      memset(&critic_flags, 0, sizeof(CRITICAL_FLAGS));
     }
-    if (critic_flags.ANT_DEP_STAT != DEPLOYED){
-     printf("antenna not deployed\n");
+    if (critic_flags.ANT_DEP_STAT != DEPLOYED)
+    {
+      printf("antenna not deployed\n");
     }
-    else{
+    else
+    {
       printf("antenna already deployed\n");
     }
     printf("************************************************\n");
@@ -2895,8 +2904,6 @@ void send_flash_data(uint8_t *beacon_data)
   {
     sleep(2);
 
-
-
     uint8_t ack_com[43];
     int ret = write(fd, beacon_data, BEACON_DATA_SIZE);
     usleep(10000);
@@ -3006,7 +3013,7 @@ int send_beacon_data()
       uint8_t x[43], ret2;
       // ret2 = receive_data_uart(COM_UART, x,sizeof(x));
       // if(ret2 < 0){
-        
+
       // }
       // fd = open(COM_UART, O_WRONLY);
       // int count;
@@ -3140,7 +3147,7 @@ void Antenna_Deployment(int argc, char *argv[])
     critic_flags.ANT_DEP_STAT = DEPLOYED;
     critic_flags.UL_STATE = UL_RX;
     // store_flag_data(&critic_flags);
-    
+
     printf("Updated flag data...\n");
   }
   save_critics_flags(&critic_flags);
@@ -3148,7 +3155,6 @@ void Antenna_Deployment(int argc, char *argv[])
   critic_flags.ANT_DEP_STAT = 0x00;
   load_critics_flags(&critic_flags);
   print_critical_flag_data(&critic_flags);
-
 }
 
 void adcs_operation(uint8_t mode)
@@ -3248,7 +3254,7 @@ void cam_operation()
     // sleep(1);
     // do
     // {
-      // hand = handshake_MSN(3, data2);
+    // hand = handshake_MSN(3, data2);
     // } while (hand < 0);
     // sleep(3);
     int fd = open(CAM_UART, O_WRONLY); // Open in non-blocking mode
@@ -3262,7 +3268,7 @@ void cam_operation()
     // Writing handshake data
     ret = write(fd, data2, 7);
     close(fd);
-    if(hand == 0)
+    if (hand == 0)
     {
       syslog(LOG_DEBUG, "Command %s sent\n", data2);
 
@@ -3290,8 +3296,8 @@ void cam_operation()
       // cam[counter1]='\0';
       close(fd2);
       counter1 = 0;
-      syslog(LOG_DEBUG,"__________________________________________");
-      syslog(LOG_DEBUG,"_____________________RGB camera_____________________");
+      syslog(LOG_DEBUG, "__________________________________________");
+      syslog(LOG_DEBUG, "_____________________RGB camera_____________________");
       fd2 = open(CAM_UART, O_RDONLY);
       // sleep(10);
       sleep(3);
@@ -3322,7 +3328,7 @@ void cam_operation()
       cam[counter1++] = 0xd9;
 
       mission_data("/cam.txt", &cam, counter1);
-      uint8_t ack[BEACON_DATA_SIZE] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e,0x7e,0x7e};
+      uint8_t ack[BEACON_DATA_SIZE] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e, 0x7e, 0x7e};
       sleep(1);
       send_data_uart(COM_UART, ack, sizeof(ack));
     }
@@ -3962,15 +3968,74 @@ void print_satellite_health_data(satellite_health_s *sat_health)
 //   }
 //   return 0;
 // }
+
+void read_mpu6500(int fd, struct sensor_accel *acc_data, struct sensor_gyro *gyro_data, struct mpu6500_imu_msg *raw_imu)
+{
+  int16_t raw_data[7];
+  memset(raw_imu, 0, sizeof(struct mpu6500_imu_msg));
+  int ret = read(fd, raw_data, sizeof(raw_data));
+  if (ret <= 0)
+  {
+    printf("Failed to read accelerometer data\n");
+  }
+  else
+  {
+    raw_imu->acc_x = ((raw_data[0] & REG_HIGH_MASK) << 8) + ((raw_data[0] & REG_LOW_MASK) >> 8);
+    raw_imu->acc_y = ((raw_data[1] & REG_HIGH_MASK) << 8) + ((raw_data[1] & REG_LOW_MASK) >> 8);
+    raw_imu->acc_z = ((raw_data[2] & REG_HIGH_MASK) << 8) + ((raw_data[2] & REG_LOW_MASK) >> 8);
+    raw_imu->gyro_x = ((raw_data[4] & REG_HIGH_MASK) << 8) + ((raw_data[4] & REG_LOW_MASK) >> 8);
+    raw_imu->gyro_y = ((raw_data[5] & REG_HIGH_MASK) << 8) + ((raw_data[5] & REG_LOW_MASK) >> 8);
+    raw_imu->gyro_z = ((raw_data[6] & REG_HIGH_MASK) << 8) + ((raw_data[6] & REG_LOW_MASK) >> 8);
+  }
+
+  acc_data->x = raw_imu->acc_x * 9.8 / MPU6050_AFS_SEL;
+  acc_data->y = raw_imu->acc_y * 9.8 / MPU6050_AFS_SEL;
+  acc_data->z = raw_imu->acc_z * 9.8 / MPU6050_AFS_SEL;
+
+  gyro_data->x = raw_imu->gyro_x / MPU6050_FS_SEL;
+  gyro_data->y = raw_imu->gyro_y / MPU6050_FS_SEL;
+  gyro_data->z = raw_imu->gyro_z / MPU6050_FS_SEL;
+
+  sat_health.accl_x = acc_data->x * 100;
+  sat_health.accl_y = acc_data->y * 100;
+  sat_health.accl_z = acc_data->z * 100;
+
+  sat_health.gyro_x = gyro_data->x * 100;
+  sat_health.gyro_y = gyro_data->y * 100;
+  sat_health.gyro_z = gyro_data->z * 100;
+
+   printf("Timestamp: %f  Temperature: %f\n"
+           "Accelerometer X: %f | Y: %f | Z: %f\n"
+           "Gyroscope X: %f | Y: %f | Z: %f\n",
+           imu_acc_data.timestamp, imu_acc_data.temperature,
+           acc_data->x, acc_data->y, acc_data->z,
+           gyro_data->x, gyro_data->y, gyro_data->z);
+
+  sleep(2);
+}
+
 void subscribe_and_retrieve_data(void)
 {
-  int fd;
+  // int fd1;
   int ret;
+  struct sensor_accel imu_acc_data;
+  struct sensor_gyro imu_gyro_data;
+  struct mpu6500_imu_msg raw_imu;
+
+  int fd1 = open("/dev/mpu6500", O_RDONLY);
+  if (fd1 < 0)
+  {
+    printf("Failed to open mpu6500\n");
+    return -1;
+  }
+  // while(1){
+
+  // }
 
   struct orb_mag_scaled_s mag_scaled;
 
   /* Subscribe to the orb_mag_scaled topic */
-  fd = orb_subscribe(ORB_ID(orb_mag_scaled));
+  int fd = orb_subscribe(ORB_ID(orb_mag_scaled));
   if (fd < 0)
   {
     syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic.\n");
@@ -3992,6 +4057,8 @@ void subscribe_and_retrieve_data(void)
     {
       if (fds.revents & POLLIN)
       {
+        read_mpu6500(fd1, &imu_acc_data, &imu_gyro_data, &raw_imu);
+
         /* Copy the data from the orb */
         ret = orb_copy(ORB_ID(orb_mag_scaled), fd, &mag_scaled);
         if (ret < 0)
@@ -4001,8 +4068,8 @@ void subscribe_and_retrieve_data(void)
         }
 
         // Print the received data
-        // printf("Timestamp: %" PRIu64 "\n", mag_scaled.timestamp);
-        // printf("Mag_X: %.4f Mag_Y: %.4f Mag_Z: %.4f\n", mag_scaled.mag_x, mag_scaled.mag_y, mag_scaled.mag_z);
+        printf("Timestamp: %" PRIu64 "\n", mag_scaled.timestamp);
+        printf("Mag_X: %.4f Mag_Y: %.4f Mag_Z: %.4f\n", mag_scaled.mag_x, mag_scaled.mag_y, mag_scaled.mag_z);
         // printf("Acc_X: %.4f Acc_Y: %.4f Acc_Z: %.4f\n", mag_scaled.acc_x, mag_scaled.acc_y, mag_scaled.acc_z);
         // printf("Gyro_X: %.4f Gyro_Y: %.4f Gyro_Z: %.4f\n", mag_scaled.gyro_x, mag_scaled.gyro_y, mag_scaled.gyro_z);
         // printf("Temperature: %.2f\n", mag_scaled.temperature);
@@ -4032,52 +4099,54 @@ void subscribe_and_retrieve_data(void)
   }
   return 0;
 }
-void print_beacon_a(){
-   printf("-------------------------------------------------------\nHEAD: 0x%02X\n", s2s_beacon_type_a.HEAD);
-    printf("TYPE: %d\n", s2s_beacon_type_a.TYPE);
-    printf("TIM_DAY: %d\n", s2s_beacon_type_a.TIM_DAY);
-    printf("TIM_HOUR: %d\n", s2s_beacon_type_a.TIM_HOUR);
-    printf("BAT_V: %d\n", s2s_beacon_type_a.BAT_V);
-    printf("BAT_C: %d\n", s2s_beacon_type_a.BAT_C);
-    printf("BAT_T: %d\n", s2s_beacon_type_a.BAT_T);
-    printf("RAW_C: %d\n", s2s_beacon_type_a.RAW_C);
-    printf("SOL_TOT_V: %d\n", s2s_beacon_type_a.SOL_TOT_V);
-    printf("SOL_TOT_C: %d\n", s2s_beacon_type_a.SOL_TOT_C);
-    printf("-------------------------------------------------------\n");
+void print_beacon_a()
+{
+  printf("-------------------------------------------------------\nHEAD: 0x%02X\n", s2s_beacon_type_a.HEAD);
+  printf("TYPE: %d\n", s2s_beacon_type_a.TYPE);
+  printf("TIM_DAY: %d\n", s2s_beacon_type_a.TIM_DAY);
+  printf("TIM_HOUR: %d\n", s2s_beacon_type_a.TIM_HOUR);
+  printf("BAT_V: %d\n", s2s_beacon_type_a.BAT_V);
+  printf("BAT_C: %d\n", s2s_beacon_type_a.BAT_C);
+  printf("BAT_T: %d\n", s2s_beacon_type_a.BAT_T);
+  printf("RAW_C: %d\n", s2s_beacon_type_a.RAW_C);
+  printf("SOL_TOT_V: %d\n", s2s_beacon_type_a.SOL_TOT_V);
+  printf("SOL_TOT_C: %d\n", s2s_beacon_type_a.SOL_TOT_C);
+  printf("-------------------------------------------------------\n");
 }
-void print_beacon_b() {
-    printf("---- Beacon B Data ----\n");
-    printf("HEAD: 0x%02X\n", s2s_beacon_type_b.HEAD);
-    printf("TYPE: 0x%02X\n", s2s_beacon_type_b.TYPE);
-    printf("TIM_DAY: 0x%02X\n", s2s_beacon_type_b.TIM_DAY);
+void print_beacon_b()
+{
+  printf("---- Beacon B Data ----\n");
+  printf("HEAD: 0x%02X\n", s2s_beacon_type_b.HEAD);
+  printf("TYPE: 0x%02X\n", s2s_beacon_type_b.TYPE);
+  printf("TIM_DAY: 0x%02X\n", s2s_beacon_type_b.TIM_DAY);
 
-    printf("\nSolar Panel Voltages:\n");
-    printf("  SOL_P1_V: %d mV\n", s2s_beacon_type_b.SOL_P1_V);
-    printf("  SOL_P2_V: %d mV\n", s2s_beacon_type_b.SOL_P2_V);
-    printf("  SOL_P3_V: %d mV\n", s2s_beacon_type_b.SOL_P3_V);
-    printf("  SOL_P4_V: %d mV\n", s2s_beacon_type_b.SOL_P4_V);
+  printf("\nSolar Panel Voltages:\n");
+  printf("  SOL_P1_V: %d mV\n", s2s_beacon_type_b.SOL_P1_V);
+  printf("  SOL_P2_V: %d mV\n", s2s_beacon_type_b.SOL_P2_V);
+  printf("  SOL_P3_V: %d mV\n", s2s_beacon_type_b.SOL_P3_V);
+  printf("  SOL_P4_V: %d mV\n", s2s_beacon_type_b.SOL_P4_V);
 
-    printf("\nSolar Panel Currents:\n");
-    printf("  SOL_P1_C: %d mA\n", s2s_beacon_type_b.SOL_P1_C);
-    printf("  SOL_P2_C: %d mA\n", s2s_beacon_type_b.SOL_P2_C);
-    printf("  SOL_P3_C: %d mA\n", s2s_beacon_type_b.SOL_P3_C);
-    printf("  SOL_P4_C: %d mA\n", s2s_beacon_type_b.SOL_P4_C);
+  printf("\nSolar Panel Currents:\n");
+  printf("  SOL_P1_C: %d mA\n", s2s_beacon_type_b.SOL_P1_C);
+  printf("  SOL_P2_C: %d mA\n", s2s_beacon_type_b.SOL_P2_C);
+  printf("  SOL_P3_C: %d mA\n", s2s_beacon_type_b.SOL_P3_C);
+  printf("  SOL_P4_C: %d mA\n", s2s_beacon_type_b.SOL_P4_C);
 
-    printf("\nGyroscope Data (in raw units):\n");
-    printf("  GYRO_X: %d\n", s2s_beacon_type_b.GYRO_X);
-    printf("  GYRO_Y: %d\n", s2s_beacon_type_b.GYRO_Y);
-    printf("  GYRO_Z: %d\n", s2s_beacon_type_b.GYRO_Z);
+  printf("\nGyroscope Data (in raw units):\n");
+  printf("  GYRO_X: %d\n", s2s_beacon_type_b.GYRO_X);
+  printf("  GYRO_Y: %d\n", s2s_beacon_type_b.GYRO_Y);
+  printf("  GYRO_Z: %d\n", s2s_beacon_type_b.GYRO_Z);
 
-    printf("\nAccelerometer Data (in raw units):\n");
-    printf("  ACCL_X: %d\n", s2s_beacon_type_b.ACCL_X);
-    printf("  ACCL_Y: %d\n", s2s_beacon_type_b.ACCL_Y);
-    printf("  ACCL_Z: %d\n", s2s_beacon_type_b.ACCL_Z);
+  printf("\nAccelerometer Data (in raw units):\n");
+  printf("  ACCL_X: %d\n", s2s_beacon_type_b.ACCL_X);
+  printf("  ACCL_Y: %d\n", s2s_beacon_type_b.ACCL_Y);
+  printf("  ACCL_Z: %d\n", s2s_beacon_type_b.ACCL_Z);
 
-    printf("\nMagnetometer Data (in raw units):\n");
-    printf("  MAG_X: %d\n", s2s_beacon_type_b.MAG_X);
-    printf("  MAG_Y: %d\n", s2s_beacon_type_b.MAG_Y);
-    printf("  MAG_Z: %d\n", s2s_beacon_type_b.MAG_Z);
+  printf("\nMagnetometer Data (in raw units):\n");
+  printf("  MAG_X: %d\n", s2s_beacon_type_b.MAG_X);
+  printf("  MAG_Y: %d\n", s2s_beacon_type_b.MAG_Y);
+  printf("  MAG_Z: %d\n", s2s_beacon_type_b.MAG_Z);
 
-    printf("\nChecksum CRC: 0x%02X\n", s2s_beacon_type_b.CHK_CRC);
-    printf("------------------------\n");
+  printf("\nChecksum CRC: 0x%02X\n", s2s_beacon_type_b.CHK_CRC);
+  printf("------------------------\n");
 }
