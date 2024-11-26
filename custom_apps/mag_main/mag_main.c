@@ -45,6 +45,9 @@ struct mpu6500_imu_msg
   float gyro_x;
   float gyro_y;
   float gyro_z;
+  float mag_x;
+  float mag_y;
+  float mag_z;
   float temperature;
   int ANT_DEPLOYED;
 
@@ -165,13 +168,13 @@ int  mag_daemon(int argc, FAR char *argv[])
   {
     read_mpu6500_2(fd1, &imu_acc_data, &imu_gyro_data, &raw_imu);
 
-    printf(
-      // "Timestamp: %f  Temperature: %f\n"
-           "Accelerometer X: %f | Y: %f | Z: %f\n"
-           "Gyroscope X: %f | Y: %f | Z: %f\n",
-          //  imu_acc_data.timestamp, imu_acc_data.temperature,
-             raw_imu.acc_x,   raw_imu.acc_y,   raw_imu.acc_z,
-           raw_imu.gyro_x, raw_imu.gyro_y, raw_imu.gyro_z);
+    // printf(
+    //   // "Timestamp: %f  Temperature: %f\n"
+    //        "Accelerometer X: %f | Y: %f | Z: %f\n"
+    //        "Gyroscope X: %f | Y: %f | Z: %f\n",
+    //       //  imu_acc_data.timestamp, imu_acc_data.temperature,
+    //          raw_imu.acc_x,   raw_imu.acc_y,   raw_imu.acc_z,
+    //        raw_imu.gyro_x, raw_imu.gyro_y, raw_imu.gyro_z);
     
     if (poll(&fds, 1, 3000) > 0)
     {
@@ -184,21 +187,27 @@ int  mag_daemon(int argc, FAR char *argv[])
           return ret;
         }
 
-        syslog(LOG_INFO, "Copied data from orb_object.\n");
+        // syslog(LOG_INFO, "Copied data from orb_object.\n");
 
         // printf("Timestamp: %lli \t", mag0.timestamp);
         // printf("Temperature: %0.02f \t", mag0.temperature);
-        printf("Mag X : %0.02f \t", 0.058f * mag0.mag_x);
-        printf("Y : %0.02f \t", 0.058f * mag0.mag_y);
-        printf("Z : %0.02f \t\n", 0.058f * mag0.mag_z);
+       
       }
-      mag_scaled.mag_x = mag0.mag_x * 100;
-      mag_scaled.mag_y = mag0.mag_y * 100;
-      mag_scaled.mag_z = mag0.mag_z * 100;
+      mag_scaled.mag_x = mag0.mag_x * 0.058f;
+      mag_scaled.mag_y = mag0.mag_y * 0.058f;
+      mag_scaled.mag_z = mag0.mag_z * 0.058f;
+      printf("Mag X : %0.02f \t", mag_scaled.mag_x);
+      printf("Y : %0.02f \t", mag_scaled.mag_y);
+      printf("Z : %0.02f \t\n", mag_scaled.mag_z);
       mag_scaled.temperature = mag0.temperature - 50;
       mag_scaled.timestamp = orb_absolute_time();
-
-      if(OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &mag_scaled))
+      
+      raw_imu.mag_x = mag_scaled.mag_x;
+      raw_imu.mag_y = mag_scaled.mag_y;
+      raw_imu.mag_z = mag_scaled.mag_z;
+      raw_imu.temperature = mag_scaled.temperature;
+      raw_imu.timestamp = mag_scaled.timestamp;
+      if(OK != orb_publish(ORB_ID(orb_mag_scaled), afd, &raw_imu))
       {
         syslog(LOG_ERR,"Orb Publish failed\n");
       }
