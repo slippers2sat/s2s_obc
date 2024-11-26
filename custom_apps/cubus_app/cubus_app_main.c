@@ -433,22 +433,22 @@ int read_int_adc1()
           printf("%d: channel: %d value: %" PRId32 "\n",
                  i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
         }
-        sat_health.sol_p2_c = int_adc1_sample[15].am_data;
-        sat_health.sol_p1_c = int_adc1_sample[14].am_data;
-        sat_health.raw_v = int_adc1_sample[12].am_data;
-        sat_health.sol_p3_c = int_adc1_sample[8].am_data;
-        sat_health.sol_p4_c = int_adc1_sample[7].am_data;
-        sat_health.sol_p5_c = int_adc1_sample[6].am_data;
-        sat_health.sol_t_c = int_adc1_sample[0].am_data;
-        // sat_health.rst_3v3_c = int_adc1_sample[i].am_data;
-        sat_health.raw_c = int_adc1_sample[12].am_data;
-        sat_health.v3_main_c = int_adc1_sample[4].am_data;
-        sat_health.v3_com_c = int_adc1_sample[3].am_data;
-        sat_health.v3_2_c = int_adc1_sample[13].am_data;
-        // sat_health.v5_c = int_adc1_sample[].am_data;
-        sat_health.unreg_c = int_adc1_sample[10].am_data;
-        sat_health.v4_c = int_adc1_sample[11].am_data;
-        sat_health.batt_c = int_adc1_sample[9].am_data;
+        sat_health.sol_p2_c = (int16_t)int_adc1_sample[15].am_data;
+        sat_health.sol_p1_c = (int16_t)int_adc1_sample[14].am_data;
+        sat_health.raw_v = (int16_t)int_adc1_sample[12].am_data;
+        sat_health.sol_p3_c = (int16_t)int_adc1_sample[8].am_data;
+        sat_health.sol_p4_c = (int16_t)int_adc1_sample[7].am_data;
+        sat_health.sol_p5_c = (int16_t)int_adc1_sample[6].am_data;
+        sat_health.sol_t_c = (int16_t)int_adc1_sample[0].am_data;
+        // sat_health.rst_3v3_c = (int16_t)int_adc1_sample[i].am_data;
+        sat_health.raw_c = (int16_t)int_adc1_sample[12].am_data;
+        sat_health.v3_main_c = (int16_t)int_adc1_sample[4].am_data;
+        sat_health.v3_com_c = (int16_t)int_adc1_sample[3].am_data;
+        sat_health.v3_2_c = (int16_t)int_adc1_sample[13].am_data;
+        // sat_health.v5_c = (int16_t)int_adc1_sample[].am_data;
+        sat_health.unreg_c = (int16_t)int_adc1_sample[10].am_data;
+        sat_health.v4_c = (int16_t)int_adc1_sample[11].am_data;
+        sat_health.batt_c = (int16_t)int_adc1_sample[9].am_data;
         // sat_health.ba
       }
     }
@@ -3868,24 +3868,24 @@ int ads7953_receiver(int argc, FAR char *argv[])
 void print_satellite_health_data(satellite_health_s *sat_health)
 {
   printf(" *******************************************\r\n");
-  printf(" |   X axis acceleration    \t %d \t|\r\n", sat_health->accl_x);
-  printf(" |   Y axis acceleration    \t %d \t|\r\n", sat_health->accl_y);
-  printf(" |   Z axis acceleration    \t %d \t|\r\n", sat_health->accl_z);
+  printf(" |   X axis acceleration    \t %d m/s^2\t|\r\n", sat_health->accl_x);
+  printf(" |   Y axis acceleration    \t %d m/s^2\t|\r\n", sat_health->accl_y);
+  printf(" |   Z axis acceleration    \t %d m/s^2\t|\r\n", sat_health->accl_z);
 
-  printf(" |   X axis Gyro data       \t %d \t|\r\n", sat_health->gyro_x);
-  printf(" |   Y axis Gyro data       \t %d \t|\r\n", sat_health->gyro_y);
-  printf(" |   Z axis gyro data       \t %d \t|\r\n", sat_health->gyro_z);
+  printf(" |   X axis Gyro data       \t %d deg/s\t|\r\n", sat_health->gyro_x);
+  printf(" |   Y axis Gyro data       \t %d deg/s\t|\r\n", sat_health->gyro_y);
+  printf(" |   Z axis gyro data       \t %d deg/s\t|\r\n", sat_health->gyro_z);
 
-  printf(" |   X axis magnetic field  \t %d \t|\r\n", sat_health->mag_x);
-  printf(" |   Y axis magnetic field  \t %d \t|\r\n", sat_health->mag_y);
-  printf(" |   Z axis magnetic field  \t %d \t|\r\n", sat_health->mag_z);
+  printf(" |   X axis magnetic field  \t %d uT\t|\r\n", sat_health->mag_x);
+  printf(" |   Y axis magnetic field  \t %d uT\t|\r\n", sat_health->mag_y);
+  printf(" |   Z axis magnetic field  \t %d uT\t|\r\n", sat_health->mag_z);
 
-  printf(" |   Solar Panel 1 Voltage: \t %d \t|\r\n", sat_health->sol_p1_v);
-  printf(" |   Solar Panel 2 Voltage: \t %d \t|\r\n", sat_health->sol_p2_v);
-  printf(" |   Solar Panel 3 Voltage: \t %d \t|\r\n", sat_health->sol_p3_v);
-  printf(" |   Solar Panel 4 Voltage: \t %d \t|\r\n", sat_health->sol_p4_v);
-  printf(" |   Solar Panel 5 Voltage: \t %d \t|\r\n", sat_health->sol_p5_v);
-  printf(" |   Solar Panel T Voltage: \t %d \t|\r\n", sat_health->sol_t_v);
+  printf(" |   Solar Panel 1 Voltage: \t %d mV\t|\r\n", sat_health->sol_p1_v);
+  printf(" |   Solar Panel 2 Voltage: \t %d mV\t|\r\n", sat_health->sol_p2_v);
+  printf(" |   Solar Panel 3 Voltage: \t %d mV\t|\r\n", sat_health->sol_p3_v);
+  printf(" |   Solar Panel 4 Voltage: \t %d mV\t|\r\n", sat_health->sol_p4_v);
+  printf(" |   Solar Panel 5 Voltage: \t %d mV\t|\r\n", sat_health->sol_p5_v);
+  printf(" |   Solar Panel T Voltage: \t %d mV\t|\r\n", sat_health->sol_t_v);
   printf(" |--------------------------------------|\r\n");
   printf(" |   Solar Panel 1 Current: \t %d \t|\r\n", sat_health->sol_p1_c);
   printf(" |   Solar Panel 2 Current: \t %d \t|\r\n", sat_health->sol_p2_c);
@@ -3907,12 +3907,10 @@ void print_satellite_health_data(satellite_health_s *sat_health)
   printf(" |   Battery Total Current: \t %d \t|\r\n", sat_health->batt_c);
   printf(" |   Battery Temperature:   \t %d \t|\r\n", sat_health->temp_batt);
   printf(" |--------------------------------------|\r\n");
-  printf(" |   Solar Panel 1 Status           \t %d \t|\r\n", (sat_health->sol_p1_v) >= 100);
-  printf(" |   Solar Panel 2 Status           \t %d \t|\r\n", (sat_health->sol_p2_v) >= 100);
-  printf(" |   Solar Panel 3 Status           \t %d \t|\r\n", (sat_health->sol_p3_v) >= 100);
-  printf(" |   Solar Panel 4 Status           \t %d \t|\r\n", (sat_health->sol_p4_v) >= 100);
-  
-
+  printf(" |   Solar Panel 1 Status   \t %d \t|\r\n", (sat_health->sol_p1_v) >= 100);
+  printf(" |   Solar Panel 2 Status   \t %d \t|\r\n", (sat_health->sol_p2_v) >= 100);
+  printf(" |   Solar Panel 3 Status   \t %d \t|\r\n", (sat_health->sol_p3_v) >= 100);
+  printf(" |   Solar Panel 4 Status   \t %d \t|\r\n", (sat_health->sol_p4_v) >= 100);
   printf(" *********************************************\r\n");
 }
 
@@ -4074,20 +4072,20 @@ void print_beacon_b()
   printf("  SOL_P3_C: %d mA\n", s2s_beacon_type_b.SOL_P3_C);
   printf("  SOL_P4_C: %d mA\n", s2s_beacon_type_b.SOL_P4_C);
 
-  printf("\nGyroscope Data (in raw units):\n");
-  printf("  GYRO_X: %d\n",(s2s_beacon_type_b.GYRO_X));
-  printf("  GYRO_Y: %d\n",(s2s_beacon_type_b.GYRO_Y));
-  printf("  GYRO_Z: %d\n",(s2s_beacon_type_b.GYRO_Z));
+  printf("\nGyroscope Data (in deg/s * 100):\n");
+  printf("  GYRO_X: %d deg/s\n",(s2s_beacon_type_b.GYRO_X));
+  printf("  GYRO_Y: %d deg/s\n",(s2s_beacon_type_b.GYRO_Y));
+  printf("  GYRO_Z: %d deg/s\n",(s2s_beacon_type_b.GYRO_Z));
 
-  printf("\nAccelerometer Data (in raw units):\n");
+  printf("\nAccelerometer Data (in m/s^2 * 100):\n");
   printf("  ACCL_X: %d\n",(s2s_beacon_type_b.ACCL_X));
   printf("  ACCL_Y: %d\n",(s2s_beacon_type_b.ACCL_Y));
   printf("  ACCL_Z: %d\n",(s2s_beacon_type_b.ACCL_Z));
 
-  printf("\nMagnetometer Data (in raw units):\n");
-  printf("  MAG_X: %d\n",(s2s_beacon_type_b.MAG_X));
-  printf("  MAG_Y: %d\n",(s2s_beacon_type_b.MAG_Y));
-  printf("  MAG_Z: %d\n",(s2s_beacon_type_b.MAG_Z));
+  printf("\nMagnetometer Data (in uT):\n");
+  printf("  MAG_X: %d uT\n",(s2s_beacon_type_b.MAG_X));
+  printf("  MAG_Y: %d uT\n",(s2s_beacon_type_b.MAG_Y));
+  printf("  MAG_Z: %d uT\n",(s2s_beacon_type_b.MAG_Z));
 
   printf("\nChecksum CRC: 0x%02X\n", s2s_beacon_type_b.CHK_CRC);
   printf("------------------------\n");
