@@ -208,8 +208,8 @@ int stm32_bringup(void)
   // rtc_initialize("/dev/rtc", 0);
 
   int ret;
-  // stm32_gpiowrite(GPIO_MUX_EN,  false);
-  // stm32_gpiowrite(GPIO_SFM_MODE, false);
+  stm32_gpiowrite(GPIO_MUX_EN,  false);
+  stm32_gpiowrite(GPIO_SFM_MODE, false);
   // stm32_gpiowrite(GPIO_3V3_COM_EN,false);
   // stm32_gpiowrite(GPIO_MSN3_EN, true);
   // gpio_write(GPIO_MSN2_EN, 1);
@@ -522,3 +522,5 @@ stm32_wwdginitialize("/dev/wwdg0");
 
   return 0;
 }
+
+

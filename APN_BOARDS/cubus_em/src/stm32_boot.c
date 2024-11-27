@@ -68,9 +68,8 @@
 	stm32_gpiowrite(GPIO_DCDC_MSN_3V3_2_EN, 0); 	// enable MSN regulator
 	stm32_gpiowrite(GPIO_DCDC_4V_EN, 0);		// Disable RF Power Amp regualtor
 	stm32_gpiowrite(GPIO_DCDC_5V_EN, 0);		// Enable 5V regulator
-	stm32_gpiowrite(GPIO_COM_4V_EN, 0);	// Disable RF Power Amp
 
-	stm32_gpiowrite(GPIO_COM_4V_BBM_EN, 0);	// Disable RF Power Amp
+	stm32_gpiowrite(GPIO_COM_4V_EN, 0);	// Disable RF Power Amp
 	stm32_gpiowrite(GPIO_3V3_COM_EN, 0); 	// Enable COM systems
 	stm32_gpiowrite(GPIO_MSN_3V3_EN, 0);	// Enable MSN Power
 	stm32_gpiowrite(GPIO_MSN_5V_EN, 0);	// enable 5V Power Rail
@@ -85,7 +84,7 @@
 	// setting flash control pins
 	stm32_gpiowrite(GPIO_SFM_CS, 0);
 	stm32_gpiowrite(GPIO_SFM_MODE, 0);
-	stm32_gpiowrite(GPIO_MUX_EN, 1);
+	stm32_gpiowrite(GPIO_MUX_EN, 0);
 
 
 	usleep(ms * 1000);
@@ -123,9 +122,6 @@ void stm32_boardinitialize(void)
 	stm32_configgpio(GPIO_DCDC_MSN_3V3_2_EN);
 	stm32_configgpio(GPIO_DCDC_4V_EN);
 	stm32_configgpio(GPIO_DCDC_5V_EN);
-	
-	stm32_configgpio(GPIO_COM_4V_BBM_EN);
-
 
 	stm32_configgpio(GPIO_3V3_COM_EN);
 	stm32_configgpio(GPIO_MSN_3V3_EN);
@@ -249,4 +245,3 @@ int board_app_initialize(uintptr_t arg)
   
 #endif
 }
-
