@@ -68,7 +68,7 @@ int wdog_fd = -1;
 float x[8], y[8];
 int ads7953_receiver(int argc, FAR char *argv[]);
 
-void convert1(data);
+float convert1(data);
 void subscribe_and_retrieve_data();
 void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel);
 void print_beacon_a();
@@ -428,10 +428,11 @@ int read_int_adc1()
       {
         // Print int adc values
         printf("\nSample:\n");
+        float chan;
         for (int i = 0; i < nsamples; i++)
         {
-          printf("%d: channel: %d value: %" PRId32 "\n",
-                 i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
+          printf("%d: channel: %d value: %" PRId32 " \n",
+                 i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data );
         }
         sat_health.sol_p2_c = (int16_t)int_adc1_sample[15].am_data;
         sat_health.sol_p1_c = (int16_t)int_adc1_sample[14].am_data;
@@ -1344,7 +1345,7 @@ void send_beacon(int argc, char *argv)
       make_satellite_health();
       send_beacon_data();
     }
-    sleep(86); // 90 // TODO make it 90 later
+    sleep(18); // 90 // TODO make it 90 later
 
     // usleep(100000);
   }
@@ -3451,6 +3452,7 @@ void watchdog_refresh_task(int fd)
 #ifdef CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1
 void int_adc1_data_convert(float *temp_buff)
 {
+ printf("\n----------------------------------------------------------\n");
 
   // float temp_buff[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_NSAMPLES];
   float ADC_SUP = 1.2 * 4095 / (int_adc1_sample[14].am_data);
@@ -3462,16 +3464,19 @@ void int_adc1_data_convert(float *temp_buff)
     {
       temp_buff[i] = (temp_buff[i] * (1100 + 931)) / 931; // this is for battery monitor (voltage data, no need for conversion)
     }
-    else if (i == 9 || i == 10 || i == 11) // this one is for battery current, solar panel total current and raw current respectively
+    else if (i == 0 || i == 9-1 || i == 11-1 ) // this one is for battery current, solar panel total current and raw current respectively
     {
-      temp_buff[i] = ((temp_buff[i] - 1.65) / SENS_TMCS) * 1000;
+      temp_buff[i] = ((temp_buff[i] - 1.65) / SENS_TMCS) * 1000 *1000;
     }
     else
     {
       // all current sensors use lmp8640 current sensor ...
       temp_buff[i] = (temp_buff[i] / (2 * RES_LMP8640 * GAIN_LMP8640)) * 1000;
     }
+    printf("Temp_buf[%d] : %f \n",i, temp_buff[i]);
   }
+   printf("\n----------------------------------------------------------\n");
+
 }
 #endif
 
@@ -3733,12 +3738,12 @@ void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel)
     temp_buf[1] = (((5.506 * root) / (2 * (-0.00176))) - 30) * 100;
   }
 }
-void convert1(data)
+
+float convert1(data)
 {
-  float root = sqrtf(
-      (5.506 * 5.506) +
-      (4 * 0.00176 * (870.6 + (data * 1000))));
-  float result = (((5.506 * root) / (2 * (-0.00176))) - 30) * 100;
+  float result = (data
+					/ (2 * RES_LMP8640 * GAIN_LMP8640)) * 1000;
+  return result;
 }
 
 int ads7953_receiver(int argc, FAR char *argv[])

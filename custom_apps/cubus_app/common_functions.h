@@ -27,6 +27,14 @@
 #include "gpio_definitions.h"
 #include <stdint.h>
 
+#define RES_LMP8640				0.025
+#define GAIN_LMP8640			10
+
+/*
+ * formula for Current Sensor value conversion C=(V-1.65) / SENS for TMCS1108 sensor
+ */
+#define SENS_TMCS				264
+
 #define FLAG_DATA_INT_ADDR    0x081C0000
 #define FLAG_DATA_SECTOR_NUM 
 

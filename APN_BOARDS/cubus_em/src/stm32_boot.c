@@ -85,7 +85,7 @@
 	// setting flash control pins
 	stm32_gpiowrite(GPIO_SFM_CS, 0);
 	stm32_gpiowrite(GPIO_SFM_MODE, 0);
-	stm32_gpiowrite(GPIO_MUX_EN, 0);
+	stm32_gpiowrite(GPIO_MUX_EN, 1);
 
 
 	usleep(ms * 1000);

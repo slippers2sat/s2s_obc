@@ -202,6 +202,9 @@ int stm32_bringup(void)
   configure_rtc();
   configure_rtc();
 
+  // stm32_gpiowrite(GPIO_MUX_EN, 1);
+  // stm32_gpiowrite(GPIO_SFM_MODE, );
+
   // rtc_initialize("/dev/rtc", 0);
 
   int ret;
@@ -254,6 +257,18 @@ int stm32_bringup(void)
   {
     syslog(LOG_INFO, "Successfully initialized SPI port 3\n");
   }
+  #ifdef CONFIG_STM32_SPI4
+    syslog(LOG_INFO, "Initializing SPI port 4\n");
+    spi4 = stm32_spibus_initialize(4);
+    if (!spi4)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize SPI port 4\n");
+    }
+    else
+    {
+      syslog(LOG_INFO, "Successfully initialized SPI port 4\n");
+    }
+  #endif
 
   cubus_mft_configure(board_get_manifest());
 
