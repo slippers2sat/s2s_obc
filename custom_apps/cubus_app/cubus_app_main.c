@@ -2574,6 +2574,10 @@ int main(int argc, FAR char *argv[])
     file_close(&file_pointer);
     file_open(&file_pointer2, "/mnt/fs/sfm/mtd_mainstorage/test.txt", O_TRUNC);
     file_close(&file_pointer2);
+    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mainstorage/test.txt", O_TRUNC);
+    file_close(&file_pointer2);
+    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/test.txt", O_TRUNC);
+    file_close(&file_pointer2);
   }
   else if (strcmp(argv[1], "sfm") == 0)
   {
@@ -3478,10 +3482,9 @@ void epdm_operation()
 {
   int hand;
   int fd;
-  uint32_t initial_count =0;
+  uint64_t initial_count =0;
   struct file file_pointer, file_pointer2;
 
-  gpio_write(GPIO_SFM_MODE, true);
   if (MISSION_STATUS.ADCS_MISSION == false && MISSION_STATUS.CAM_MISSION == false)
   {
 
@@ -3489,6 +3492,8 @@ void epdm_operation()
     fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/test.txt", O_RDONLY);
     initial_count = file_seek(&file_pointer, 0, SEEK_END);
     file_close(&file_pointer);
+    
+    gpio_write(GPIO_SFM_MODE, true);
     char *dev_path = EPDM_UART;
     turn_msn_on_off(3, 0);
     sleep(1);
@@ -3499,24 +3504,27 @@ void epdm_operation()
 
     uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
     uint8_t ret;
-    sleep(2);
-    do
-    {
-      hand = handshake_MSN(3, data2);
-    } while (hand < 0);
+    // sleep(2);
+    // do
+    // {
+    //   hand = handshake_MSN(3, data2);
+    // } while (hand < 0);
     syslog(LOG_DEBUG, "Command %s sent\n", data2);
 
     int p = 0;
     uint8_t data3, data4;
     uint32_t counter1 = 0;
     uint8_t cam[37000] = {'\0'};
+
     int fd2 = open(CAM_UART, O_RDONLY);
 
     while (1)
+
     {
       data4 = data3;
       ret = read(fd2, &data3, 1);
-      syslog(LOG_DEBUG, "%02x ", data3);
+      // syslog(LOG_DEBUG, 
+      printf("%02x ", data3);
       if (counter1 % 200 == 0)
       {
         syslog(LOG_DEBUG, "COUNTER : %d", counter1);
@@ -3535,24 +3543,25 @@ void epdm_operation()
     // int32_t ret;
     uint32_t count;
     fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/test.txt", O_CREAT | O_RDWR | O_APPEND);
-    uint16_t counter = file_seek(&file_pointer, 0, SEEK_END);
+    uint32_t counter = file_seek(&file_pointer, 0, SEEK_END);
     file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/test.txt", O_CREAT | O_WRONLY | O_APPEND);
-    uint16_t counter2 = file_seek(&file_pointer2, 0, SEEK_END);
+    uint32_t counter2 = file_seek(&file_pointer2, 0, SEEK_END);
     file_close(&file_pointer2);
+    printf("THe value of initial_count :%d and counter: %d and counter2 : %d\n",initial_count, counter, counter2);
     if(initial_count == counter || counter - initial_count<10000){
       ret = open("/mnt/fs/sfm/mtd_mainstorage/test.txt", O_WRONLY | O_APPEND);
         ssize_t writeBytes = write(ret, cam, count);
         close(ret);
         // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
-        printf("The file of size %d has been written\n", writeBytes);
+        if(writeBytes >= 1000) printf("The file of size %d has been written to SFM\n", writeBytes);
     }
     do
     {
       if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
       {
-        if (counter - counter2 > 3500)
+        if (counter - counter2 > 23500)
         {
-          count = 3500;
+          count = 23500;
         }
         else
         {
@@ -3567,7 +3576,7 @@ void epdm_operation()
         }
         // if ( >= 0)
         ret = open("/mnt/fs/mfm/mtd_mission/test.txt", O_WRONLY | O_APPEND);
-        ssize_t writeBytes = write(ret, cam, count);
+        uint32_t writeBytes = write(ret, cam, count);
         close(ret);
         // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
         printf("The file of size %d has been written\n", writeBytes);
