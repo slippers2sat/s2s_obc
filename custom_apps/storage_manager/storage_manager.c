@@ -202,7 +202,10 @@ void read_and_print_mag_data(void)
         satellite_health.mag_y = mag_data.mag_y;
         satellite_health.mag_z = mag_data.mag_z;
         if (satellite_health.msn_flag != 0x11)
+        {
           store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
+          print_satellite_health_data(&satHealth);
+        }
         // store_sat_health_data(&satellite_health, SFM_MAIN_STRPATH);
       }
     }
@@ -363,7 +366,6 @@ void Setup()
   check_flag_data();
   print_critical_flag_data(&critic_flags);
 }
-
 
 // void sort_reservation_command(uint16_t file_size, bool reorder) {
 //     struct file file_ptr;
@@ -551,67 +553,68 @@ void Setup()
 
 // }
 
-void sort_reservation_command(uint16_t file_size, bool reorder) {
-//     struct file file_ptr;
-//     uint16_t temp = 0;
+void sort_reservation_command(uint16_t file_size, bool reorder)
+{
+  //     struct file file_ptr;
+  //     uint16_t temp = 0;
 
-//     int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_RDONLY);
-//     struct reservation_command res_temp[16];
-//     uint16_t t = 0x00;
+  //     int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_RDONLY);
+  //     struct reservation_command res_temp[16];
+  //     uint16_t t = 0x00;
 
-//     file_size = file_seek(&file_ptr, 0, SEEK_END);
+  //     file_size = file_seek(&file_ptr, 0, SEEK_END);
 
-//     // Read reservation commands
-//     for (int i = 0; i < (file_size / 10); i++) {
-//         file_seek(&file_ptr, temp, SEEK_SET);
-//         temp += sizeof(struct reservation_command);
-//         if (file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command)) > 0) {
-//             // printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
-//             // printf("_________________________________________\n");
-//             // printf(" MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Cmd[4]:%02x Cmd[5]:%d\n",
-//             //        res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], t);
-//             // printf("_________________________________________\n");
-//         }
-//     }
-//     file_close(&file_ptr);
+  //     // Read reservation commands
+  //     for (int i = 0; i < (file_size / 10); i++) {
+  //         file_seek(&file_ptr, temp, SEEK_SET);
+  //         temp += sizeof(struct reservation_command);
+  //         if (file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command)) > 0) {
+  //             // printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
+  //             // printf("_________________________________________\n");
+  //             // printf(" MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Cmd[4]:%02x Cmd[5]:%d\n",
+  //             //        res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], t);
+  //             // printf("_________________________________________\n");
+  //         }
+  //     }
+  //     file_close(&file_ptr);
 
-//     int n = file_size / 10;
+  //     int n = file_size / 10;
 
-//     if (reorder == true) {
-//         // Bubble sort, starting from index 1
-//         for (int i = 1; i < n - 1; i++) {
-//             for (int j = 1; j < n - i; j++) {
-//                 uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
-//                 uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
-//                 if (t1 > t2) {
-//                     // Swap res_temp[j] and res_temp[j + 1]
-//                     struct reservation_command temp = res_temp[j];
-//                     res_temp[j] = res_temp[j + 1];
-//                     res_temp[j + 1] = temp;
-//                 }
-//             }
-//         }
+  //     if (reorder == true) {
+  //         // Bubble sort, starting from index 1
+  //         for (int i = 1; i < n - 1; i++) {
+  //             for (int j = 1; j < n - i; j++) {
+  //                 uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
+  //                 uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
+  //                 if (t1 > t2) {
+  //                     // Swap res_temp[j] and res_temp[j + 1]
+  //                     struct reservation_command temp = res_temp[j];
+  //                     res_temp[j] = res_temp[j + 1];
+  //                     res_temp[j + 1] = temp;
+  //                 }
+  //             }
+  //         }
 
-//         // Print sorted commands, starting from index 1
-//         for (int i = 1; i < n; i++) {
-//             printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
-//             printf("_________________Sorted________________________\n");
-//             printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
-//                    res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed, t);
-//             printf("__________________Sorted_______________________\n");
-//         }
+  //         // Print sorted commands, starting from index 1
+  //         for (int i = 1; i < n; i++) {
+  //             printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
+  //             printf("_________________Sorted________________________\n");
+  //             printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
+  //                    res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed, t);
+  //             printf("__________________Sorted_______________________\n");
+  //         }
 
-//         // Write sorted commands back to the file, starting from index 1
-//         fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_WRONLY | O_APPEND);
-//         if (fd >= 0) {
-//             for (int i = 1; i < n; i++) {
-//                 file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
-//             }
-//         }
-//         if (file_close(&file_ptr) < 0) {
-//             file_close(&file_ptr);
-//         }
-//     } else {
-//         // publish_data(res_temp[1]);
-//     }
+  //         // Write sorted commands back to the file, starting from index 1
+  //         fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_WRONLY | O_APPEND);
+  //         if (fd >= 0) {
+  //             for (int i = 1; i < n; i++) {
+  //                 file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
+  //             }
+  //         }
+  //         if (file_close(&file_ptr) < 0) {
+  //             file_close(&file_ptr);
+  //         }
+  //     } else {
+  //         // publish_data(res_temp[1]);
+  //     }
 }

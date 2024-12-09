@@ -66,6 +66,7 @@ int wdog_fd = -1;
 #define ANT_DEPLOY_TIME 1
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
 float x[8], y[8];
+uint8_t cam[37000] = {'\0'};
 
 int ads7953_receiver(int argc, FAR char *argv[]);
 
@@ -2977,7 +2978,7 @@ int main(int argc, FAR char *argv[])
         }
         else
         {
-          int retval = task_create("COMMANDER_TASK_APP", 100, 48096, COM_TASK, NULL);
+          int retval = task_create("COMMANDER_TASK_APP", 100, 55096, COM_TASK, NULL);
 
           // int retval = task_create("ADC_TASK_APP", 100, 12, ads7953_receiver, NULL);
           // int retval = create_task("COMMANDER_TASK_APP", 100, 10096, COM_TASK);
@@ -3373,14 +3374,15 @@ void adcs_operation(uint8_t mode)
     struct file file_pointer, file_pointer2;
 
     int fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/adcs.txt", O_RDONLY);
-    uint32_t initial_count = file_seek(&file_pointer, 0, SEEK_END);
+    uint32_t initial_count; 
+    if(fd>=0) initial_count= file_seek(&file_pointer, 0, SEEK_END);
     file_close(&file_pointer);
 
     int hand;
-    turn_msn_on_off(1, 0);
+    // turn_msn_on_off(1, 0);
     sleep(1);
     turn_msn_on_off(1, 1);
-    // sleep(4);
+    sleep(1);
     uint8_t data2[7] = {0x53, 0x0a, 0x0d, 0x0c, 0x01, 0x7e};
     data2[4] = mode;
     pet_counter = 0;
@@ -3405,7 +3407,8 @@ void adcs_operation(uint8_t mode)
     int p = 0;
     uint8_t data3, data4;
     uint32_t counter1 = 0;
-    uint8_t cam[1200] = {'\0'};
+    // uint8_t cam[1200] = {'\0'};
+    memset(cam,'\0',sizeof(cam));
     printf("**************Starting data receive*************\n");
     int fd2 = open(ADCS_UART, O_RDONLY);
     int t;
@@ -3582,15 +3585,16 @@ void epdm_operation()
     sat_health.msn_flag = 0x21;
     MISSION_STATUS.EPDM_MISSION = true;
     fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/epdm.txt", O_RDONLY);
-    initial_count = file_seek(&file_pointer, 0, SEEK_END);
+    if (fd >= 0)
+      initial_count = file_seek(&file_pointer, 0, SEEK_END);
     file_close(&file_pointer);
 
-    gpio_write(GPIO_SFM_MODE, true);
+    // gpio_write(GPIO_SFM_MODE, true);
     char *dev_path = EPDM_UART;
-    turn_msn_on_off(3, 0);
-    sleep(1);
+    // turn_msn_on_off(3, 0);
+    // sleep(1);
     turn_msn_on_off(3, 1);
-    sleep(2);
+    sleep(1);
 
     hand = handshake_MSN(3, data);
 
@@ -3606,7 +3610,6 @@ void epdm_operation()
     int p = 0;
     uint8_t data3, data4;
     uint32_t counter1 = 0;
-    uint8_t cam[37000] = {'\0'};
 
     int fd2 = open(EPDM_UART, O_RDONLY);
 
@@ -3636,14 +3639,33 @@ void epdm_operation()
 
     // data consistency
     // int32_t ret;
-    uint32_t count;
+    uint32_t count = 0;
     fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/epdm.txt", O_CREAT | O_RDWR | O_APPEND);
-    uint32_t counter = file_seek(&file_pointer, 0, SEEK_END);
+    uint32_t counter = 0;
+    if (fd >= 0)
+      counter = file_seek(&file_pointer, 0, SEEK_END);
     file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/epdm.txt", O_CREAT | O_WRONLY | O_APPEND);
     uint32_t counter2 = file_seek(&file_pointer2, 0, SEEK_END);
     file_close(&file_pointer2);
     printf("THe value of initial_count :%d and counter: %d and counter2 : %d\n", initial_count, counter, counter2);
-    if (initial_count == counter || counter - initial_count < 10000)
+    if (counter <= 0)
+    {
+      ret = open("/mnt/fs/sfm/mtd_mainstorage/epdm.txt", O_WRONLY | O_APPEND);
+      uint32_t writeBytes;
+      if (ret >= 0)
+        writeBytes = write(ret, cam, counter1);
+      close(ret);
+      if (writeBytes >= 1000)
+        printf("The file of size %d has been written to SFM\n", writeBytes);
+
+      ret = open("/mnt/fs/mfm/mtd_mission/epdm.txt", O_WRONLY | O_APPEND);
+      if (ret >= 0)
+        writeBytes = write(ret, cam, counter1);
+      close(ret);
+      if (writeBytes >= 1000)
+        printf("The file of size %d has been written to MFM\n", writeBytes);
+    }
+    else if (initial_count == counter || counter - initial_count < 10000)
     {
       ret = open("/mnt/fs/sfm/mtd_mainstorage/epdm.txt", O_WRONLY | O_APPEND);
       uint32_t writeBytes = write(ret, cam, counter1);
@@ -4494,6 +4516,10 @@ void new_camera_operation()
 {
   struct file file_pointer, file_pointer2;
   uint8_t hand = 1;
+  uint32_t counter1 = 0;
+  uint16_t counter = 0, counter2 = 0;
+  int32_t ret, count;
+
   uint8_t data2[] = {0x53, 0x01, 0x02, 0x03, 0x04, 0x7e, '\0'};
   turn_msn_on_off(2, 1);
   // usleep(1000000);
@@ -4515,111 +4541,158 @@ void new_camera_operation()
   }
   // close(fd);
   // if (hand == 0)
-  {
-    syslog(LOG_DEBUG, "Command %s sent\n", data2);
+  uint8_t data3[7] = {'\0'}, data4[7] = {'\0'}, uart_data, temp;
 
+  for (int i = 0; i < 2; i++)
+  {
+    memset(data3, '\0', sizeof(data3));
+    memset(cam, '\0', sizeof(cam));
+    syslog(LOG_DEBUG, "Command %s sent\n", data2);
     int p = 0;
-    uint8_t data3[7] = {'\0'}, data4[7] = {'\0'}, uart_data;
-    uint32_t counter1 = 0;
+    counter = 0;
     // uint8_t cam[11500] = {'\0'};
-    // int fd2 = open(CAM_UART, O_RDONLY);
+    int fd2 = open(CAM_UART, O_RDONLY);
     // sleep(10);
-    sleep(1);
+    // sleep(1);
     ret = read(fd, data3, sizeof(data3));
     if (ret > 0)
     {
       printf("Handshake success %s", data3);
     }
-    // ret = read(fd, &data4, 2);
-    // if (ret > 0)
-    // {
-    //   printf("CAM mission end: %d, %d", data4[0], data4[1]);
-    // }
+    do
+    {
+      temp = uart_data;
+      ret = read(fd, &uart_data, 1);
+      if (ret > 0)
+      {
+        cam[counter1++] = uart_data;
+        printf("%02x ", uart_data);
+      }
+      if (counter1 % 400 == 0)
+      {
+        pet_counter = 0;
+      }
+      // cam[counter1] = data3;
+      if (temp == 0xff && uart_data == 0xd9)
+      {
+        // data4=000;
+        break;
+      }
+    } while (1);
     close(fd);
+    gpio_write(GPIO_SFM_MODE, false);
+    if (i == 0)
+    {
+      fd = file_open(&file_pointer, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_CREAT | O_RDWR | O_APPEND);
+      if (fd >= 0)
+      {
+        counter2 = file_write(&file_pointer, cam, counter1);
+        printf("Data of length %d has been written to camnir.txt\n", counter2);
+        file_close(&file_pointer);
+      }
+    }
+    else
+    {
+      file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_CREAT | O_WRONLY | O_APPEND);
+      if (fd >= 0)
+      {
+        counter2 = file_write(&file_pointer2, cam, counter1);
+        printf("Data of length %d has been written to camnir.txt\n", counter2);
+        file_close(&file_pointer2);
+      }
+    }
+    printf("Data of length %d has been written to camnir.txt\n", counter2);
   }
   pet_counter = 0;
-  for (int i = 0; i < 25; i++)
-    sleep(1);
+  // for (int i = 0; i < 25; i++)
+  //   sleep(1);
   uint8_t data1[3500] = {'\0'};
-  gpio_write(GPIO_SFM_MODE, false);
-  int32_t ret, count;
-  fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mission/cam_nir.txt", O_CREAT | O_RDWR | O_APPEND);
-  uint16_t counter = file_seek(&file_pointer, 0, SEEK_END);
-  file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_CREAT | O_WRONLY | O_APPEND);
-  uint16_t counter2 = file_seek(&file_pointer2, 0, SEEK_END);
-  file_close(&file_pointer2);
-  do
+
+  if (counter == 0)
   {
-    if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
+    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_CREAT | O_WRONLY | O_APPEND);
+    if (fd >= 0)
     {
-      if (counter - counter2 > 3500)
-      {
-        count = 3500;
-      }
-      else
-      {
-        count = counter - counter2;
-      }
-      counter2 += count;
-      ret = file_read(&file_pointer, data1, count);
-      printf("ret is %d %d", ret, counter - counter2);
-      for (int32_t i = 0; i < count; i++)
-      {
-        printf("%02X ", data1[i]);
-        if (count % 500 == 0)
-        {
-          usleep(4000);
-        }
-      }
-      // if ( >= 0)
-      gpio_write(GPIO_SFM_MODE, false);
-      ret = open("/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_WRONLY | O_APPEND);
-      ssize_t writeBytes = write(ret, data1, count);
-      close(ret);
-      // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
-      printf("The file of size %d has been written\n", writeBytes);
+      counter2 = file_write(&file_pointer2, cam, counter1);
+      printf("Data of length %d has been written to camnir.txt\n", counter2);
     }
-  } while (counter2 < counter);
+    file_close(&file_pointer2);
+  }
+  else
+  {
+    do
+    {
+      if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
+      {
+        if (counter - counter2 > 3500)
+        {
+          count = 3500;
+        }
+        else
+        {
+          count = counter - counter2;
+        }
+        counter2 += count;
+        ret = file_read(&file_pointer, data1, count);
+        printf("ret is %d %d", ret, counter - counter2);
+        for (int32_t i = 0; i < count; i++)
+        {
+          printf("%02X ", data1[i]);
+          if (count % 500 == 0)
+          {
+            usleep(4000);
+          }
+        }
+        // if ( >= 0)
+        gpio_write(GPIO_SFM_MODE, false);
+        ret = open("/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_WRONLY | O_APPEND);
+        ssize_t writeBytes = write(ret, data1, count);
+        close(ret);
+        // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
+        printf("The file of size %d has been written\n", writeBytes);
+      }
+    } while (counter2 < counter);
+  }
   pet_counter = 0;
 
-  counter, count, counter2 = 0;
-  fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mission/cam_rgb.txt", O_CREAT | O_RDWR | O_APPEND);
-  counter = file_seek(&file_pointer, 0, SEEK_END);
-  file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_CREAT | O_WRONLY | O_APPEND);
-  counter2 = file_seek(&file_pointer2, 0, SEEK_END);
-  file_close(&file_pointer2);
-  do
-  {
-    if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
-    {
-      if (counter - counter2 > 8000)
-      {
-        count = 8000;
-      }
-      else
-      {
-        count = counter - counter2;
-      }
-      counter2 += count;
-      ret = file_read(&file_pointer, data1, count);
-      printf("ret is %d %d", ret, counter - counter2);
-      for (int32_t i = 0; i < count; i++)
-      {
-        printf("%02X ", data1[i]);
-        if (count % 500 == 0)
-        {
-          usleep(4000);
-        }
-      }
-      // if ( >= 0)
-      gpio_write(GPIO_SFM_MODE, false);
-      ret = open("/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_WRONLY | O_APPEND);
-      ssize_t writeBytes = write(ret, data1, count);
-      close(ret);
-      // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
-      printf("The file of size %d has been written\n", writeBytes);
-    }
-  } while (counter2 < counter);
+  // counter, count, counter2 = 0;
+  // fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mission/cam_rgb.txt", O_CREAT | O_RDWR | O_APPEND);
+  // counter = file_seek(&file_pointer, 0, SEEK_END);
+  // file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_CREAT | O_WRONLY | O_APPEND);
+  // counter2 = file_seek(&file_pointer2, 0, SEEK_END);
+  // file_close(&file_pointer2);
+  // do
+  // {
+  //   if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
+  //   {
+  //     if (counter - counter2 > 8000)
+  //     {
+  //       count = 8000;
+  //     }
+  //     else
+  //     {
+  //       count = counter - counter2;
+  //     }
+  //     counter2 += count;
+  //     ret = file_read(&file_pointer, data1, count);
+  //     printf("ret is %d %d", ret, counter - counter2);
+  //     for (int32_t i = 0; i < count; i++)
+  //     {
+  //       printf("%02X ", data1[i]);
+  //       if (count % 500 == 0)
+  //       {
+  //         usleep(4000);
+  //       }
+  //     }
+  //     // if ( >= 0)
+  //     gpio_write(GPIO_SFM_MODE, false);
+  //     ret = open("/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_WRONLY | O_APPEND);
+  //     ssize_t writeBytes = write(ret, data1, count);
+  //     close(ret);
+  //     // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
+  //     printf("The file of size %d has been written\n", writeBytes);
+  //   }
+  // } while (counter2 < counter);
 
   turn_msn_on_off(2, 0);
 }
@@ -4769,11 +4842,11 @@ void handle_reservation_command(int fd_reservation, struct reservation_command r
       }
 
       // Write sorted commands back to the file, starting from index 1
+
       if (n == 1)
       {
-        fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC );
+        fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC);
         file_close(&file_ptr);
-       
       }
       else
       {
@@ -4802,15 +4875,28 @@ void get_top_rsv(struct reservation_command *res)
   struct file fptr;
   int ret;
   int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
-  if (fd >= 0)
+  uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+  if (file_size == 0 || file_size < 6)
   {
-    file_seek(&fptr, 0, SEEK_SET);
-    if (file_read(&fptr, res, sizeof(struct reservation_command)) >= 0)
-    {
-      printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
-    }
+    TO_EXECUTE.mcu_id = 0;
+    TO_EXECUTE.cmd[0] = 0;
+    TO_EXECUTE.cmd[1] = 0;
+    TO_EXECUTE.cmd[2] = 0;
+    TO_EXECUTE.time[0] = 0;
+    TO_EXECUTE.time[1] = 0;
   }
-  uint32_t t1 = (uint32_t)TO_EXECUTE.cmd[3] << 8 | TO_EXECUTE.cmd[4];
-  TO_EXECUTE.latest_time = t1 * 60;
+  else
+  {
+    if (fd >= 0)
+    {
+      file_seek(&fptr, 0, SEEK_SET);
+      if (file_read(&fptr, res, sizeof(struct reservation_command)) >= 0)
+      {
+        printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
+      }
+    }
+    uint32_t t1 = (uint32_t)TO_EXECUTE.cmd[3] << 8 | TO_EXECUTE.cmd[4];
+    TO_EXECUTE.latest_time = t1 * 60;
+  }
   file_close(&fptr);
 }
