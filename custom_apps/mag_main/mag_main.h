@@ -10,5 +10,6 @@
 #include <poll.h>
 #include <sensor/mag.h>
 #include <nuttx/sensors/sensor.h>
+#include <fcntl.h>
 
 #endif //__CUSTOM_APPS_MAG_MAIN_H

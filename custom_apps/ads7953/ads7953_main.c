@@ -63,7 +63,7 @@ int ads7953_daemon(int argc, FAR char *argv[])
   int volts_afd;
   uint8_t raw_temp[2];
   uint8_t counter;
-  float t5,mean=0.0;
+  float t5,mean[8]={0.0f};
 
   struct ads7953_raw_msg e_ads7953_0;
   struct sat_temp_msg sat_temps;
@@ -157,39 +157,64 @@ int ads7953_daemon(int argc, FAR char *argv[])
     // Processing temperature sensor reading
     float temp = e_ads7953_0.temp_chan_volts[1] * 10000 / (2.5 - e_ads7953_0.temp_chan_volts[1]);
     sat_temps.batt_temp = 3976 * 298 / (3976 - (298 * log(10000 / temp)));
+    
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[2] * 1000))));
-    sat_temps.temp_bpb = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100;
+    sat_temps.temp_bpb = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
+    
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[0] * 1000))));
-    t5= (((5.506 - temp) / (-0.00352) )+ 30);// * 100;
-
-    sat_temps.temp_ant =  (int16_t)(t5*100);
-    //((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100;
+    sat_temps.temp_ant= (((5.506 - temp) / (-0.00352) )+ 30) * 100.0f;// * 100.0f;
+    //((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[3] * 1000))));
-    sat_temps.temp_z_pos = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100;
+    sat_temps.temp_z_pos = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
+   
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[4] * 1000))));
-    sat_temps.temp_5 = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100;
+    sat_temps.temp_5 = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
+   
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[5] * 1000))));
-    sat_temps.temp_4 = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100;
+    sat_temps.temp_4 = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[6] * 1000))));
-    sat_temps.temp_3 = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100;
+    sat_temps.temp_3 = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
     // temp = (5.506 -sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[7] * 1000)))))/(2*(-0.00176))+30;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[7] * 1000))));
-   
-    sat_temps.temp_2= (int16_t)(t5*100);
+    sat_temps.temp_2 = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
+    // sat_temps.temp_2= (int16_t)(t5*100);
     //  temp = (sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[7] * 1000)))))/(2*(-0.00176))+30;
     // sat_temps.temp_2 = (((5.506 - temp) / (2 * (-0.00176)) + 30)) * 100;
     sat_temps.timestamp = e_ads7953_0.timestamp;
      if(counter == 0){
-      mean= sat_temps.temp_ant;
+      mean[0]= sat_temps.temp_ant;
+      mean[1]= sat_temps.batt_temp;
+      mean[2]= sat_temps.temp_bpb;
+      mean[3]= sat_temps.temp_z_pos;
+      mean[4]= sat_temps.temp_4;
+      mean[5]= sat_temps.temp_5;
+      mean[6]= sat_temps.temp_3;
+      mean[7]= sat_temps.temp_2;
 
     }
     else{
-      mean=(mean + sat_temps.temp_ant)/2;
-      //  sat_temps.temp_ant = mean;
+      // mean=(mean + sat_temps.temp_ant)/2;
+      
+      mean[0]= (mean[0] + sat_temps.temp_ant) / 2;
+      mean[1]= (mean[1] + sat_temps.batt_temp) / 2;
+      mean[2]= (mean[2] + sat_temps.temp_bpb) / 2;
+      mean[3]= (mean[3] + sat_temps.temp_z_pos) / 2;
+      mean[4]= (mean[4] + sat_temps.temp_4) / 2;
+      mean[5]= (mean[5] + sat_temps.temp_5) / 2;
+      mean[6]= (mean[6] + sat_temps.temp_3) / 2;
+      mean[7]= (mean[7] + sat_temps.temp_2) / 2;
     }
     if(counter % 50 == 0){
       // syslog(LOG_DEBUG,"MEan 50 is %f",mean);
-     
+      sat_temps.temp_ant = mean[0];
+      sat_temps.batt_temp = mean[1];
+      sat_temps.temp_bpb = mean[2];
+      sat_temps.temp_z_pos = mean[3];
+      sat_temps.temp_4 = mean[4];
+      sat_temps.temp_5 = mean[5];
+      sat_temps.temp_3 = mean[6];
+      sat_temps.temp_2 = mean[7];
+
     }
     counter++;
 
@@ -205,7 +230,22 @@ int ads7953_daemon(int argc, FAR char *argv[])
       // }
       // // file_sync(&fptr);
       // file_close(&fptr);
-      mean=0;
+      // sat_temps.temp_ant = mean;
+
+      sat_temps.temp_ant = mean[0];
+      sat_temps.batt_temp = mean[1];
+      sat_temps.temp_bpb = mean[2];
+      sat_temps.temp_z_pos = mean[3];
+      sat_temps.temp_4 = mean[4];
+      sat_temps.temp_5 = mean[5];
+      sat_temps.temp_3 = mean[6];
+      sat_temps.temp_2 = mean[7];
+
+
+      for(int i = 1;i < 8;i++){
+        mean[i] = 0.0f;
+      }
+      // mean=0;
       counter=0;
 
     }

@@ -66,14 +66,19 @@ int wdog_fd = -1;
 #define ANT_DEPLOY_TIME 1
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
 float x[8], y[8];
+
 int ads7953_receiver(int argc, FAR char *argv[]);
 
 float convert1(data);
 void subscribe_and_retrieve_data();
 void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel);
 void print_beacon_a();
+void new_camera_operation();
 void print_beacon_b();
-
+void handle_reservation_command(int, struct reservation_command);
+void get_top_rsv(struct reservation_command *res);
+struct sensor_rgb sensor_rgb_0;
+struct reservation_command TO_EXECUTE;
 /****************************************************************************
  * COM TASK task
  ****************************************************************************/
@@ -133,7 +138,6 @@ uint8_t COM_HANDSHAKE_STATUS = 0;
 bool FLASH_OPERATION = false;
 bool COM_UART_BUSY = false;
 struct mission_status MISSION_STATUS = {false, false, false}; // Initialize all to false
-
 uint8_t beacon_status = 0;
 uint8_t COM_BUSY = 0;
 static struct work_s work_beacon;
@@ -152,6 +156,11 @@ enum MCU_IDS
   CAM_MCU = 0x04,
   EPDM_MCU = 0x05
 };
+
+bool FIRST_RSV_CMD = false;
+uint8_t RSV_CMD[43] = {0x72, 0x9c, 0x64, 0xa6, 0x92, 0x40, 0xe0, 0x72, 0x9c, 0x64, 0xa6, 0x70, 0x72, 0x61, 0x03, 0xf0, '\0'};
+uint32_t timer = 0;
+
 /*
 Defing work structures for work_queue thread
 */
@@ -351,7 +360,7 @@ int read_int_adc1()
   adc1_config.fd = open(CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_DEVPATH, O_RDONLY);
   if (adc1_config.fd < 0)
   {
-    printf("adc_main: open %s failed: %d\n", g_adcstate1.devpath, errno);
+    // printf("adc_main: open %s failed: %d\n", g_adcstate1.devpath, errno);
     adc1_config.errval = 2;
     goto errout;
   }
@@ -425,29 +434,29 @@ int read_int_adc1()
       else
       {
         // Print int adc values
-        printf("\nSample:\n");
+        // printf("\nSample:\n");
         float chan;
         for (int i = 0; i < nsamples; i++)
         {
-          printf("%d: channel: %d value: %" PRId32 " \n",
-                 i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
+          // printf("%d: channel: %d value: %" PRId32 " \n",
+          //        i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
         }
-        sat_health.sol_p2_c = (int16_t)int_adc1_sample[15].am_data;
-        sat_health.sol_p1_c = (int16_t)int_adc1_sample[14].am_data;
-        sat_health.raw_v = (int16_t)int_adc1_sample[12].am_data;
-        sat_health.sol_p3_c = (int16_t)int_adc1_sample[8].am_data;
-        sat_health.sol_p4_c = (int16_t)int_adc1_sample[7].am_data;
-        sat_health.sol_p5_c = (int16_t)int_adc1_sample[6].am_data;
-        sat_health.sol_t_c = (int16_t)int_adc1_sample[0].am_data;
-        // sat_health.rst_3v3_c = (int16_t)int_adc1_sample[i].am_data;
-        sat_health.raw_c = (int16_t)int_adc1_sample[12].am_data;
-        sat_health.v3_main_c = (int16_t)int_adc1_sample[4].am_data;
-        sat_health.v3_com_c = (int16_t)int_adc1_sample[3].am_data;
-        sat_health.v3_2_c = (int16_t)int_adc1_sample[13].am_data;
-        // sat_health.v5_c = (int16_t)int_adc1_sample[].am_data;
-        sat_health.unreg_c = (int16_t)int_adc1_sample[10].am_data;
-        sat_health.v4_c = (int16_t)int_adc1_sample[11].am_data;
-        sat_health.batt_c = (int16_t)int_adc1_sample[9].am_data;
+        // sat_health.sol_p2_c = (int16_t)int_adc1_sample[15].am_data;
+        // sat_health.sol_p1_c = (int16_t)int_adc1_sample[14].am_data;
+        // // sat_health.raw_v = (int16_t)int_adc1_sample[12].am_data;
+        // sat_health.sol_p3_c = (int16_t)int_adc1_sample[8].am_data;
+        // sat_health.sol_p4_c = (int16_t)int_adc1_sample[7].am_data;
+        // sat_health.sol_p5_c = (int16_t)int_adc1_sample[6].am_data;
+        // sat_health.sol_t_c = (int16_t)int_adc1_sample[0].am_data;
+        // // sat_health.rst_3v3_c = (int16_t)int_adc1_sample[i].am_data;
+        // sat_health.raw_c = (int16_t)int_adc1_sample[12].am_data;
+        // sat_health.v3_main_c = (int16_t)int_adc1_sample[4].am_data;
+        // sat_health.v3_com_c = (int16_t)int_adc1_sample[3].am_data;
+        // sat_health.v3_2_c = (int16_t)int_adc1_sample[13].am_data;
+        // // sat_health.v5_c = (int16_t)int_adc1_sample[].am_data;
+        // sat_health.unreg_c = (int16_t)int_adc1_sample[10].am_data;
+        // sat_health.v4_c = (int16_t)int_adc1_sample[11].am_data;
+        // sat_health.batt_c = (int16_t)int_adc1_sample[9].am_data;
         // sat_health.ba
       }
     }
@@ -505,15 +514,15 @@ int read_int_adc3()
    * samples that we collect before returning.  Otherwise, we never return
    */
 
-  printf("adc_main: g_adcstate.count: %d\n", g_adcstate3.count);
+  // printf("adc_main: g_adcstate.count: %d\n", g_adcstate3.count);
 
-  /* Open the ADC device for reading */
+  // /* Open the ADC device for reading */
 
-  printf("adc_main: Hardware initialized. Opening the ADC device: %s\n",
-         g_adcstate3.devpath);
+  // printf("adc_main: Hardware initialized. Opening the ADC device: %s\n",
+  //        g_adcstate3.devpath);
 
   /* Opening internal ADC1 */
-  adc3_config.fd = open("/dev/adc0", O_RDONLY);
+  adc3_config.fd = open("/dev/adc2", O_RDONLY);
   if (adc3_config.fd < 0)
   {
     printf("adc_main: open %s failed: %d\n", g_adcstate3.devpath, errno);
@@ -555,7 +564,7 @@ int read_int_adc3()
     adc3_config.readsize = CONFIG_CUSTOM_APPS_CUBUS_INT_ADC3_GROUPSIZE * sizeof(struct adc_msg_s);
     adc3_config.nbytes = read(adc3_config.fd, int_adc3_sample, adc3_config.readsize);
 
-    printf("Readsize: %d \n nbytes: %d\n CUSTOM_APPS_CUBUS_INT_ADC_GROUPSIZE : %d \n ADCSTATE READCOUNT: %d \r\n", adc3_config.readsize, adc3_config.nbytes, CONFIG_CUSTOM_APPS_CUBUS_INT_ADC3_GROUPSIZE, g_adcstate3.count);
+    // printf("Readsize: %d \n nbytes: %d\n CUSTOM_APPS_CUBUS_INT_ADC_GROUPSIZE : %d \n ADCSTATE READCOUNT: %d \r\n", adc3_config.readsize, adc3_config.nbytes, CONFIG_CUSTOM_APPS_CUBUS_INT_ADC3_GROUPSIZE, g_adcstate3.count);
 
     /* Handle unexpected return values */
     if (adc3_config.nbytes < 0)
@@ -582,18 +591,18 @@ int read_int_adc3()
       int nsamples = adc3_config.nbytes / sizeof(struct adc_msg_s);
       if (nsamples * sizeof(struct adc_msg_s) != adc3_config.nbytes)
       {
-        printf("adc_main: read size=%ld is not a multiple of "
-               "sample size=%d, Ignoring\n",
-               (long)adc3_config.nbytes, sizeof(struct adc_msg_s));
+        // printf("adc_main: read size=%ld is not a multiple of "
+        //        "sample size=%d, Ignoring\n",
+        //        (long)adc3_config.nbytes, sizeof(struct adc_msg_s));
       }
       else
       {
-        printf("Sample:\n");
-        for (int i = 0; i < nsamples; i++)
-        {
-          printf("%d: channel: %d value: %" PRId32 "\n",
-                 i, int_adc3_sample[i].am_channel, int_adc3_sample[i].am_data);
-        }
+        // printf("Sample:\n");
+        // for (int i = 0; i < nsamples; i++)
+        // {
+        //   printf("%d: channel: %d value: %" PRId32 "\n",
+        //          i, int_adc3_sample[i].am_channel, int_adc3_sample[i].am_data);
+        // }
       }
     }
 
@@ -694,105 +703,108 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
   // ret = 1;
   // TODO remove the comment line below and comment the upper line to int ret
   ret = receive_data_uart(COM_UART, COM_RX_DATA, COM_RX_CMD_SIZE); // telecommand receive
-  syslog(LOG_DEBUG, "Received ret as %d and value :%s\n", ret, COM_RX_DATA);
-  if (ret < 0)
+  if (critic_flags.OPER_MODE == NRML_MODE)
   {
-    syslog(LOG_DEBUG, "data not received from COM\n NACK sending\n");
-    send_data_uart(COM_UART, NACK, 7);
-    syslog(LOG_DEBUG, "data not received from COM\n NACK Sent\n");
-    return ret;
-  }
-  else
-  {
-    // Todo uncomment the line later
-    // syslog(LOG_SYSLOG, "COmmand received %s\n", COM_RX_DATA);
-    parse_command(COM_RX_DATA);
+    syslog(LOG_DEBUG, "Received ret as %d and value :%s\n", ret, COM_RX_DATA);
+    if (ret < 0)
+    {
+      syslog(LOG_DEBUG, "data not received from COM\n NACK sending\n");
+      send_data_uart(COM_UART, NACK, 7);
+      syslog(LOG_DEBUG, "data not received from COM\n NACK Sent\n");
+      return ret;
+    }
+    else
+    {
+      // Todo uncomment the line later
+      // syslog(LOG_SYSLOG, "COmmand received %s\n", COM_RX_DATA);
+      parse_command(COM_RX_DATA);
 
-    uint8_t commands[COM_DATA_SIZE] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
-    printf("\n-------------parse command starting-------------\n");
+      uint8_t commands[COM_DATA_SIZE] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
+      printf("\n-------------parse command starting-------------\n");
 
-    // // Check whether the received data in uart_com has initial 0x00 value or not if the initial is 0x00 then MCU_ID is supposed to be there at index 16, otherwise it is in index 17
-    // parse_command(commands);
+      // // Check whether the received data in uart_com has initial 0x00 value or not if the initial is 0x00 then MCU_ID is supposed to be there at index 16, otherwise it is in index 17
+      // parse_command(commands);
 
-    // commands[16] = 0x01;
-    // commands[17] = 0x1d;
-    // commands[18] = 0xd1;
-    // commands[19] = 0xf2;
+      // commands[16] = 0x01;
+      // commands[17] = 0x1d;
+      // commands[18] = 0xd1;
+      // commands[19] = 0xf2;
 
-    // commands[20] = 0x00;
-    // commands[21] = 0x00;
+      // commands[20] = 0x00;
+      // commands[21] = 0x00;
 
-    // commands[22] = 0x00;
-    // commands[23] = 0x00;
-    // commands[24] = 0x00;
-    // commands[25] = 0x05;
+      // commands[22] = 0x00;
+      // commands[23] = 0x00;
+      // commands[24] = 0x00;
+      // commands[25] = 0x05;
 
-    // commands[26] = 0x00;
-    // commands[27] = 0x00;
-    // commands[28] = 0x00;
+      // commands[26] = 0x00;
+      // commands[27] = 0x00;
+      // commands[28] = 0x00;
 
-    // commands[29] = 0x05;
+      // commands[29] = 0x05;
 
-    // for (int i = 0; i < 9; i++)
-    //   sleep(1);
-    // parse_command(commands);
+      // for (int i = 0; i < 9; i++)
+      //   sleep(1);
+      // parse_command(commands);
 
-    // commands[16] = 0x01;
-    // commands[17] = 0xca;
-    // commands[18] = 0xd2;
-    // commands[19] = 0xf5;
-    // for (int i = 0; i < 9; i++)
-    //   sleep(1);
-    // parse_command(commands);
-    // commands[16] = 0x02;
-    // commands[17] = 0xdf;
-    // commands[18] = 0xab;
-    // commands[19] = 0xd1;
-    // for (int i = 0; i < 9; i++)
-    //   sleep(1);
-    // parse_command(commands);
-    // commands[16] = 0x01;
-    // commands[17] = 0xee;
-    // commands[18] = 0xee;
-    // commands[19] = 0xee;
-    // for (int i = 0; i < 9; i++)
-    //   sleep(1);
-    // parse_command(commands);
+      // commands[16] = 0x01;
+      // commands[17] = 0xca;
+      // commands[18] = 0xd2;
+      // commands[19] = 0xf5;
+      // for (int i = 0; i < 9; i++)
+      //   sleep(1);
+      // parse_command(commands);
+      // commands[16] = 0x02;
+      // commands[17] = 0xdf;
+      // commands[18] = 0xab;
+      // commands[19] = 0xd1;
+      // for (int i = 0; i < 9; i++)
+      //   sleep(1);
+      // parse_command(commands);
+      // commands[16] = 0x01;
+      // commands[17] = 0xee;
+      // commands[18] = 0xee;
+      // commands[19] = 0xee;
+      // for (int i = 0; i < 9; i++)
+      //   sleep(1);
+      // parse_command(commands);
 
-    // commands[16] = 0x01;
-    // commands[17] = 0xee;
-    // commands[18] = 0xaa;
-    // commands[19] = 0xaa;
-    // for (int i = 0; i < 9; i++)
-    //   sleep(1);
-    // parse_command(commands);
+      // commands[16] = 0x01;
+      // commands[17] = 0xee;
+      // commands[18] = 0xaa;
+      // commands[19] = 0xaa;
+      // for (int i = 0; i < 9; i++)
+      //   sleep(1);
+      // parse_command(commands);
 
-    // commands[16] = 0x01;
-    // commands[17] = 0x1a;
-    // commands[18] = 0xe0;
-    // commands[19] = 0x1e;
-    // for (int i = 0; i < 9; i++)
-    //   sleep(1);
-    // parse_command(commands);
-    // commands[16] = 0x03;
-    // commands[17] = 0x0e;
-    // commands[18] = 0x53;
-    // commands[19] = 0xce;
-    // for (int i = 0; i < 9; i++)
-    //   sleep(1);
-    // parse_command(commands);
-    // commands[16] = 0x04;
-    // commands[17] = 0xcc;
-    // commands[18] = 0x5e;
-    // commands[19] = 0xbd;
-    // for (int i = 0; i < 9; i++)
-    //   sleep(1);
-    // parse_command(commands);
-    // commands[16] = 0x05;
-    // commands[17] = 0xac;
-    // commands[18] = 0xcf;
-    // commands[19] = 0xcf;
-    // parse_command(commands);
+      // commands[16] = 0x01;
+      // commands[17] = 0x1a;
+      // commands[18] = 0xe0;
+      // commands[19] = 0x1e;
+      // for (int i = 0; i < 9; i++)
+      //   sleep(1);
+      // parse_command(commands);
+      // commands[16] = 0x03;
+      // commands[17] = 0x0e;
+      // commands[18] = 0x53;
+      // commands[19] = 0xce;
+      // for (int i = 0; i < 9; i++)
+      //   sleep(1);
+      // parse_command(commands);
+      // commands[16] = 0x04;
+      // commands[17] = 0xcc;
+      // commands[18] = 0x5e;
+      // commands[19] = 0xbd;
+      // for (int i = 0; i < 9; i++)
+      //   sleep(1);
+      // parse_command(commands);
+      // commands[16] = 0x05;
+      // commands[17] = 0xac;
+      // commands[18] = 0xcf;
+      // commands[19] = 0xcf;
+      // parse_command(commands);
+    }
 
     return 0; // todo remove this part
   }
@@ -812,6 +824,7 @@ void incorrect_command(uint8_t *ack)
   ack[5] = 0x62;
   sleep(1);
   send_data_uart(COM_UART, ack, sizeof(ack));
+  pet_counter = 0;
   syslog(LOG_DEBUG, "The supplied command is incorrect");
   return;
 }
@@ -819,14 +832,14 @@ void incorrect_command(uint8_t *ack)
 void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
 {
   uint8_t ack[BEACON_DATA_SIZE] = {0x53, 0xac, 0x04, 0x01, 0x62, 0x63, 0x7e};
-  // syslog(LOG_DEBUG, "command received is :");
-  // for (int i = 0; i < COM_DATA_SIZE; i++)
-  // {
-  //   printf("%d ", COM_RX_DATA[i]);
-  // }
+  syslog(LOG_DEBUG, "command received is :");
+  for (int i = 0; i < COM_DATA_SIZE; i++)
+  {
+    printf("%02X ", COM_RX_DATA[i]);
+  }
   ack[BEACON_DATA_SIZE - 2] = 0x7e;
   ack[BEACON_DATA_SIZE - 1] = 0x7e;
-  if (COM_RX_DATA[0] == 0x53)
+  if (COM_RX_DATA[0] == 0x53 && critic_flags.OPER_MODE == NRML_MODE)
   { // SEND 85 BYTES BACK
     // 53 0A 2B 53 02 53 digipeating format
     // if (digipeating == 1 && COM_RX_DATA[1] == 0x0a && COM_RX_DATA[2] == 0x2b && COM_RX_DATA[3] == 0x53 && COM_RX_DATA[4] == 0x02 && COM_RX_DATA[5] == 0x53)
@@ -928,13 +941,15 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
 
       // uint nack
 
-      uint8_t cmds[3];
+      uint8_t cmds[5];
 
       cmds[0] = (uint8_t)COM_RX_DATA[HEADER + 1];
       cmds[1] = (uint8_t)COM_RX_DATA[HEADER + 2];
       cmds[2] = (uint8_t)COM_RX_DATA[HEADER + 3];
-      syslog(LOG_DEBUG, "**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x\n********************\n********************\n",
-             HEADER, cmds[0], cmds[0 + 1], cmds[0 + 2]);
+      cmds[3] = (uint8_t)COM_RX_DATA[HEADER + 4];
+      cmds[4] = (uint8_t)COM_RX_DATA[HEADER + 5];
+      syslog(LOG_DEBUG, "**********\n*************\nHere the com rx data is %02x,%02x,%02x,%02x,%02x,%02x\n********************\n********************\n",
+             HEADER, cmds[0], cmds[0 + 1], cmds[0 + 2], cmds[0 + 3], cmds[0 + 4]);
 
       // else if (cmds[0] == 0x53 & cmds[1] == 0xac & cmds[2] == 0x04)
       // {
@@ -949,6 +964,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       //   ack[5] =0xdd;
       //   sleep(1);
       send_data_uart(COM_UART, ack, sizeof(ack));
+      pet_counter = 0;
 
       //   // send_
       //   // sleep(3);
@@ -965,297 +981,352 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
       //   return 33;
       // }
       syslog(LOG_DEBUG, "MCU ID %d |%02x\n", cmds[0]);
-      switch (MCU_ID)
+      if (cmds[3] == 0x00 && cmds[4] == 0x00)
       {
-      case OBC_MCU: /*
-                    Command to perform flash operations by the OBC
-                    */
-
-        if (cmds[0] == 0x1a && cmds[1] == 0xe0 && cmds[2] == 0x1e)
+        switch (MCU_ID)
         {
-          printf("\n-------------------Satellite reset command received-----------------\n Resets in 2 seconds\n");
-          sleep(1);
-          gpio_write(GPIO_GBL_RST, true);
-        }
-        { // __file_operations.cmd = COM_RX_DATA[HEADER + 1];
-          syslog(LOG_DEBUG, "OBC MCU ID has been received\n");
-          // break; // TO remove this later
-          if (cmds[0] == 0xCA | cmds[0] == 0x1D)
-          {
-            struct FILE_OPERATIONS __file_operations = {
-                .cmd = 0x00,
-                .number_of_packets = {0}, // Initialize all elements to 0
-                .filepath = {'\0'},       // Initialize as an empty string
-                .address = {0},           // Initialize all elements to 0
-                .rsv_table = {0},         // Initialize all elements to 0
-                .mcu_id = 0xda};
+        case OBC_MCU: /*
+                      Command to perform flash operations by the OBC
+                      */
 
-            __file_operations.cmd = cmds[0];
-            // __file_operations.select_file = ;
-            if ((COM_RX_DATA[HEADER + 2] == 0xD1) || (COM_RX_DATA[HEADER + 2] == 0xD2))
+          if (cmds[0] == 0x1a && cmds[1] == 0xe0 && cmds[2] == 0x1e)
+          {
+            printf("\n-------------------Satellite reset command received-----------------\n Resets in 2 seconds\n");
+            sleep(1);
+            gpio_write(GPIO_GBL_RST, true);
+          }
+          { // __file_operations.cmd = COM_RX_DATA[HEADER + 1];
+            syslog(LOG_DEBUG, "OBC MCU ID has been received\n");
+            // break; // TO remove this later
+            if (cmds[0] == 0xCA | cmds[0] == 0x1D)
             {
-              __file_operations.select_flash = MAIN_FLASH_MEMORY;
-              if ((COM_RX_DATA[HEADER + 2] == 0xD2))
-                strcpy(__file_operations.filepath, MFM_MSN_STRPATH);
+              struct FILE_OPERATIONS __file_operations = {
+                  .cmd = 0x00,
+                  .number_of_packets = {0}, // Initialize all elements to 0
+                  .filepath = {'\0'},       // Initialize as an empty string
+                  .address = {0},           // Initialize all elements to 0
+                  .rsv_table = {0},         // Initialize all elements to 0
+                  .mcu_id = 0xda};
+
+              __file_operations.cmd = cmds[0];
+              // __file_operations.select_file = ;
+              if ((COM_RX_DATA[HEADER + 2] == 0xD1) || (COM_RX_DATA[HEADER + 2] == 0xD2))
+              {
+                __file_operations.select_flash = MAIN_FLASH_MEMORY;
+                if ((COM_RX_DATA[HEADER + 2] == 0xD2))
+                  strcpy(__file_operations.filepath, MFM_MSN_STRPATH);
+                else
+                  strcpy(__file_operations.filepath, MFM_MAIN_STRPATH);
+              }
+              if ((COM_RX_DATA[HEADER + 2] == 0xD3) || (COM_RX_DATA[HEADER + 2] == 0xD4))
+              {
+                __file_operations.select_flash = SHARED_FLASH_MEMORY;
+                if ((COM_RX_DATA[HEADER + 2] == 0xD3))
+                  strcpy(__file_operations.filepath, SFM_MAIN_STRPATH);
+                else
+                  strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
+              }
+              char filename[7][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
+
+              if ((cmds[2] == 0xF1))
+              {
+                __file_operations.select_file = FLAGS;
+                __file_operations.mcu_id = 0xad;
+
+                strcat(__file_operations.filepath, "/flags.txt");
+                syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
+              }
+              else if ((cmds[2] == 0xF2))
+              {
+                __file_operations.mcu_id = 218;
+                __file_operations.select_file = SATELLITE_HEALTH;
+                strcat(__file_operations.filepath, "/satHealth.txt");
+                syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
+              }
+              else if ((cmds[2] == 0xF3))
+              {
+                __file_operations.mcu_id = 0xda;
+
+                __file_operations.select_file = SATELLITE_LOG;
+                strcat(__file_operations.filepath, "/satHealth.txt");
+              }
+              else if ((cmds[2] == 0xF4))
+              {
+                __file_operations.mcu_id = 0xad;
+
+                __file_operations.select_file = RESERVATION_TABLE;
+                strcat(__file_operations.filepath, "/reservation_table.txt");
+              }
+              else if ((cmds[2] == 0xF5))
+              {
+                strcat(__file_operations.filepath, "/cam_rgb.txt");
+                __file_operations.mcu_id = 0x0c;
+
+                __file_operations.select_file = CAMERA_TXT;
+              }
+              else if ((cmds[2] == 0xF6))
+              {
+                __file_operations.mcu_id = 0x0b;
+
+                __file_operations.select_file = EPDM_TXT;
+                strcat(__file_operations.filepath, "/epdm.txt");
+              }
+              else if ((cmds[2] == 0xF7))
+              {
+                __file_operations.select_file = ADCS_TXT;
+                __file_operations.mcu_id = 0x0d;
+                strcat(__file_operations.filepath, "/adcs.txt");
+              }
+
+              // TODO check reservation table here
+
+              __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
+              __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
+
+              // TODO check address here
+              __file_operations.address[0] = COM_RX_DATA[HEADER + 6];
+              __file_operations.address[1] = COM_RX_DATA[HEADER + 7];
+              __file_operations.address[2] = COM_RX_DATA[HEADER + 8];
+              __file_operations.address[3] = COM_RX_DATA[HEADER + 9];
+
+              // TODO check for number of packets here
+              __file_operations.number_of_packets[0] = COM_RX_DATA[HEADER + 10];
+              __file_operations.number_of_packets[1] = COM_RX_DATA[HEADER + 11];
+
+              syslog(LOG_DEBUG, "mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
+                     __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
+                     __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
+                     __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
+              sleep(1);
+              send_data_uart(COM_UART, ack, sizeof(ack));
+              perform_file_operations(&__file_operations);
+            }
+
+            /*
+            Command for disabling status of KILL SWITCH
+            */
+            else if (cmds[0] == 0xee && cmds[1] == 0xaa && cmds[2] == 0xaa)
+            {
+              sleep(1);
+              send_data_uart(COM_UART, ack, sizeof(ack));
+              critic_flags.KILL_SWITCH_STAT = KILL_SW_OFF;
+              store_flag_data(&critic_flags);
+              syslog(LOG_DEBUG, "--------- kill switch deactivated\n");
+            }
+
+            /*
+            Command for enabling status of KILL SWITCH
+            */
+            else if (cmds[0] == 0xee && cmds[1] == 0xee && cmds[2] == 0xee)
+            {
+              sleep(1);
+              send_data_uart(COM_UART, ack, sizeof(ack));
+              critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
+              store_flag_data(&critic_flags);
+              syslog(LOG_DEBUG, "---------kill switch activated\n");
+            }
+          }
+          /* code */
+          break;
+
+        case COM_MCU:
+          // Command to ENABLE Digipeater misison
+          {
+            syslog(LOG_DEBUG, "COM MCU ID has been received\n");
+            if (cmds[0] == 0xDF && cmds[1] == 0xAB && cmds[2] == 0xD1)
+            {
+
+              syslog(LOG_DEBUG, "-------- Digipeater mission turned ON---------\n");
+            }
+
+            // Command to DISABLE Digipeater misison
+            else if (cmds[0] == 0xFD && cmds[1] == 0xBA && cmds[2] == 0xD0)
+            {
+              incorrect_command(ack);
+              syslog(LOG_DEBUG, "-----------------------Digipeater mission turned OFF---------------\n");
+            }
+          }
+          /* code */
+          break;
+
+        case ADCS_MCU:
+          // Command to DISABLE adcs(MSN1) misison
+          {
+            syslog(LOG_DEBUG, "ADCS MCU ID has been received\n");
+            if (cmds[1] == 0x53 && cmds[2] == 0xCE)
+            {
+              sleep(1);
+              send_data_uart(COM_UART, ack, sizeof(ack));
+              syslog(LOG_DEBUG, "------------  ADCS mission turned on (command received using radio frequency)--------------\n");
+              if (cmds[0] == 0xA0)
+                adcs_operation(0x01);
               else
-                strcpy(__file_operations.filepath, MFM_MAIN_STRPATH);
+                adcs_operation(0x02);
+              syslog(LOG_DEBUG, "------------  ADCS mission turned off (command received using radio frequency) --------------\n");
             }
-            if ((COM_RX_DATA[HEADER + 2] == 0xD3) || (COM_RX_DATA[HEADER + 2] == 0xD4))
-            {
-              __file_operations.select_flash = SHARED_FLASH_MEMORY;
-              if ((COM_RX_DATA[HEADER + 2] == 0xD3))
-                strcpy(__file_operations.filepath, SFM_MAIN_STRPATH);
-              else
-                strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
-            }
-            char filename[7][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam.txt", "/epdm.txt", "/adcs.txt"};
-
-            if ((cmds[2] == 0xF1))
-            {
-              __file_operations.select_file = FLAGS;
-              __file_operations.mcu_id = 0xad;
-
-              strcat(__file_operations.filepath, "/flags.txt");
-              syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
-            }
-            else if ((cmds[2] == 0xF2))
-            {
-              __file_operations.mcu_id = 218;
-              __file_operations.select_file = SATELLITE_HEALTH;
-              strcat(__file_operations.filepath, "/satHealth.txt");
-              syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
-            }
-            else if ((cmds[2] == 0xF3))
-            {
-              __file_operations.mcu_id = 0xda;
-
-              __file_operations.select_file = SATELLITE_LOG;
-              strcat(__file_operations.filepath, "/satHealth.txt");
-            }
-            else if ((cmds[2] == 0xF4))
-            {
-              __file_operations.mcu_id = 0xad;
-
-              __file_operations.select_file = RESERVATION_TABLE;
-              strcat(__file_operations.filepath, "/reservation_table.txt");
-            }
-            else if ((cmds[2] == 0xF5))
-            {
-              strcat(__file_operations.filepath, "/cam.txt");
-              __file_operations.mcu_id = 0x0c;
-
-              __file_operations.select_file = CAMERA_TXT;
-            }
-            else if ((cmds[2] == 0xF6))
-            {
-              __file_operations.mcu_id = 0x0b;
-
-              __file_operations.select_file = EPDM_TXT;
-              strcat(__file_operations.filepath, "/epdm.txt");
-            }
-            else if ((cmds[2] == 0xF7))
-            {
-              __file_operations.select_file = ADCS_TXT;
-              __file_operations.mcu_id = 0x0d;
-              strcat(__file_operations.filepath, "/adcs.txt");
-            }
-
-            // TODO check reservation table here
-
-            __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
-            __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
-
-            // TODO check address here
-            __file_operations.address[0] = COM_RX_DATA[HEADER + 6];
-            __file_operations.address[1] = COM_RX_DATA[HEADER + 7];
-            __file_operations.address[2] = COM_RX_DATA[HEADER + 8];
-            __file_operations.address[3] = COM_RX_DATA[HEADER + 9];
-
-            // TODO check for number of packets here
-            __file_operations.number_of_packets[0] = COM_RX_DATA[HEADER + 10];
-            __file_operations.number_of_packets[1] = COM_RX_DATA[HEADER + 11];
-
-            syslog(LOG_DEBUG, "mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
-                   __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
-                   __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
-                   __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
-            sleep(1);
-            send_data_uart(COM_UART, ack, sizeof(ack));
-            perform_file_operations(&__file_operations);
-          }
-
-          /*
-          Command for disabling status of KILL SWITCH
-          */
-          else if (cmds[0] == 0xee && cmds[1] == 0xaa && cmds[2] == 0xaa)
-          {
-            sleep(1);
-            send_data_uart(COM_UART, ack, sizeof(ack));
-            critic_flags.KILL_SWITCH_STAT = KILL_SW_OFF;
-            store_flag_data(&critic_flags);
-            syslog(LOG_DEBUG, "--------- kill switch deactivated\n");
-          }
-
-          /*
-          Command for enabling status of KILL SWITCH
-          */
-          else if (cmds[0] == 0xee && cmds[1] == 0xee && cmds[2] == 0xee)
-          {
-            sleep(1);
-            send_data_uart(COM_UART, ack, sizeof(ack));
-            critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
-            store_flag_data(&critic_flags);
-            syslog(LOG_DEBUG, "---------kill switch activated\n");
-          }
-        }
-        /* code */
-        break;
-
-      case COM_MCU:
-        // Command to ENABLE Digipeater misison
-        {
-          syslog(LOG_DEBUG, "COM MCU ID has been received\n");
-          if (cmds[0] == 0xDF && cmds[1] == 0xAB && cmds[2] == 0xD1)
-          {
-
-            syslog(LOG_DEBUG, "-------- Digipeater mission turned ON---------\n");
-          }
-
-          // Command to DISABLE Digipeater misison
-          else if (cmds[0] == 0xFD && cmds[1] == 0xBA && cmds[2] == 0xD0)
-          {
-            incorrect_command(ack);
-            syslog(LOG_DEBUG, "-----------------------Digipeater mission turned OFF---------------\n");
-          }
-        }
-        /* code */
-        break;
-
-      case ADCS_MCU:
-        // Command to DISABLE adcs(MSN1) misison
-        {
-          syslog(LOG_DEBUG, "ADCS MCU ID has been received\n");
-          if (cmds[1] == 0x53 && cmds[2] == 0xCE)
-          {
-            sleep(1);
-            send_data_uart(COM_UART, ack, sizeof(ack));
-            syslog(LOG_DEBUG, "------------  ADCS mission turned on (command received using radio frequency)--------------\n");
-            if (cmds[0] == 0xA0)
-              adcs_operation(0x01);
             else
-              adcs_operation(0x02);
-            syslog(LOG_DEBUG, "------------  ADCS mission turned off (command received using radio frequency) --------------\n");
-          }
-          else
-          {
-            incorrect_command(ack);
-            // 53,ac,04,01,63,62,7e
-            ack[2] = 0xac;
-            ack[3] = 0x04;
-            ack[4] = 0x01;
-            ack[5] = 0x63;
-            ack[6] = 0x62;
-            ack[7] = 0x7e;
-
-            sleep(1);
-            send_data_uart(COM_UART, ack, sizeof(ack));
-            syslog(LOG_DEBUG, "----------------Incorrect command for ADCS mission---------------\n");
-          }
-        }
-        /* code */
-        break;
-
-      case CAM_MCU:
-        // Command to ENABLE/DISABLE or run camera(MSN2) mission
-        {
-          syslog(LOG_DEBUG, "CAM MCU ID has been received\n");
-          if (cmds[0] == 0xCC && cmds[1] == 0x5E && cmds[2] == 0xBD)
-          {
-            gpio_write(GPIO_SFM_MODE, true);
-            turn_msn_on_off(2, 1);
-            syslog(LOG_DEBUG, "------------------------  cam mission turned on (Command received from COM using RF)------------------\n");
-
-            sleep(1);
-            send_data_uart(COM_UART, ack, sizeof(ack));
-            cam_operation();
-            int fd = open(CAM_UART, O_WRONLY); // Open in non-blocking mode
-            if (fd < 0)
             {
-              printf("Error opening %s\n", CAM_UART);
-              usleep(PRINT_DELAY);
-              return -1;
+              incorrect_command(ack);
+              // 53,ac,04,01,63,62,7e
+              ack[2] = 0xac;
+              ack[3] = 0x04;
+              ack[4] = 0x01;
+              ack[5] = 0x63;
+              ack[6] = 0x62;
+              ack[7] = 0x7e;
+
+              sleep(1);
+              send_data_uart(COM_UART, ack, sizeof(ack));
+              syslog(LOG_DEBUG, "----------------Incorrect command for ADCS mission---------------\n");
             }
-            int r;
-            ret = read(fd, &r, sizeof(int));
-            if (ret > 0)
+          }
+          /* code */
+          break;
+
+        case CAM_MCU:
+          // Command to ENABLE/DISABLE or run camera(MSN2) mission
+          {
+            syslog(LOG_DEBUG, "CAM MCU ID has been received\n");
+            if (cmds[0] == 0xCC && cmds[1] == 0x5E && cmds[2] == 0xBD)
             {
-              printf("got mission off command\n");
+              gpio_write(GPIO_SFM_MODE, true);
+              // turn_msn_on_off(2, 1);
+              syslog(LOG_DEBUG, "------------------------  cam mission turned on (Command received from COM using RF)------------------\n");
+
+              // sleep(1);
+              send_data_uart(COM_UART, ack, sizeof(ack));
+              // cam_operation();
+              new_camera_operation();
+              // int fd = open(CAM_UART, O_WRONLY); // Open in non-blocking mode
+              // if (fd < 0)
+              // {
+              //   printf("Error opening %s\n", CAM_UART);
+              //   usleep(PRINT_DELAY);
+              //   return -1;
+              // }
+              // int r;
+              // ret = read(fd, &r, sizeof(int));
+              // if (ret > 0)
+              // {
+              //   printf("got mission off command\n");
+              // }
+              // close(fd);
+              // turn_msn_on_off(2, 0);
+
+              syslog(LOG_DEBUG, "------------------------  cam mission turned off(Command received from COM using RF)--------------------\n");
             }
-            close(fd);
-            turn_msn_on_off(2, 0);
+            else
+            {
+              incorrect_command(ack);
+              ack[2] = 0xac;
+              ack[3] = 0x04;
+              ack[4] = 0x01;
+              ack[5] = 0x63;
+              ack[6] = 0x62;
+              ack[7] = 0x7e;
+              sleep(1);
+              send_data_uart(COM_UART, ack, sizeof(ack));
+              syslog(LOG_DEBUG, "------------Incorrect command\n");
+            }
+          }
+          /* code */
+          break;
 
-            syslog(LOG_DEBUG, "------------------------  cam mission turned off(Command received from COM using RF)--------------------\n");
-          }
-          else
+        case EPDM_MCU:
+          // Command to ENABLE/DISABLE or run epdm(MSN3) mission
           {
-            incorrect_command(ack);
-            ack[2] = 0xac;
-            ack[3] = 0x04;
-            ack[4] = 0x01;
-            ack[5] = 0x63;
-            ack[6] = 0x62;
-            ack[7] = 0x7e;
-            sleep(1);
-            send_data_uart(COM_UART, ack, sizeof(ack));
-            syslog(LOG_DEBUG, "------------Incorrect command\n");
+            syslog(LOG_DEBUG, "EPDM MCU ID has been received\n");
+            if (cmds[0] == 0xEC && cmds[1] == 0xCF && cmds[2] == 0xCF)
+            {
+              sleep(1);
+              send_data_uart(COM_UART, ack, sizeof(ack));
+
+              syslog(LOG_DEBUG, "----------------EPDM  turned on ------------------\n");
+              epdm_operation();
+              syslog(LOG_DEBUG, "----------------EPDM  turned off -----------------\n");
+            }
+            else
+            {
+              incorrect_command(ack);
+
+              ack[2] = 0xac;
+              ack[3] = 0x04;
+              ack[4] = 0x01;
+              ack[5] = 0x63;
+              ack[6] = 0x62;
+              ack[7] = 0x7e;
+              sleep(1);
+              send_data_uart(COM_UART, ack, sizeof(ack));
+              syslog(LOG_DEBUG, "------------Incorrect command received for EPDM-----------\n");
+            }
           }
+          /* code */
+          break;
+
+        default:
+          ack[2] = 0xac;
+          ack[3] = 0x04;
+          ack[4] = 0x01;
+          ack[5] = 0x63;
+          ack[6] = 0x62;
+          ack[7] = 0x7e;
+          incorrect_command(ack);
+
+          break;
         }
-        /* code */
-        break;
-
-      case EPDM_MCU:
-        // Command to ENABLE/DISABLE or run epdm(MSN3) mission
-        {
-          syslog(LOG_DEBUG, "EPDM MCU ID has been received\n");
-          if (cmds[0] == 0xEC && cmds[1] == 0xCF && cmds[2] == 0xCF)
-          {
-            sleep(1);
-            send_data_uart(COM_UART, ack, sizeof(ack));
-
-            syslog(LOG_DEBUG, "----------------EPDM  turned on ------------------\n");
-            epdm_operation();
-            syslog(LOG_DEBUG, "----------------EPDM  turned off -----------------\n");
-          }
-          else
-          {
-            incorrect_command(ack);
-
-            ack[2] = 0xac;
-            ack[3] = 0x04;
-            ack[4] = 0x01;
-            ack[5] = 0x63;
-            ack[6] = 0x62;
-            ack[7] = 0x7e;
-            sleep(1);
-            send_data_uart(COM_UART, ack, sizeof(ack));
-            syslog(LOG_DEBUG, "------------Incorrect command received for EPDM-----------\n");
-          }
-        }
-        /* code */
-        break;
-
-      default:
-        ack[2] = 0xac;
-        ack[3] = 0x04;
-        ack[4] = 0x01;
-        ack[5] = 0x63;
-        ack[6] = 0x62;
-        ack[7] = 0x7e;
-        incorrect_command(ack);
-
-        break;
       }
+      else
+      {
+        struct reservation_command res;
+        res.mcu_id = MCU_ID;
+        for (int i = 0; i < 5; i++)
+        {
 
+          if (i < 3)
+            res.cmd[i] = cmds[i];
+          else
+            res.time[i % 3] = cmds[i];
+        }
+        res.latest_time = 0x00;
+
+        uint16_t t = 0x00;
+        int adc_instance = 0;
+        t = (uint16_t)cmds[3] << 8 | cmds[4];
+        printf("Reservation command received with time:%d minutes", t);
+        printf("The command is %02x %02x %02x\n", cmds[0], cmds[1], cmds[2]);
+        int raw_afd = orb_advertise_multi_queue_persist(ORB_ID(reservation_command), &res,
+                                                        &adc_instance, sizeof(struct reservation_command));
+
+        if (raw_afd < 0)
+        {
+          syslog(LOG_ERR, "Raw ADC advertise failed. %i\n", raw_afd);
+        }
+        else
+        {
+          if (OK != orb_publish(ORB_ID(reservation_command), raw_afd, &res))
+          {
+            syslog(LOG_ERR, "Orb Publish failed\n");
+          }
+          else
+          {
+            syslog(LOG_DEBUG, "Reservation Command Orb Published\n");
+            // sat_health.rsv_cmd+=1;
+            sat_health.rsv_flag += 1;
+            critic_flags.RSV_FLAG += 1;
+            save_critics_flags(&critic_flags);
+            // sort_reservation_command(1, false);
+
+            // FIRST_RSV_CMD = true;
+          }
+        }
+        ret = orb_unadvertise(raw_afd);
+        if (ret < 0)
+        {
+          syslog(LOG_ERR, "adc raw Orb Unadvertise failed.\n");
+        }
+        // ORB_DECLARE(reservation_command);
+        // ORB_DEFINE(reservation_command, struct reservation_command,print_satellite_health_data);
+      }
       // for (int i = 0; i < BEACON_DATA_SIZE; i++)
       // {
       //     send_data_uart(COM_UART, ack[i], 1);
@@ -1270,16 +1341,16 @@ static int COM_TASK(int argc, char *argv[])
   int ret = -1;
   uint8_t rx_data[COM_RX_CMD_SIZE] = {'\0'};
   gpio_write(GPIO_3V3_COM_EN, 0);
-  gpio_write(GPIO_3V3_COM_EN, false); // Enable COM systems
+  gpio_write(GPIO_3V3_COM_EN, false); // Disable COM systems
 
-  sleep(3);
+  sleep(1);
   syslog(LOG_DEBUG, "***************************Turning on COM MSN...***************************\n");
   gpio_write(GPIO_3V3_COM_EN, 1);
-  sleep(3);
+  sleep(1);
   gpio_write(GPIO_3V3_COM_EN, true); // Enable COM systems
 
   // usleep(2000000);
-  sleep(5);
+  sleep(1);
   ret = handshake_COM(data); // tx rx data is flushed before closing the file
   // usleep(PRINT_DELAY * 100);
   sleep(1);
@@ -1335,32 +1406,61 @@ static int COM_TASK(int argc, char *argv[])
     send_beacon_data();
     //  stm32_rtc_initialize();
   }
+  struct reservation_command res;
+  int fd_reservation = orb_subscribe(ORB_ID(reservation_command));
+  uint32_t updated;
+  uint32_t t2;
 
+  time_t current_time;
   for (;;)
   {
     if (COM_HANDSHAKE_STATUS == 1)
     {
+      if (sat_health.batt_volt > 370)
+      {
+        critic_flags.OPER_MODE = NRML_MODE;
+      }
+      if (sat_health.batt_volt <= 370)
+      {
+        critic_flags.OPER_MODE = SAFE_MODE;
+      }
       receive_telecommand_rx(rx_data);
+      get_top_rsv(&TO_EXECUTE);
+      // pet_counter =0;
+      // res.latest_time =10;
+      // get_top_rsv(&res);
+
+      handle_reservation_command(1, TO_EXECUTE);
     }
-    usleep(1000);
+    // usleep(1000);
+    sleep(10);
   }
 }
 
 void send_beacon(int argc, char *argv)
 {
+  int count_beacon = 0, fd_reservation, updated = 0, t2;
+  struct reservation_command TO_EXECUTE, res;
+  // int fd_reservation;
+  fd_reservation = orb_subscribe(ORB_ID(reservation_command));
+
   for (;;)
   {
-    if (COM_HANDSHAKE_STATUS == 1)
+    if (COM_HANDSHAKE_STATUS == 1 && count_beacon % 88 == 0)
     {
+      count_beacon = 0;
       read_int_adc1();
-      // read_int_adc3();
-      // ads7953_receiver(argc, argv);
+      read_int_adc3();
+      //   // ads7953_receiver(argc, argv);
 
       make_satellite_health();
+      print_satellite_health_data(&sat_health);
       send_beacon_data();
+      count_beacon = 0;
     }
-    sleep(88); // 90 // TODO make it 90 later
-
+    count_beacon += 1;
+    timer++;
+    sleep(1); // 90 // TODO make it 90 later
     // usleep(100000);
   }
 }
@@ -1640,8 +1740,10 @@ int handshake_MSN_ADCS(uint8_t subsystem, uint8_t *ack)
   int loop = 0;
   close(fd);
   fd = open(ADCS_UART, O_RDONLY);
-  ret = read(fd, data1, 7);
-
+  for (int i = 0; i < 7; i++)
+  {
+    ret = read(fd, &data1[i], 7);
+  }
   printf("Data received from %s:\n", devpath);
   usleep(PRINT_DELAY);
   for (int j = 0; j < 7; j++)
@@ -1947,7 +2049,7 @@ void serialize_beacon_a(uint8_t beacon_data[BEACON_DATA_SIZE])
   beacon_data[1 + 19] = s2s_beacon_type_a.X1_T;
   beacon_data[1 + 20] = s2s_beacon_type_a.Y_T;
   beacon_data[1 + 21] = s2s_beacon_type_a.Y1_T;
-  beacon_data[1 + 22] = 0; // s2s_beacon_type_a.SOL_P5_T;
+  beacon_data[1 + 22] = sat_health.sol_p5_v;
 
   beacon_data[1 + 23] = s2s_beacon_type_a.SOL_P1_STAT << 7 & s2s_beacon_type_a.SOL_P2_STAT << 6 & s2s_beacon_type_a.SOL_P3_STAT << 5 & s2s_beacon_type_a.SOL_P4_STAT << 4 & s2s_beacon_type_a.MSN1_STAT << 3 & s2s_beacon_type_a.MSN2_STAT << 2 & s2s_beacon_type_a.MSN3_STAT << 1 & 0xff;
   beacon_data[1 + 24] = s2s_beacon_type_a.ANT_STAT << 4 & s2s_beacon_type_a.UL_STAT << 4;
@@ -1978,13 +2080,13 @@ void serialize_beacon_b(uint8_t beacon_data[BEACON_DATA_SIZE])
   beacon_data[1 + 4] = s2s_beacon_type_b.SOL_P2_V;
   beacon_data[1 + 5] = s2s_beacon_type_b.SOL_P3_V;
   beacon_data[1 + 6] = s2s_beacon_type_b.SOL_P4_V;
-  beacon_data[1 + 7] = 0x00; // panel 5
+  beacon_data[1 + 7] = s2s_beacon_type_b.SOL_P5_V; // panel 5
 
   beacon_data[1 + 8] = s2s_beacon_type_b.SOL_P1_C;
   beacon_data[1 + 9] = s2s_beacon_type_b.SOL_P2_C;
   beacon_data[1 + 10] = s2s_beacon_type_b.SOL_P3_C;
   beacon_data[1 + 11] = s2s_beacon_type_b.SOL_P4_C;
-  beacon_data[1 + 12] = 0x00;
+  beacon_data[1 + 12] = s2s_beacon_type_b.SOL_P5_C;
 
   beacon_data[1 + 13] = ((s2s_beacon_type_b.GYRO_X >> 8) & 0xff) * 100;
   beacon_data[1 + 14] = ((s2s_beacon_type_b.GYRO_X) & 0xff) * 100;
@@ -2045,10 +2147,11 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_a.X1_T = sat_health.temp_x1;
     s2s_beacon_type_a.X_T = sat_health.temp_x;
 
-    s2s_beacon_type_a.SOL_P1_STAT = sat_health.sol_p1_v >= 100 ? 1 : 0; // check from power, max power draw is 0.6 watt
-    s2s_beacon_type_a.SOL_P2_STAT = sat_health.sol_p2_v >= 100 ? 1 : 0;
-    s2s_beacon_type_a.SOL_P3_STAT = sat_health.sol_p3_v >= 100 ? 1 : 0;
-    s2s_beacon_type_a.SOL_P4_STAT = sat_health.sol_p4_v >= 100 ? 1 : 0;
+    s2s_beacon_type_a.SOL_P1_STAT = sat_health.sol_p1_v >= 1000 ? 1 : 0; // check from power, max power draw is 0.6 watt
+    s2s_beacon_type_a.SOL_P2_STAT = sat_health.sol_p2_v >= 1000 ? 1 : 0;
+    s2s_beacon_type_a.SOL_P3_STAT = sat_health.sol_p3_v >= 1000 ? 1 : 0;
+    s2s_beacon_type_a.SOL_P4_STAT = sat_health.sol_p4_v >= 1000 ? 1 : 0;
+    s2s_beacon_type_a.SOL_P5_STAT = sat_health.sol_p5_v >= 1000 ? 1 : 0;
 
     s2s_beacon_type_a.ANT_STAT = critic_flags.ANT_DEP_STAT;
     s2s_beacon_type_a.KILL1_STAT = critic_flags.KILL_SWITCH_STAT;
@@ -2069,11 +2172,13 @@ void Make_Beacon_Data(uint8_t type)
     s2s_beacon_type_b.SOL_P2_V = sat_health.sol_p2_v;
     s2s_beacon_type_b.SOL_P3_V = sat_health.sol_p3_v;
     s2s_beacon_type_b.SOL_P4_V = sat_health.sol_p4_v;
+    s2s_beacon_type_b.SOL_P5_V = sat_health.sol_p5_v;
 
     s2s_beacon_type_b.SOL_P1_C = sat_health.sol_p1_c;
     s2s_beacon_type_b.SOL_P2_C = sat_health.sol_p2_c;
     s2s_beacon_type_b.SOL_P3_C = sat_health.sol_p3_c;
     s2s_beacon_type_b.SOL_P4_C = sat_health.sol_p4_c;
+    s2s_beacon_type_b.SOL_P5_C = sat_health.sol_p5_c;
 
     s2s_beacon_type_b.MAG_X = (int16_t)(sat_health.mag_x);
     s2s_beacon_type_b.MAG_Y = (int16_t)(sat_health.mag_y);
@@ -2571,6 +2676,11 @@ int main(int argc, FAR char *argv[])
     counter = file_seek(&file_pointer, 0, SEEK_END);
     file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_TRUNC);
     file_close(&file_pointer2);
+    fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mission/cam_rgb.txt", O_TRUNC);
+    counter = file_seek(&file_pointer, 0, SEEK_END);
+    file_open(&file_pointer2, "/mnt/fs/sfm/mtd_mission/cam_nir.txt", O_TRUNC);
+    file_close(&file_pointer2);
+
     file_close(&file_pointer);
     file_open(&file_pointer2, "/mnt/fs/sfm/mtd_mainstorage/test.txt", O_TRUNC);
     file_close(&file_pointer2);
@@ -2578,104 +2688,54 @@ int main(int argc, FAR char *argv[])
     file_close(&file_pointer2);
     file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/test.txt", O_TRUNC);
     file_close(&file_pointer2);
+    //
+    file_open(&file_pointer2, "/mnt/fs/sfm/mtd_mainstorage/epdm.txt", O_TRUNC);
+    file_close(&file_pointer2);
+    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/epdm.txt", O_TRUNC);
+    file_close(&file_pointer2);
+    file_open(&file_pointer2, "/mnt/fs/sfm/mtd_mission/epdm.txt", O_TRUNC);
+    file_close(&file_pointer2);
+    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mainstorage/epdm.txt", O_TRUNC);
+    file_close(&file_pointer2);
+    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mainstorage/sat_health.txt", O_TRUNC);
+    file_close(&file_pointer2);
+    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt", O_TRUNC);
+    file_close(&file_pointer2);
+
+    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mainstorage/reservation_command.txt", O_TRUNC);
+    file_close(&file_pointer2);
+    // file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt", O_TRUNC);
+    // file_close(&file_pointer2);
   }
   else if (strcmp(argv[1], "sfm") == 0)
   {
-    struct file file_pointer, file_pointer2;
-
-    uint8_t data2[] = {0x53, 0x01, 0x02, 0x03, 0x04, 0x7e, '\0'};
-    turn_msn_on_off(2, 1);
-    // usleep(1000000);
-    sleep(2);
-    int fd = open(CAM_UART, O_RDWR); // Open in non-blocking mode
-    if (fd < 0)
-    {
-      printf("Error opening %s\n", CAM_UART);
-      usleep(PRINT_DELAY);
-      return -1;
-    }
-
-    // Writing handshake data
-    for (int p = 0; p < 7; p++)
-      ret = write(fd, data2[p], 1);
-    if (ret > 0)
-    {
-      hand = 0;
-    }
-    // close(fd);
-    // if (hand == 0)
-    {
-      syslog(LOG_DEBUG, "Command %s sent\n", data2);
-
-      int p = 0;
-      uint8_t data3[7] = {'\0'}, data4[7] = {'\0'}, uart_data;
-      uint32_t counter1 = 0;
-      // uint8_t cam[11500] = {'\0'};
-      // int fd2 = open(CAM_UART, O_RDONLY);
-      // sleep(10);
-      sleep(1);
-      ret = read(fd, data3, sizeof(data3));
-      if (ret > 0)
-      {
-        printf("Handshake success %s", data3);
-      }
-      // ret = read(fd, &data4, 2);
-      // if (ret > 0)
-      // {
-      //   printf("CAM mission end: %d, %d", data4[0], data4[1]);
-      // }
-      close(fd);
-    }
-    sleep(21);
-    uint8_t data1[3500] = {'\0'};
-    gpio_write(GPIO_SFM_MODE, false);
-
-    int32_t ret, count;
-    fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mission/cam_nir.txt", O_CREAT | O_RDWR | O_APPEND);
-    uint16_t counter = file_seek(&file_pointer, 0, SEEK_END);
-    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_CREAT | O_WRONLY | O_APPEND);
-    uint16_t counter2 = file_seek(&file_pointer2, 0, SEEK_END);
-    file_close(&file_pointer2);
-    do
-    {
-      if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
-      {
-        if (counter - counter2 > 3500)
-        {
-          count = 3500;
-        }
-        else
-        {
-          count = counter - counter2;
-        }
-        counter2 += count;
-        ret = file_read(&file_pointer, data1, count);
-        printf("ret is %d %d", ret, counter - counter2);
-        for (int32_t i = 0; i < count; i++)
-        {
-          printf("%02X ", data1[i]);
-        }
-        // if ( >= 0)
-        ret = open("/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_WRONLY | O_APPEND);
-        ssize_t writeBytes = write(ret, data1, count);
-        close(ret);
-        // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
-        printf("The file of size %d has been written\n", writeBytes);
-      }
-    } while (counter2 < counter);
-
-    turn_msn_on_off(2, 0);
+    new_camera_operation();
+    // int retval = task_create("Camera_TASK_APP", 100, 30048, new_camera_operation, NULL);
   }
 
   else if (strcmp(argv[1], "sfm1") == 0)
   {
     gpio_write(GPIO_SFM_MODE, false);
+    uint8_t ttt[6];
+    int fd2 = open("/dev/ttyS5", O_RDWR);
+    if (fd2 >= 0)
+    {
+      printf("UART successfully opened\n");
+      write(fd2, "test", 4);
+      read(fd2, ttt, 6);
+      close(fd2);
+    }
+    // write(fd2,"testing",7);
+    else
+    {
+      printf("UART driver failed\n");
+    }
     // gpio_write(GPIO_MSN2_EN);
-    turn_msn_on_off(2, 0);
+    // turn_msn_on_off(2, 0);
   }
   else if (strcmp(argv[1], "com") == 0)
   {
-    int retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
+    int retval = task_create("COMMANDER_TASK_APP", 100, 4096, COM_TASK, NULL);
     if (retval < 0)
     {
       printf("unable to create MPU6500_TASK_APP task\n");
@@ -2788,36 +2848,37 @@ int main(int argc, FAR char *argv[])
   else if (strcmp(argv[1], "int") == 0)
   {
     // for (int i = 0; i < 20; i++)
+    while (1)
     {
-      // read_int_adc1();
+      read_int_adc1();
       // read_int_adc3();
-      // make_satellite_health();
-      bool g_adc_task_started = false;
-      if (g_adc_task_started)
-      {
-        printf("[Reset TASK] Task already started.\n");
-        return EXIT_SUCCESS;
-      }
-      else
-      {
-        printf("[ADC TASK] Task  started.\n");
-        int retval = task_create("ADC_TASK_APP", 100, 1400, ads7953_receiver, NULL);
-        if (retval < 0)
-        {
-          printf("unable to create ADC_TASK_APP task\n");
-          for (int i = 0; i < 4; i++)
-          {
-            retval = task_create("ADC_TASK_APP", 100, 1600, ads7953_receiver, NULL);
-            if (retval >= 0)
-            {
-              g_adc_task_started = true;
-              break;
-              return 0;
-            }
-          }
-          return -1;
-        }
-      }
+      make_satellite_health();
+      // bool g_adc_task_started = false;
+      // if (g_adc_task_started)
+      // {
+      //   printf("[Reset TASK] Task already started.\n");
+      //   return EXIT_SUCCESS;
+      // }
+      // else
+      // {
+      //   printf("[ADC TASK] Task  started.\n");
+      //   int retval = task_create("ADC_TASK_APP", 100, 1400, ads7953_receiver, NULL);
+      //   if (retval < 0)
+      //   {
+      //     printf("unable to create ADC_TASK_APP task\n");
+      //     for (int i = 0; i < 4; i++)
+      //     {
+      //       retval = task_create("ADC_TASK_APP", 100, 1600, ads7953_receiver, NULL);
+      //       if (retval >= 0)
+      //       {
+      //         g_adc_task_started = true;
+      //         break;
+      //         return 0;
+      //       }
+      //     }
+      //     return -1;
+      //   }
+      // }
       sleep(1);
     }
   }
@@ -2832,11 +2893,12 @@ int main(int argc, FAR char *argv[])
   }
   else if (strcmp(argv[1], "cam") == 0)
   {
-    cam_operation();
+    // cam_operation();
+    new_camera_operation();
   }
   else if (strcmp(argv[1], "adcs") == 0)
   {
-    adcs_operation(0x02);
+    adcs_operation(0x01);
   }
 
   /*TODO : REMOVE LATER Independent testing*/
@@ -2915,7 +2977,7 @@ int main(int argc, FAR char *argv[])
         }
         else
         {
-          int retval = task_create("COMMANDER_TASK_APP", 100, 8096, COM_TASK, NULL);
+          int retval = task_create("COMMANDER_TASK_APP", 100, 48096, COM_TASK, NULL);
 
           // int retval = task_create("ADC_TASK_APP", 100, 12, ads7953_receiver, NULL);
           // int retval = create_task("COMMANDER_TASK_APP", 100, 10096, COM_TASK);
@@ -2935,7 +2997,7 @@ int main(int argc, FAR char *argv[])
         }
         else
         {
-          int retval = create_task("BEACON_TASK_APP", 100, 2800, send_beacon);
+          int retval = create_task("BEACON_TASK_APP", 100, 9800, send_beacon);
           if (retval >= 0)
           {
             g_beacon_task_started = true;
@@ -2970,7 +3032,7 @@ int main(int argc, FAR char *argv[])
         }
         else
         {
-          int retval = create_task("ADC_TASK_APP", 100, 2048, ads7953_receiver);
+          int retval = create_task("ADC_TASK_APP", 100, 2848, ads7953_receiver);
           if (retval >= 0)
           {
             g_adc_task_started = true;
@@ -3112,7 +3174,7 @@ void send_flash_data(uint8_t *beacon_data)
  ****************************************************************************/
 int send_beacon_data()
 {
-  if (MISSION_STATUS.FLASH_OPERATION == false)
+  if (MISSION_STATUS.FLASH_OPERATION == false && MISSION_STATUS.ADCS_MISSION == false && MISSION_STATUS.CAM_MISSION == false && MISSION_STATUS.EPDM_MISSION == false)
   {
 
     if (COM_BUSY == 1)
@@ -3305,68 +3367,98 @@ void adcs_operation(uint8_t mode)
 {
   if (MISSION_STATUS.ADCS_MISSION == false && MISSION_STATUS.EPDM_MISSION == false && MISSION_STATUS.CAM_MISSION == false)
   {
+    MISSION_STATUS.FLASH_OPERATION == false;
     MISSION_STATUS.ADCS_MISSION = true;
+    sat_health.msn_flag = 0x21;
+    struct file file_pointer, file_pointer2;
+
+    int fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/adcs.txt", O_RDONLY);
+    uint32_t initial_count = file_seek(&file_pointer, 0, SEEK_END);
+    file_close(&file_pointer);
+
     int hand;
     turn_msn_on_off(1, 0);
     sleep(1);
     turn_msn_on_off(1, 1);
-    sleep(4);
-    // uint8_t data2[7] = {0x53,0x0e,0x0d,0x0e,0x01,0x7e};
+    // sleep(4);
     uint8_t data2[7] = {0x53, 0x0a, 0x0d, 0x0c, 0x01, 0x7e};
     data2[4] = mode;
+    pet_counter = 0;
 
-    do
-    {
-      hand = handshake_MSN_ADCS(1, data);
-      // hand = handshake_MSN(2, data);
+    // do
+    // {
+    //   hand = handshake_MSN_ADCS(1, data);
+    //   // hand = handshake_MSN(2, data);
 
-    } while (hand < 0);
+    // } while (hand < 0);
     hand = 0;
-    uint8_t ret, fd;
+    uint8_t ret;
+    pet_counter = 0;
+
     sleep(1);
 
     do
     {
       hand = handshake_MSN_ADCS(1, data2);
     } while (hand < 0);
-    sleep(2);
+    // sleep(2);
     int p = 0;
     uint8_t data3, data4;
     uint32_t counter1 = 0;
-    uint8_t cam[90] = {'\0'};
+    uint8_t cam[1200] = {'\0'};
     printf("**************Starting data receive*************\n");
     int fd2 = open(ADCS_UART, O_RDONLY);
+    int t;
 
     while (1)
     {
       data4 = data3;
       ret = read(fd2, &data3, 1);
-      syslog(LOG_DEBUG, "%02x ", data3);
+      printf("%02x ", data3);
+      if (counter1 % 180 == 0)
+      {
+        printf("\n");
+        pet_counter = 0;
+      }
       cam[counter1] = data3;
       if (data4 == 0xff && data3 == 0xd9)
       {
-        syslog(LOG_DEBUG, "%02x ", data3);
+        printf("%02x ", data3);
 
+        pet_counter = 0;
         break;
       }
-      if (counter1++ > 89)
-        break;
+      // if (counter1 > t*6)
+      //   break;
       // if(data4== 0xff);
       counter1++;
       // break;
     }
     // cam[counter1]='\0';
     close(fd2);
+    pet_counter = 0;
     sleep(1);
     turn_msn_on_off(1, 0);
     MISSION_STATUS.ADCS_MISSION = false;
+    MISSION_STATUS.FLASH_OPERATION = false;
+    sat_health.msn_flag = 0x11;
     usleep(10000);
-    syslog(LOG_DEBUG, "TOtal data received %d\n ADCS operation success\n", counter1);
+    syslog(LOG_DEBUG, "T0tal data received %d\n ADCS operation success\n", counter1);
     sleep(1);
-    cam[sizeof(cam) - 2] = 0xff;
-    cam[sizeof(cam) - 1] = 0xd9;
+    cam[counter1++] = 0xff;
+    cam[counter1++] = 0xd9;
+    cam[counter1++] = '\0';
     sleep(1);
-    mission_data("/adcs.txt", &cam, counter1);
+    mission_data("/mtd_mainstorage/adcs.txt", &cam, counter1);
+    mission_data("/mtd_mission/adcs.txt", &cam, counter1);
+    // fd = file_open(&file_pointer, "/mnt/fs/mfm/mtd_mainstorage/adcs.txt", O_CREAT | O_RDWR | O_APPEND);
+    // file_write(&file_pointer, cam, strlen(cam));
+    // file_close(&file_pointer);
+    // close(fd);
+    // fd = file_open(&file_pointer, "/mnt/fs/mfm/mtd_mission/adcs.txt", O_CREAT | O_RDWR | O_APPEND);
+    // file_write(&file_pointer, cam, strlen(cam));
+    // file_close(&file_pointer);
+    // close(fd);
     uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
     sleep(1);
     send_data_uart(COM_UART, ack, sizeof(ack));
@@ -3482,17 +3574,17 @@ void epdm_operation()
 {
   int hand;
   int fd;
-  uint64_t initial_count =0;
+  uint64_t initial_count = 0;
   struct file file_pointer, file_pointer2;
 
   if (MISSION_STATUS.ADCS_MISSION == false && MISSION_STATUS.CAM_MISSION == false)
   {
-
+    sat_health.msn_flag = 0x21;
     MISSION_STATUS.EPDM_MISSION = true;
-    fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/test.txt", O_RDONLY);
+    fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/epdm.txt", O_RDONLY);
     initial_count = file_seek(&file_pointer, 0, SEEK_END);
     file_close(&file_pointer);
-    
+
     gpio_write(GPIO_SFM_MODE, true);
     char *dev_path = EPDM_UART;
     turn_msn_on_off(3, 0);
@@ -3516,81 +3608,92 @@ void epdm_operation()
     uint32_t counter1 = 0;
     uint8_t cam[37000] = {'\0'};
 
-    int fd2 = open(CAM_UART, O_RDONLY);
+    int fd2 = open(EPDM_UART, O_RDONLY);
 
     while (1)
 
     {
       data4 = data3;
       ret = read(fd2, &data3, 1);
-      // syslog(LOG_DEBUG, 
-      printf("%02x ", data3);
-      if (counter1 % 200 == 0)
+      // syslog(LOG_DEBUG,
+      // printf("%02x ", data3);
+      if (counter1 % 400 == 0)
       {
-        syslog(LOG_DEBUG, "COUNTER : %d", counter1);
+        syslog(LOG_DEBUG, "COUNTER : %d\n pet_counter: %d", counter1, pet_counter);
+        pet_counter = 0;
       }
       cam[counter1] = data3;
-      if (data4 == 0xff && data3 == 0xd9)
+      if (data4 == 0xff && data3 == 0xd9 && counter1 > 35000)
       {
+        // data4=000;
         break;
       }
       counter1++;
     }
     close(fd2);
+    sleep(1);
     turn_msn_on_off(3, 0);
 
     // data consistency
     // int32_t ret;
     uint32_t count;
-    fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/test.txt", O_CREAT | O_RDWR | O_APPEND);
+    fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/epdm.txt", O_CREAT | O_RDWR | O_APPEND);
     uint32_t counter = file_seek(&file_pointer, 0, SEEK_END);
-    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/test.txt", O_CREAT | O_WRONLY | O_APPEND);
+    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/epdm.txt", O_CREAT | O_WRONLY | O_APPEND);
     uint32_t counter2 = file_seek(&file_pointer2, 0, SEEK_END);
     file_close(&file_pointer2);
-    printf("THe value of initial_count :%d and counter: %d and counter2 : %d\n",initial_count, counter, counter2);
-    if(initial_count == counter || counter - initial_count<10000){
-      ret = open("/mnt/fs/sfm/mtd_mainstorage/test.txt", O_WRONLY | O_APPEND);
-        ssize_t writeBytes = write(ret, cam, count);
-        close(ret);
-        // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
-        if(writeBytes >= 1000) printf("The file of size %d has been written to SFM\n", writeBytes);
-    }
-    do
+    printf("THe value of initial_count :%d and counter: %d and counter2 : %d\n", initial_count, counter, counter2);
+    if (initial_count == counter || counter - initial_count < 10000)
     {
-      if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
+      ret = open("/mnt/fs/sfm/mtd_mainstorage/epdm.txt", O_WRONLY | O_APPEND);
+      uint32_t writeBytes = write(ret, cam, counter1);
+      close(ret);
+      if (writeBytes >= 1000)
+        printf("The file of size %d has been written to SFM\n", writeBytes);
+
+      ret = open("/mnt/fs/mfm/mtd_mission/epdm.txt", O_WRONLY | O_APPEND);
+      writeBytes = write(ret, cam, counter1);
+      close(ret);
+      if (writeBytes >= 1000)
+        printf("The file of size %d has been written to MFM\n", writeBytes);
+    }
+    else
+    {
+      do
       {
-        if (counter - counter2 > 23500)
+        if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
         {
-          count = 23500;
+          if (counter - counter2 > 23500)
+          {
+            count = 23500;
+          }
+          else
+          {
+            count = counter - counter2;
+          }
+          counter2 += count;
+          ret = file_read(&file_pointer, cam, count);
+          printf("ret is %d %d", ret, counter - counter2);
+          for (int32_t i = 0; i < count; i++)
+          {
+            printf("%02X ", cam[i]);
+          }
+          // if ( >= 0)
+          ret = open("/mnt/fs/mfm/mtd_mission/test.txt", O_WRONLY | O_APPEND);
+          uint32_t writeBytes = write(ret, cam, count);
+          close(ret);
+          // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
+          printf("The file of size %d has been written\n", writeBytes);
         }
-        else
-        {
-          count = counter - counter2;
-        }
-        counter2 += count;
-        ret = file_read(&file_pointer, cam, count);
-        printf("ret is %d %d", ret, counter - counter2);
-        for (int32_t i = 0; i < count; i++)
-        {
-          printf("%02X ", cam[i]);
-        }
-        // if ( >= 0)
-        ret = open("/mnt/fs/mfm/mtd_mission/test.txt", O_WRONLY | O_APPEND);
-        uint32_t writeBytes = write(ret, cam, count);
-        close(ret);
-        // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
-        printf("The file of size %d has been written\n", writeBytes);
-      }
-    } while (counter2 < counter);
+      } while (counter2 < counter);
+    }
     // data consistency
     MISSION_STATUS.EPDM_MISSION = false;
-
+    sat_health.msn_flag = 0x21;
     // free(data2);
-    syslog(LOG_DEBUG, "Total data received %d\n EPDM operation succeded\n", counter1);
-    sleep(2);
-    mission_data("/epdm.txt", &cam, counter1);
+    syslog(LOG_DEBUG, "Total data received %d\n EPDM operation succeded\nData has been saved to main flash memory.\n", counter1);
     uint8_t ack[BEACON_DATA_SIZE] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e, 0x7e};
-    sleep(1);
+    // sleep(1);
     send_data_uart(COM_UART, ack, sizeof(ack));
     // free(cam);
     // free()
@@ -3651,11 +3754,12 @@ void watchdog_refresh_task(int fd)
 #ifdef CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1
 void int_adc1_data_convert(float *temp_buff)
 {
-  printf("\n----------------------------------------------------------\n");
+  // printf("\n----------------------------------------------------------\n");
 
   // float temp_buff[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_NSAMPLES];
   float ADC_SUP = 1.2 * 4095 / (int_adc1_sample[14].am_data);
-
+  // raw adc value here test baki
+  // printf("ADC_SUP is %f\n", ADC_SUP);
   for (int i = 0; i < CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE; i++)
   {
     temp_buff[i] = (int_adc1_sample[i].am_data * 3.3 / 4095); // right now, using 1.2 as vrefint channel data... converting all the data to their respective voltages
@@ -3663,18 +3767,21 @@ void int_adc1_data_convert(float *temp_buff)
     {
       temp_buff[i] = (temp_buff[i] * (1100 + 931)) / 931; // this is for battery monitor (voltage data, no need for conversion)
     }
-    else if (i == 0 || i == 9 - 1 || i == 11 - 1) // this one is for battery current, solar panel total current and raw current respectively
+    // else if (i == 0 || i == 9 - 1 || i == 11 - 1) // this one is for battery current, solar panel total current and raw current respectively
+    else if (int_adc1_sample[i].am_channel == 0 | int_adc1_sample[i].am_channel == 9 | int_adc1_sample[i].am_channel == 12)
     {
+      // printf("THe value of temp_buff[%d] is %f", i, temp_buff[i]);
       temp_buff[i] = ((temp_buff[i] - 1.65) / SENS_TMCS) * 1000 * 1000;
+      // printf("THe value of temp_buff[%d] is %f", i, temp_buff[i]);
     }
     else
     {
       // all current sensors use lmp8640 current sensor ...
       temp_buff[i] = (temp_buff[i] / (2 * RES_LMP8640 * GAIN_LMP8640)) * 1000;
     }
-    printf("Temp_buf[%d] : %f \n", i, temp_buff[i]);
+    // printf("Temp_buf[%d] : %f \n", i, temp_buff[i]);
   }
-  printf("\n----------------------------------------------------------\n");
+  // printf("\n----------------------------------------------------------\n");
 }
 #endif
 
@@ -3837,6 +3944,7 @@ void int_adc3_data_convert(float *temp_buff_1)
   {
     temp_buff_1[i] = (float)int_adc3_sample[0].am_data * 3.3 / 4095;
     temp_buff_1[i] = (float)(temp_buff_1[i] / (2 * RES_LMP8640 * GAIN_LMP8640)) * 1000;
+    // printf("THe value of 3v3_2_i is %f\n", temp_buff_1[i]);
   }
 }
 #endif
@@ -3883,38 +3991,75 @@ void make_satellite_health()
   // sat_health.temp_z = (int16_t)ext_adc_data[11].processed_data;
 
   /* Internal ADC1 data */
-  sat_health.batt_c = (int16_t)(int_adc1_temp[9] * 100);
-  sat_health.sol_t_c = (int16_t)(int_adc1_temp[10] * 100);
-  sat_health.raw_c = (int16_t)(int_adc1_temp[11] * 100);
 
-  sat_health.unreg_c = (int16_t)(int_adc1_temp[0] * 100);
-  sat_health.v3_main_c = (int16_t)(int_adc1_temp[1] * 100);
+  // before calibration
+
+  // sat_health.batt_c = (int16_t)(int_adc1_temp[9] * 100);
+  // sat_health.sol_t_c = (int16_t)(int_adc1_temp[10] * 100);
+  // sat_health.raw_c = (int16_t)(int_adc1_temp[11] * 100);
+
+  // sat_health.unreg_c = (int16_t)(int_adc1_temp[0] * 100);
+  // sat_health.v3_main_c = (int16_t)(int_adc1_temp[1] * 100);
+  // sat_health.v3_com_c = (int16_t)(int_adc1_temp[2] * 100);
+  // sat_health.v5_c = (int16_t)(int_adc1_temp[3] * 100);
+
+  // sat_health.batt_volt = (int16_t)(int_adc1_temp[4] * 100);
+
+  // sat_health.sol_p1_c = (int16_t)(int_adc1_temp[5] * 100);
+  // sat_health.v3_2_c = (int16_t)(int_adc1_temp[6] * 100);
+  // sat_health.sol_p4_c = (int16_t)(int_adc1_temp[7] * 100);
+  // sat_health.sol_p5_c = (int16_t)(int_adc1_temp[8] * 100);
+
+  // sat_health.sol_p2_c = (int16_t)(int_adc1_temp[12] * 100);
+  // sat_health.sol_p3_c = (int16_t)(int_adc1_temp[13] * 100);
+
+  // /* internal adc2 data*/
+  // sat_health.v4_c = (int16_t)(int_adc3_temp[0] * 100);
+
+  // before calibration
+
+  // after calib
+  // printf("%0.2f,int")
+  // for (int i = 0; i < 13; i++)
+  // {
+  //   printf("int_adc1_data_convert[%d] %0.2f \n", i, int_adc1_temp[i]);
+  // }
+  sat_health.sol_t_c = (int16_t)(int_adc1_temp[0] * 100);
+
+  sat_health.v5_c = (int16_t)(int_adc1_temp[1] * 100);
   sat_health.v3_com_c = (int16_t)(int_adc1_temp[2] * 100);
-  sat_health.v5_c = (int16_t)(int_adc1_temp[3] * 100);
-
+  sat_health.v3_main_c = (int16_t)(int_adc1_temp[3] * 100);
   sat_health.batt_volt = (int16_t)(int_adc1_temp[4] * 100);
+  sat_health.sol_p5_c = (int16_t)(int_adc1_temp[5] * 100);
+  sat_health.sol_p4_c = (int16_t)(int_adc1_temp[6] * 100);
+  sat_health.sol_p3_c = (int16_t)(int_adc1_temp[7] * 100);
+  sat_health.batt_c = (int16_t)(int_adc1_temp[8] * 100);
+  sat_health.unreg_c = (int16_t)(int_adc1_temp[9] * 100);
+  sat_health.v4_c = (int16_t)(int_adc1_temp[10] * 100);
 
-  sat_health.sol_p1_c = (int16_t)(int_adc1_temp[5] * 100);
-  sat_health.v3_2_c = (int16_t)(int_adc1_temp[6] * 100);
-  sat_health.sol_p4_c = (int16_t)(int_adc1_temp[7] * 100);
-  sat_health.sol_p5_c = (int16_t)(int_adc1_temp[8] * 100);
+  sat_health.raw_c = (int32_t)(int_adc1_temp[11] * 100);
+  sat_health.sol_p1_c = (int16_t)(int_adc1_temp[12] * 100);
 
-  sat_health.sol_p2_c = (int16_t)(int_adc1_temp[12] * 100);
-  sat_health.sol_p3_c = (int16_t)(int_adc1_temp[13] * 100);
+  sat_health.sol_p2_c = (int16_t)(int_adc1_temp[13] * 100);
+  sat_health.v3_2_c = (int16_t)(int_adc3_temp[0] * 100);
 
   /* internal adc2 data*/
-  sat_health.v4_c = (int16_t)(int_adc3_temp[0] * 100);
+  // after calib
 
 #endif
-  print_satellite_health_data(&sat_health);
+
+  // print_satellite_health_data(&sat_health);
 }
 
-// void RUN_ADC(){
-//   // read_int_adc1();
-//   // read_int_adc3();
-//   ext_adc_main();
-// make_satellite_health();
-//   store_sat_health_data(&sat_health);
+// void RUN_ADC()
+// {
+//   read_int_adc1();
+//   read_int_adc3();
+//   // ext_adc_main();
+//   make_satellite_health();
+//   // usleep(10000);
+//   sleep(1);
+//   // store_sat_health_data(&sat_health);
 // }
 
 void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel)
@@ -3953,6 +4098,10 @@ int ads7953_receiver(int argc, FAR char *argv[])
       {.fd = temp_sub_fd, .events = POLLIN},
       {.fd = volts_sub_fd, .events = POLLIN},
   };
+  struct sensor_rgb rgb;
+  int adc_instance = 0;
+  int afd = orb_advertise_multi_queue_persist(ORB_ID(sensor_rgb), &sat_health,
+                                              &adc_instance, sizeof(struct sensor_rgb));
 
   while (1)
   {
@@ -3984,15 +4133,15 @@ int ads7953_receiver(int argc, FAR char *argv[])
 
       // printf("ads7953_raw_msg:\n");
       // printf("  timestamp: %" PRIu64 "\n", raw_msg.timestamp);
-      for (int i = 0; i < 7; ++i)
-      {
-        // printf("  Voltage Channel %d: %u (%.4f V)\n", i, raw_msg.volts_chan[i], raw_msg.volts_chan_volts[i]);
-      }
-      for (int i = 0; i < 8; ++i)
-      {
-        x[i] = raw_msg.temp_chan[i];
-        // printf("  Temperature Channel %d: %u (%.4f V)\n", i, raw_msg.temp_chan[i], raw_msg.temp_chan_volts[i]);
-      }
+      // for (int i = 0; i < 7; ++i)
+      // {
+      //   printf("  Voltage Channel %d: %u (%.4f V)\n", i, raw_msg.volts_chan[i], raw_msg.volts_chan_volts[i]);
+      // }
+      // for (int i = 0; i < 8; ++i)
+      // {
+      //   x[i] = raw_msg.temp_chan[i];
+      //   printf("  Temperature Channel %d: %u (%.4f V)\n", i, raw_msg.temp_chan[i], raw_msg.temp_chan_volts[i]);
+      // }
       ADC_Temp_Conv(&x, &y, 8);
     }
 
@@ -4005,6 +4154,7 @@ int ads7953_receiver(int argc, FAR char *argv[])
       sat_health.temp_x1 = temp_msg.temp_3;
       sat_health.temp_y = temp_msg.temp_4;
       sat_health.temp_y1 = temp_msg.temp_5;
+      sat_health.ant_temp_out = temp_msg.temp_ant;
       // sat_health.temp_z = 0;
       // sat_health.temp_z1 = 0;
       sat_health.temp_bpb = temp_msg.temp_bpb;
@@ -4042,12 +4192,13 @@ int ads7953_receiver(int argc, FAR char *argv[])
     {
       struct sat_volts_msg volts_msg;
       orb_copy(ORB_ID(sat_volts_msg), volts_sub_fd, &volts_msg);
-      sat_health.sol_p1_v = (int16_t)(100 * volts_msg.volt_sp1);
-      sat_health.sol_p2_v = (int16_t)(100 * volts_msg.volt_sp2);
-      sat_health.sol_p3_v = (int16_t)(100 * volts_msg.volt_sp3);
-      sat_health.sol_p4_v = (int16_t)(100 * volts_msg.volt_sp4);
-      sat_health.sol_p5_v = (int16_t)(100 * volts_msg.volt_sp5);
-      sat_health.sol_t_v = (int16_t)(100 * volts_msg.volt_SolT);
+      sat_health.sol_p1_v = (int16_t)(1000 * volts_msg.volt_sp1);
+      sat_health.sol_p2_v = (int16_t)(1000 * volts_msg.volt_sp2);
+      sat_health.sol_p3_v = (int16_t)(1000 * volts_msg.volt_sp3);
+      sat_health.sol_p4_v = (int16_t)(1000 * volts_msg.volt_sp4);
+      sat_health.sol_p5_v = (int16_t)(1000 * volts_msg.volt_sp5);
+      sat_health.sol_t_v = (int16_t)(1000 * volts_msg.volt_SolT);
+      sat_health.raw_v = (int16_t)(1000 * volts_msg.volt_raw);
       // printf("sat_volts_msg:\n");
       // printf("  timestamp: %" PRIu64 "\n", volts_msg.timestamp);
       // printf("  volt_SolT: %.4f V\n", volts_msg.volt_SolT);
@@ -4060,8 +4211,38 @@ int ads7953_receiver(int argc, FAR char *argv[])
     }
 
     // usleep(500000);
-    sleep(1);
+    // print_satellite_health_data(&sat_health);
+    read_int_adc1();
+    read_int_adc3();
+    make_satellite_health();
+    sat_health.oper_mode = critic_flags.OPER_MODE;
+    if (critic_flags.RSV_FLAG != 0)
+    {
+      sat_health.rsv_flag = critic_flags.RSV_FLAG;
+      if (sat_health.rsv_cmd == 0x00)
+      {
+        sat_health.rsv_cmd = 1;
+      }
+    }
+
+    if (afd < 0)
+    {
+      syslog(LOG_ERR, "Orb advertise failed.\n");
+    }
+    else
+    {
+      if (OK != orb_publish(ORB_ID(sensor_rgb), afd, &sat_health))
+      {
+        syslog(LOG_ERR, "Orb Publish failed\n");
+      }
+      else
+      {
+        // syslog(LOG_ERR, "ORB published checkpoint\n");
+      }
+    }
+    sleep(8);
   }
+  ret = orb_unadvertise(afd);
 
   return 0;
 }
@@ -4069,6 +4250,7 @@ int ads7953_receiver(int argc, FAR char *argv[])
 void print_satellite_health_data(satellite_health_s *sat_health)
 {
   printf(" *******************************************\r\n");
+  printf(" |   Satellite operation mode:\t %s \t|\r\n", (sat_health->oper_mode ? "Normal Mode" : "Power Saving Mode"));
   printf(" |   X axis acceleration    \t %d m/s^2\t|\r\n", sat_health->accl_x);
   printf(" |   Y axis acceleration    \t %d m/s^2\t|\r\n", sat_health->accl_y);
   printf(" |   Z axis acceleration    \t %d m/s^2\t|\r\n", sat_health->accl_z);
@@ -4080,6 +4262,7 @@ void print_satellite_health_data(satellite_health_s *sat_health)
   printf(" |   X axis magnetic field  \t %d uT\t|\r\n", sat_health->mag_x);
   printf(" |   Y axis magnetic field  \t %d uT\t|\r\n", sat_health->mag_y);
   printf(" |   Z axis magnetic field  \t %d uT\t|\r\n", sat_health->mag_z);
+  printf(" |----------------------------------------------------------|\r\n");
 
   printf(" |   Solar Panel 1 Voltage: \t %d mV\t|\r\n", sat_health->sol_p1_v);
   printf(" |   Solar Panel 2 Voltage: \t %d mV\t|\r\n", sat_health->sol_p2_v);
@@ -4087,32 +4270,47 @@ void print_satellite_health_data(satellite_health_s *sat_health)
   printf(" |   Solar Panel 4 Voltage: \t %d mV\t|\r\n", sat_health->sol_p4_v);
   printf(" |   Solar Panel 5 Voltage: \t %d mV\t|\r\n", sat_health->sol_p5_v);
   printf(" |   Solar Panel T Voltage: \t %d mV\t|\r\n", sat_health->sol_t_v);
-  printf(" |--------------------------------------|\r\n");
-  printf(" |   Solar Panel 1 Current: \t %d \t|\r\n", sat_health->sol_p1_c);
-  printf(" |   Solar Panel 2 Current: \t %d \t|\r\n", sat_health->sol_p2_c);
-  printf(" |   Solar Panel 3 Current: \t %d \t|\r\n", sat_health->sol_p3_c);
-  printf(" |   Solar Panel 4 Current: \t %d \t|\r\n", sat_health->sol_p4_c);
-  printf(" |   Solar Panel 5 Current: \t %d \t|\r\n", sat_health->sol_p5_c);
-  printf(" |   Solar Panel T Current: \t %d \t|\r\n", sat_health->sol_t_c);
-  printf(" |--------------------------------------|\r\n");
-  printf(" |   Unreg Line Current:    \t %d \t|\r\n", sat_health->unreg_c);
-  printf(" |   Main 3v3 Current:      \t %d \t|\r\n", sat_health->v3_main_c);
-  printf(" |   COM 3v3 Current:       \t %d \t|\r\n", sat_health->v3_com_c);
-  printf(" |   5 Volts line Current:  \t %d \t|\r\n", sat_health->v5_c);
-  printf(" |   3v3 2 line Current:    \t %d \t|\r\n", sat_health->v3_2_c);
-  printf(" |--------------------------------------|\r\n");
-  printf(" |   Raw Current:           \t %d \t|\r\n", sat_health->raw_c);
-  printf(" |   Raw Voltage:           \t %d \t|\r\n", sat_health->raw_v);
-  printf(" |--------------------------------------|\r\n");
-  printf(" |   Battery Total Voltage: \t %d \t|\r\n", sat_health->batt_volt);
-  printf(" |   Battery Total Current: \t %d \t|\r\n", sat_health->batt_c);
-  printf(" |   Battery Temperature:   \t %d \t|\r\n", sat_health->temp_batt);
-  printf(" |--------------------------------------|\r\n");
-  printf(" |   Solar Panel 1 Status   \t %d \t|\r\n", (sat_health->sol_p1_v) >= 100);
-  printf(" |   Solar Panel 2 Status   \t %d \t|\r\n", (sat_health->sol_p2_v) >= 100);
-  printf(" |   Solar Panel 3 Status   \t %d \t|\r\n", (sat_health->sol_p3_v) >= 100);
-  printf(" |   Solar Panel 4 Status   \t %d \t|\r\n", (sat_health->sol_p4_v) >= 100);
-  printf(" *********************************************\r\n");
+  printf(" |----------------------------------------------------------|\r\n");
+
+  printf(" |   Solar Panel 1 Current: \t %d mA\t|\r\n", sat_health->sol_p1_c);
+  printf(" |   Solar Panel 2 Current: \t %d mA\t|\r\n", sat_health->sol_p2_c);
+  printf(" |   Solar Panel 3 Current: \t %d mA\t|\r\n", sat_health->sol_p3_c);
+  printf(" |   Solar Panel 4 Current: \t %d mA\t|\r\n", sat_health->sol_p4_c);
+  printf(" |   Solar Panel 5 Current: \t %d mA\t|\r\n", sat_health->sol_p5_c);
+  printf(" |   Solar Panel T Current: \t %d mA\t|\r\n", sat_health->sol_t_c);
+  printf(" |----------------------------------------------------------|\r\n");
+
+  printf(" |   Unreg Line Current:    \t %d mA\t|\r\n", sat_health->unreg_c);
+  printf(" |   Main 3v3 Current:      \t %d mA\t|\r\n", sat_health->v3_main_c);
+  printf(" |   COM 3v3 Current:       \t %d mA\t|\r\n", sat_health->v3_com_c);
+  printf(" |   5 Volts line Current:  \t %d mA\t|\r\n", sat_health->v5_c);
+  printf(" |   3v3 2 line Current:    \t %d mA\t|\r\n", sat_health->v3_2_c);
+  printf(" |----------------------------------------------------------|\r\n");
+  printf(" |   Raw Current:           \t %d mA\t|\r\n", sat_health->raw_c);
+  printf(" |   Raw Voltage:           \t %d mV\t|\r\n", sat_health->raw_v);
+  printf(" |----------------------------------------------------------|\r\n");
+  printf(" |   Battery Total Voltage: \t %d mV\t|\r\n", sat_health->batt_volt);
+  printf(" |   Battery Total Current: \t %d mA\t|\r\n", sat_health->batt_c);
+  printf(" |   Battery Temperature:   \t %d C\t|\r\n", sat_health->temp_batt);
+  printf(" |----------------------------------------------------------|\r\n");
+  printf(" |   Solar Panel 1 Status   \t %s \t|\r\n", (sat_health->sol_p1_v) >= 1000 ? "Working" : "Not Working");
+  printf(" |   Solar Panel 2 Status   \t %s \t|\r\n", (sat_health->sol_p2_v) >= 1000 ? "Working" : "Not Working");
+  printf(" |   Solar Panel 3 Status   \t %s \t|\r\n", (sat_health->sol_p3_v) >= 1000 ? "Working" : "Not Working");
+  printf(" |   Solar Panel 4 Status   \t %s \t|\r\n", (sat_health->sol_p4_v) >= 1000 ? "Working" : "Not Working");
+  printf(" |   Solar Panel 5 Status   \t %s \t|\r\n", (sat_health->sol_p5_v) >= 1000 ? "Working" : "Not Working");
+  printf(" |----------------------------------------------------------|\r\n");
+  printf(" |   BPB Temperature            \t %d C\t|\r\n", sat_health->temp_bpb);
+  printf(" |   Antenna Panel Temperature  \t %d C\t|\r\n", sat_health->ant_temp_out);
+  printf(" |   Solar Panel Z Temperature  \t %d C\t|\r\n", sat_health->temp_z);
+  printf(" |   Solar Panel X Temperature  \t %d C\t|\r\n", sat_health->temp_x);
+  printf(" |   Solar Panel Y Temperature  \t %d C\t|\r\n", sat_health->temp_y);
+  printf(" |----------------------------------------------------------|\r\n");
+
+  // ORB_DEFINE(sensor_rgb, struct sensor_rgb, print_sensor_rgb_message);
+
+  // ORB_DEFINE(sensor_rgb,struct orb_sensor_rgb, print_satellite_health_data);
+
+  // printf(" |   Solar Panel 4 Temperature  \t %d C\t|\r\n", sat_health->temp_batt);(" *********************************************\r\n");
 }
 
 // int subscribe_and_retrieve_data()
@@ -4290,4 +4488,329 @@ void print_beacon_b()
 
   printf("\nChecksum CRC: 0x%02X\n", s2s_beacon_type_b.CHK_CRC);
   printf("------------------------\n");
+}
+
+void new_camera_operation()
+{
+  struct file file_pointer, file_pointer2;
+  uint8_t hand = 1;
+  uint8_t data2[] = {0x53, 0x01, 0x02, 0x03, 0x04, 0x7e, '\0'};
+  turn_msn_on_off(2, 1);
+  // usleep(1000000);
+  sleep(2);
+  int fd = open(CAM_UART, O_RDWR); // Open in non-blocking mode
+  if (fd < 0)
+  {
+    printf("Error opening %s\n", CAM_UART);
+    usleep(PRINT_DELAY);
+    return -1;
+  }
+
+  // Writing handshake data
+  for (int p = 0; p < 7; p++)
+    ret = write(fd, data2[p], 1);
+  if (ret > 0)
+  {
+    hand = 0;
+  }
+  // close(fd);
+  // if (hand == 0)
+  {
+    syslog(LOG_DEBUG, "Command %s sent\n", data2);
+
+    int p = 0;
+    uint8_t data3[7] = {'\0'}, data4[7] = {'\0'}, uart_data;
+    uint32_t counter1 = 0;
+    // uint8_t cam[11500] = {'\0'};
+    // int fd2 = open(CAM_UART, O_RDONLY);
+    // sleep(10);
+    sleep(1);
+    ret = read(fd, data3, sizeof(data3));
+    if (ret > 0)
+    {
+      printf("Handshake success %s", data3);
+    }
+    // ret = read(fd, &data4, 2);
+    // if (ret > 0)
+    // {
+    //   printf("CAM mission end: %d, %d", data4[0], data4[1]);
+    // }
+    close(fd);
+  }
+  pet_counter = 0;
+  for (int i = 0; i < 25; i++)
+    sleep(1);
+  uint8_t data1[3500] = {'\0'};
+  gpio_write(GPIO_SFM_MODE, false);
+  int32_t ret, count;
+  fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mission/cam_nir.txt", O_CREAT | O_RDWR | O_APPEND);
+  uint16_t counter = file_seek(&file_pointer, 0, SEEK_END);
+  file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_CREAT | O_WRONLY | O_APPEND);
+  uint16_t counter2 = file_seek(&file_pointer2, 0, SEEK_END);
+  file_close(&file_pointer2);
+  do
+  {
+    if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
+    {
+      if (counter - counter2 > 3500)
+      {
+        count = 3500;
+      }
+      else
+      {
+        count = counter - counter2;
+      }
+      counter2 += count;
+      ret = file_read(&file_pointer, data1, count);
+      printf("ret is %d %d", ret, counter - counter2);
+      for (int32_t i = 0; i < count; i++)
+      {
+        printf("%02X ", data1[i]);
+        if (count % 500 == 0)
+        {
+          usleep(4000);
+        }
+      }
+      // if ( >= 0)
+      gpio_write(GPIO_SFM_MODE, false);
+      ret = open("/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_WRONLY | O_APPEND);
+      ssize_t writeBytes = write(ret, data1, count);
+      close(ret);
+      // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
+      printf("The file of size %d has been written\n", writeBytes);
+    }
+  } while (counter2 < counter);
+  pet_counter = 0;
+
+  counter, count, counter2 = 0;
+  fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mission/cam_rgb.txt", O_CREAT | O_RDWR | O_APPEND);
+  counter = file_seek(&file_pointer, 0, SEEK_END);
+  file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_CREAT | O_WRONLY | O_APPEND);
+  counter2 = file_seek(&file_pointer2, 0, SEEK_END);
+  file_close(&file_pointer2);
+  do
+  {
+    if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
+    {
+      if (counter - counter2 > 8000)
+      {
+        count = 8000;
+      }
+      else
+      {
+        count = counter - counter2;
+      }
+      counter2 += count;
+      ret = file_read(&file_pointer, data1, count);
+      printf("ret is %d %d", ret, counter - counter2);
+      for (int32_t i = 0; i < count; i++)
+      {
+        printf("%02X ", data1[i]);
+        if (count % 500 == 0)
+        {
+          usleep(4000);
+        }
+      }
+      // if ( >= 0)
+      gpio_write(GPIO_SFM_MODE, false);
+      ret = open("/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_WRONLY | O_APPEND);
+      ssize_t writeBytes = write(ret, data1, count);
+      close(ret);
+      // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
+      printf("The file of size %d has been written\n", writeBytes);
+    }
+  } while (counter2 < counter);
+
+  turn_msn_on_off(2, 0);
+}
+
+void handle_reservation_command(int fd_reservation, struct reservation_command res)
+{
+  if (critic_flags.OPER_MODE == NRML_MODE)
+  {
+
+    //   //  = orb_subscribe(ORB_ID(reservation_command));
+    //   int updated;
+    //   uint32_t t2;
+    //   struct reservation_command res;
+    //   orb_check(fd_reservation, &updated);
+    //   // current_time = time(NULL);
+    //   // t2 = (uint32_t)current_time;
+    //   // if (sat_health.rsv_cmd == 0 && critic_flags.RSV_FLAG != 0x00)
+    //   if (updated)
+    {
+      // t2 = 0;
+      // t2 = orb_copy(ORB_ID(reservation_command), fd_reservation, &res);
+      if (res.time[0] == 0 && res.time[1] == 0)
+      {
+        // res = {'\0'};
+        // memset(res, '\0',sizeof(res));
+        // res.cmd[0] = 0;
+        // res.cmd[1] = 0;
+        // res.cmd[2] = 0;
+      }
+      else
+      {
+        if (res.cmd[0] == TO_EXECUTE.cmd[0] && res.cmd[1] == TO_EXECUTE.cmd[1] && res.cmd[2] == TO_EXECUTE.cmd[2] && res.cmd[3] == TO_EXECUTE.cmd[3] && res.time[0] == TO_EXECUTE.time[0])
+        {
+          // timer =0;
+        }
+        else
+        {
+          TO_EXECUTE = res;
+
+          // Get the current time
+          // timer = 0;
+
+          // sath_hea
+        }
+      }
+      // if(res.latest_time - orb_absolute_time() <= 0){
+
+      // }
+    }
+    uint32_t t1 = (uint32_t)TO_EXECUTE.cmd[3] << 8 | TO_EXECUTE.cmd[4];
+    TO_EXECUTE.latest_time = t1 * 60;
+    // t2 = TO_EXECUTE.latest_time - t2;
+    if (TO_EXECUTE.mcu_id != 0 && TO_EXECUTE.mcu_id < 10)
+    {
+      RSV_CMD[16] = TO_EXECUTE.mcu_id;
+      RSV_CMD[17] = TO_EXECUTE.cmd[0];
+      RSV_CMD[18] = TO_EXECUTE.cmd[1];
+      RSV_CMD[19] = TO_EXECUTE.cmd[2];
+      printf("---------------------------------------------\n");
+      printf("-_________________________________________________________________________\n");
+      printf("Here we have reservation command as %s and time remaining is %d %d\n", RSV_CMD, timer, TO_EXECUTE.latest_time);
+      printf("_________________________________________________________________________-\n");
+      printf("---------------------------------------------\n");
+      // TO_EXECUTE.cmd[0] = 0;
+      // TO_EXECUTE.cmd[1] = 0;
+      // TO_EXECUTE.cmd[2] = 0;
+      // TO_EXECUTE.time[0] = 0;
+      // TO_EXECUTE.time[1] = 0;
+
+      res.cmd[0] = 0;
+      res.cmd[1] = 0;
+      res.cmd[2] = 0;
+      res.time[0] = 0;
+      res.time[1] = 0;
+
+      sat_health.rsv_flag -= 1;
+      sat_health.rsv_cmd = 0x00;
+    }
+  }
+  if (RSV_CMD[16] != 0x00 && RSV_CMD[16] == TO_EXECUTE.mcu_id && RSV_CMD[17] != 0x00 && RSV_CMD[18] != 0x00 && timer > TO_EXECUTE.latest_time)
+  {
+    parse_command(&RSV_CMD);
+    TO_EXECUTE.cmd[0] = 0;
+    TO_EXECUTE.cmd[1] = 0;
+    TO_EXECUTE.cmd[2] = 0;
+    TO_EXECUTE.time[0] = 0;
+    TO_EXECUTE.time[1] = 0;
+    RSV_CMD[16] = 0;
+    RSV_CMD[17] = 0;
+    RSV_CMD[18] = 0;
+    RSV_CMD[19] = 0;
+    RSV_CMD[20] = 0;
+    timer = 0;
+    struct file file_ptr;
+    uint16_t temp = 0;
+
+    int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+    struct reservation_command res_temp[16];
+    uint16_t t = 0x00;
+
+    uint16_t file_size = file_seek(&file_ptr, 0, SEEK_END);
+
+    // Read reservation commands
+    for (int i = 0; i < (file_size / 10); i++)
+    {
+      file_seek(&file_ptr, temp, SEEK_SET);
+      temp += sizeof(struct reservation_command);
+      if (file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command)) > 0)
+      {
+        // printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
+        // printf("_________________________________________\n");
+        // printf(" MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Cmd[4]:%02x Cmd[5]:%d\n",
+        //        res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], t);
+        // printf("_________________________________________\n");
+      }
+    }
+    file_close(&file_ptr);
+
+    int n = file_size / 10;
+
+    {
+      // Bubble sort, starting from index 1
+      for (int i = 1; i < n - 1; i++)
+      {
+        for (int j = 1; j < n - i; j++)
+        {
+          uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
+          uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
+          if (t1 > t2)
+          {
+            // Swap res_temp[j] and res_temp[j + 1]
+            struct reservation_command temp = res_temp[j];
+            res_temp[j] = res_temp[j + 1];
+            res_temp[j + 1] = temp;
+          }
+        }
+      }
+
+      // Print sorted commands, starting from index 1
+      for (int i = 1; i < n; i++)
+      {
+        printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
+        printf("_________________Sorted________________________\n");
+        printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
+               res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed, t);
+        printf("__________________Sorted_______________________\n");
+      }
+
+      // Write sorted commands back to the file, starting from index 1
+      if (n == 1)
+      {
+        fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC );
+        file_close(&file_ptr);
+       
+      }
+      else
+      {
+        fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC | O_WRONLY | O_APPEND);
+        if (fd >= 0)
+        {
+          for (int i = 1; i < n; i++)
+          {
+            file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
+          }
+        }
+        if (file_close(&file_ptr) < 0)
+        {
+          file_close(&file_ptr);
+        }
+      }
+    }
+
+    // sort_reservation_command(1, true);
+  }
+  // if(timer >= TO_EXECUTE.latest_time)
+  // timer+=91;
+}
+void get_top_rsv(struct reservation_command *res)
+{
+  struct file fptr;
+  int ret;
+  int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+  if (fd >= 0)
+  {
+    file_seek(&fptr, 0, SEEK_SET);
+    if (file_read(&fptr, res, sizeof(struct reservation_command)) >= 0)
+    {
+      printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
+    }
+  }
+  uint32_t t1 = (uint32_t)TO_EXECUTE.cmd[3] << 8 | TO_EXECUTE.cmd[4];
+  TO_EXECUTE.latest_time = t1 * 60;
+  file_close(&fptr);
 }

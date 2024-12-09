@@ -22,7 +22,7 @@
 // #include <nuttx/task.h>   // For task APIs
 
 #define DEVNAME            "/dev/iwdg0"
-#define TIMEOUT            160000  // 10 seconds in milliseconds
+#define TIMEOUT            110000  // 10 seconds in milliseconds
 #define PING_INTERVAL      45000   // 1 second for pinging
 #define STACK_SIZE         848   // Stack size for the watchdog task
 

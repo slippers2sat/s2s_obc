@@ -159,7 +159,7 @@ void mission_data(char *filename, uint8_t *data, uint16_t size1)
 {
   struct file file_p;
   // TODO: discuss and figure out if we need to set limit to size of file and truncate contents once the file size limit is reached ...
-  if (open_file_flash(&file_p, "/mnt/fs/mfm/mtd_mainstorage", filename, O_CREAT | O_RDWR | O_APPEND) >= 0)
+  if (open_file_flash(&file_p, "/mnt/fs/mfm", filename, O_CREAT | O_RDWR | O_APPEND) >= 0)
   {
     ssize_t bytes_written = file_write(&file_p, data, size1);
     // writer_mq_edited(sat_health_data);

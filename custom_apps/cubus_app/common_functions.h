@@ -51,6 +51,8 @@
 #define file_name_cam_msn           "/cam.txt"
 #define file_name_test_msn          "/test_msn.txt"
 
+
+
 typedef struct  {
 	// uint64_t timestamp;
 	int16_t accl_x;
@@ -105,6 +107,7 @@ typedef struct  {
 	int8_t kill_switch;
 
     int16_t ant_temp_out;
+	int8_t SAT_MODE;
 }satellite_health_s;
 
 typedef struct __attribute__ ((__packed__))  _BEACON_A{
@@ -135,6 +138,8 @@ uint8_t SOL_P1_STAT;//1 byte
 uint8_t SOL_P2_STAT;//1 byte
 uint8_t SOL_P3_STAT;//1 byte
 uint8_t SOL_P4_STAT;//1 byte
+uint8_t SOL_P5_STAT;//1 byte
+
 uint8_t MSN1_STAT;	//1 byte ()
 uint8_t MSN2_STAT;	//1 byte ()
 uint8_t MSN3_STAT;	//1 byte ()
@@ -165,11 +170,13 @@ typedef struct __attribute__ ((__packed__)) _S2S_BEACON_TYPE_B {
     /*1-byte*/uint8_t SOL_P2_V;
     /*1-byte*/uint8_t SOL_P3_V;
     /*1-byte*/uint8_t SOL_P4_V;
+	/*1-byte*/uint8_t SOL_P5_V;
 
     /*1-byte*/int8_t SOL_P1_C;
     /*1-byte*/int8_t SOL_P2_C;
     /*1-byte*/int8_t SOL_P3_C;
     /*1-byte*/int8_t SOL_P4_C;
+	/*1-byte*/int8_t SOL_P5_C;
 
     /*2-byte*/int16_t GYRO_X;
     /*2-byte*/int16_t GYRO_Y;

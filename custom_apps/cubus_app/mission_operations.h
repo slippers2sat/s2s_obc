@@ -42,7 +42,7 @@
 #define PRINT_DELAY 500
 
 #define COM_UART "/dev/ttyS0"
-#define EPDM_UART "/dev/ttyS3"
+#define EPDM_UART "/dev/ttyS5"
 #define CAM_UART "/dev/ttyS3"
 #define ADCS_UART "/dev/ttyS5"
 
