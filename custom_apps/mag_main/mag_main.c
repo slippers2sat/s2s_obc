@@ -104,9 +104,9 @@ static void print_orb_mag_scaled_msg(FAR const struct orb_metadata *meta,
   FAR const struct orb_mag_scaled_s *message = buffer;
   const orb_abstime now = orb_absolute_time();
 
-  uorbinfo_raw("%s:\ttimestamp: %"PRIu64" (%"PRIu64" us ago) X: %.4f Y: %.4f Z:%.4f Temp: %.4f",
-                meta->o_name, message->timestamp, now - message->timestamp, 
-                message->x, message->y, message->z, message->temperature);
+  // uorbinfo_raw("%s:\ttimestamp: %"PRIu64" (%"PRIu64" us ago) X: %.4f Y: %.4f Z:%.4f Temp: %.4f",
+  //               meta->o_name, message->timestamp, now - message->timestamp, 
+  //               message->x, message->y, message->z, message->temperature);
 }
 #endif
 

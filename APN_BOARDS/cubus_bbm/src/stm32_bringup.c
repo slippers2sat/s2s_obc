@@ -376,110 +376,110 @@ int stm32_bringup(void)
   }
 #endif
 
-#ifdef CONFIG_STM32_TIM6
+// #ifdef CONFIG_STM32_TIM6
 
-  ret = stm32_timer_initialize("/dev/timer6", 6);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer6 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 6 has been initialized successfully\n");
-  }
-#endif
+//   ret = stm32_timer_initialize("/dev/timer6", 6);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer6 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 6 has been initialized successfully\n");
+//   }
+// #endif
 
-#ifdef CONFIG_STM32_TIM7
-  ret = stm32_timer_initialize("/dev/timer7", 7);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer7 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 77 has been initialized successfully\n");
-  }
+// #ifdef CONFIG_STM32_TIM7
+//   ret = stm32_timer_initialize("/dev/timer7", 7);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer7 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 77 has been initialized successfully\n");
+//   }
 
-#endif
+// #endif
 
-#ifdef CONFIG_STM32_TIM8
-  ret = stm32_timer_initialize("/dev/timer8", 8);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer8 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 87 has been initialized successfully\n");
-  }
+// #ifdef CONFIG_STM32_TIM8
+//   ret = stm32_timer_initialize("/dev/timer8", 8);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer8 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 87 has been initialized successfully\n");
+//   }
 
-#endif
+// #endif
 
-#ifdef CONFIG_STM32_TIM9
+// #ifdef CONFIG_STM32_TIM9
 
-  ret = stm32_timer_initialize("/dev/timer9", 9);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer9 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 9 has been initialized successfully\n");
-  }
+//   ret = stm32_timer_initialize("/dev/timer9", 9);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer9 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 9 has been initialized successfully\n");
+//   }
 
-#endif
+// #endif
 
-#ifdef CONFIG_STM32_TIM10
-  ret = stm32_timer_initialize("/dev/timer10", 10);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer10 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 10 has been initialized successfully\n");
-  }
+// #ifdef CONFIG_STM32_TIM10
+//   ret = stm32_timer_initialize("/dev/timer10", 10);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer10 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 10 has been initialized successfully\n");
+//   }
 
-#endif
+// #endif
 
-#ifdef CONFIG_STM32_TIM11
-  ret = stm32_timer_initialize("/dev/timer11", 11);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer11 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 11 has been initialized successfully\n");
-  }
+// #ifdef CONFIG_STM32_TIM11
+//   ret = stm32_timer_initialize("/dev/timer11", 11);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer11 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 11 has been initialized successfully\n");
+//   }
 
-#endif
+// #endif
 
-#ifdef CONFIG_STM32_TIM12
-  ret = stm32_timer_initialize("/dev/timer12", 12);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer12 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 12 has been initialized successfully\n");
-  }
+// #ifdef CONFIG_STM32_TIM12
+//   ret = stm32_timer_initialize("/dev/timer12", 12);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer12 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 12 has been initialized successfully\n");
+//   }
 
-#endif
+// #endif
 
-#ifdef CONFIG_STM32_TIM13
-  ret = stm32_timer_initialize("/dev/timer13", 13);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer13 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 13 has been initialized successfully\n");
-  }
+// #ifdef CONFIG_STM32_TIM13
+//   ret = stm32_timer_initialize("/dev/timer13", 13);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer13 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 13 has been initialized successfully\n");
+//   }
 
-#endif
+// #endif
 
 #ifdef CONFIG_STM32_IWDG
   // struct watchdog_lowerhalf_s lower;

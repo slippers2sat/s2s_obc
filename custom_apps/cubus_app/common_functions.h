@@ -105,6 +105,7 @@ typedef struct  {
 	int8_t msn_flag;
 	int8_t rsv_flag;
 	int8_t kill_switch;
+	int8_t rst_counter;
 
     int16_t ant_temp_out;
 	int8_t SAT_MODE;

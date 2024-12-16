@@ -33,6 +33,8 @@
 #include "common_functions_edited.h"
 #include "file_operations.h"
 #include <sensor/rgb.h>
+#include <sensor/command.h>
+#include <sensor/flash_operation.h>
 
 void Setup();
 #define MFM_MTD_MAINSTORAGE "/mnt/fs/mfm/mtd_mainstorage"
@@ -53,32 +55,6 @@ void sort_reservation_command(uint16_t file_size, bool reorder);
 int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filename, int open_mode);
 void read_and_print_mag_data(void)
 {
-
-  // adc
-  //  struct ads7953_raw_msg e_ads7953_0;
-  //  struct sat_temp_msg sat_temps;
-  //  struct sat_volts_msg sat_volts;
-  //  int ads,sat_temp,sat_volt;
-  //
-  // if (work_queue(HPWORK, &work_storage, read_and_print_mag_data, NULL, SEC2TICK(30)) >= 0)
-  // {
-  //   //syslog(LOG_DEBUG, "Workqueue running\n");
-  // }
-  // else
-  // {
-  //   if (work_queue(HPWORK, &work_storage, read_and_print_mag_data, NULL, SEC2TICK(30)) >= 0)
-  //   {
-  //     //syslog(LOG_DEBUG, "Workqueue running\n");
-  //   }
-  //   else
-  //   {
-  //     //syslog(LOG_DEBUG, "workqueue failled\n");
-  //   }
-  // }
-  // if (count == 0)
-  // {
-  //   Setup();
-  // }
   count++;
   int sub_fd;
   struct reservation_command res;
@@ -112,11 +88,13 @@ void read_and_print_mag_data(void)
     if (count % 10 == 0)
     {
       sort_reservation_command(1, false);
+      flash_operations();
     }
     count++;
     orb_check(fd_reservation, &updated);
     if (updated)
     {
+      // updated = false;
       struct file file_ptr;
       orb_copy(ORB_ID(reservation_command), fd_reservation, &res);
       printf("Value of reservation command uorb has been updated");
@@ -145,7 +123,7 @@ void read_and_print_mag_data(void)
       }
       sleep(1);
     }
-    updated = false;
+    // updated = false;
 
     if (count % 90 == 0)
     {
@@ -201,13 +179,14 @@ void read_and_print_mag_data(void)
         satellite_health.mag_x = mag_data.mag_x;
         satellite_health.mag_y = mag_data.mag_y;
         satellite_health.mag_z = mag_data.mag_z;
-        if (satellite_health.msn_flag != 0x11)
+        if (satellite_health.msn_flag != 0x11 & satellite_health.ant_dep_stat == DEPLOYED)
         {
           store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
           print_satellite_health_data(&satHealth);
         }
         // store_sat_health_data(&satellite_health, SFM_MAIN_STRPATH);
       }
+      maintain_data_consistency();
     }
 
     sleep(1); // Sleep for 500 ms
@@ -265,7 +244,7 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
     ssize_t bytes_written = file_write(&file_p, sat_health_data, sizeof(satellite_health_s));
     if (bytes_written > 0)
     {
-      // syslog(LOG_INFO, "Satellite Health data write Successful.\nData Len: %d.\n", bytes_written);
+      syslog(LOG_INFO, "Satellite Health data write Successful.\nData Len: %d.\n", bytes_written);
       file_close(&file_p);
     }
     else
@@ -316,7 +295,36 @@ int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filena
   return fd;
 }
 
-void flash_operations() {}
+void flash_operations()
+{
+  struct command command_ops;
+  int updated = 0;
+  int flash_fd = orb_subscribe_multi(ORB_ID(command), 10);
+
+  // orb_check(flash_fd, &updated);
+  // if (updated)
+  while (1)
+  {
+    orb_check(flash_fd, &updated);
+    if (updated)
+    {
+      updated = false;
+      orb_copy_multi(flash_fd, &command_ops, sizeof(struct command));
+      // printf("----Received mcu id : %d \n",command_ops.mcu_id);
+      printf("\nData received :\nTimestamp : %d \nPath: %s \nAddress:%d \nCommand:%d \nNumber of packets:%d\n",
+             command_ops.timestamp,
+             command_ops.path,
+             command_ops.address,
+             command_ops.command,
+             // command_ops.packet_number,
+             command_ops.num_of_packets);
+      // send_data_uorb(command_ops.path, &command_ops);
+      send_data_uorb(command_ops.path, command_ops.address, command_ops.num_of_packets);
+    }
+    sleep(1);
+  }
+  orb_unsubscribe(ORB_ID(command));
+}
 
 void Setup()
 {
@@ -365,6 +373,37 @@ void Setup()
   syslog(LOG_INFO, "Checking initial flag data...\n");
   check_flag_data();
   print_critical_flag_data(&critic_flags);
+}
+
+void get_top_rsv(struct reservation_command *res)
+{
+  struct file fptr;
+  int ret;
+  int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+  uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+  if (file_size == 0 || file_size < 6)
+  {
+    res->mcu_id = 0;
+    res->cmd[0] = 0;
+    res->cmd[1] = 0;
+    res->cmd[2] = 0;
+    res->time[0] = 0;
+    res->time[1] = 0;
+  }
+  else
+  {
+    if (fd >= 0)
+    {
+      file_seek(&fptr, 0, SEEK_SET);
+      if (file_read(&fptr, res, sizeof(struct reservation_command)) >= 0)
+      {
+        printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
+      }
+    }
+    uint32_t t1 = (uint32_t)res->cmd[3] << 8 | res->cmd[4];
+    res->latest_time = t1 * 60;
+  }
+  file_close(&fptr);
 }
 
 // void sort_reservation_command(uint16_t file_size, bool reorder) {
@@ -617,4 +656,154 @@ void sort_reservation_command(uint16_t file_size, bool reorder)
   //     } else {
   //         // publish_data(res_temp[1]);
   //     }
+}
+
+void maintain_data_consistency()
+{
+  struct file mfm_file_pointer, sfm_file_pointer;
+  int mfm_fd, sfm_fd;
+  uint32_t mfm_read, sfm_read, sfm_seek_pointer_status = 0, mfm_seek_pointer_status = 0;
+  uint8_t temp[2000], count = 0;
+
+  char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
+  for (int i = 0; i < 4; i++)
+  {
+    mfm_fd = file_open_flash(mfm_file_pointer, MFM_MAIN_STRPATH, filename[i], O_RDWR);
+    sfm_fd = file_open_flash(mfm_file_pointer, SFM_MAIN_STRPATH, filename[i], O_RDWR);
+    if (mfm_fd >= 0)
+    {
+      mfm_read = file_seek(&mfm_file_pointer, 0, SEEK_END);
+    }
+
+    if (sfm_fd >= 0)
+    {
+      sfm_read = file_seek(&sfm_file_pointer, 0, SEEK_END);
+    }
+    if (mfm_fd >= 0 & sfm_fd >= 0)
+    {
+      if (mfm_read != sfm_read)
+      {
+        if (mfm_read < sfm_read)
+        {
+          sfm_seek_pointer_status = mfm_read;
+          mfm_seek_pointer_status = sfm_read;
+          do
+          {
+            file_seek(&sfm_file_pointer, sfm_seek_pointer_status, SEEK_SET);
+            if (sfm_read - count > 2000)
+            {
+              count = 2000;
+            }
+            else
+            {
+              count = sfm_read - count;
+            }
+            if (file_read(&sfm_file_pointer, temp, count) >= 0)
+            {
+              ssize_t written = file_write(&mfm_file_pointer, temp, count);
+              printf("Data of size %d has been writtern\n", written);
+            }
+            sfm_seek_pointer_status += count;
+
+          } while (sfm_seek_pointer_status <= sfm_read);
+        }
+        if (mfm_read > sfm_read)
+        {
+          sfm_seek_pointer_status = mfm_read;
+          mfm_seek_pointer_status = sfm_read;
+          do
+          {
+            file_seek(&mfm_file_pointer, mfm_seek_pointer_status, SEEK_SET);
+            if (sfm_read - count > 2000)
+            {
+              count = 2000;
+            }
+            else
+            {
+              count = sfm_read - count;
+            }
+            if (file_read(&mfm_file_pointer, temp, count) >= 0)
+            {
+              ssize_t written = file_write(&sfm_file_pointer, temp, count);
+              printf("Data of size %d has been writtern\n", written);
+            }
+            mfm_seek_pointer_status += count;
+          } while (mfm_seek_pointer_status <= mfm_read);
+        }
+      }
+    }
+    file_close(&mfm_file_pointer);
+    file_close(&sfm_file_pointer);
+  }
+}
+
+void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets)
+{
+  int adc_instance = 10;
+
+  struct flash_operation flash;
+  int raw_afd = orb_advertise_multi_queue_persist(ORB_ID(flash_operation), &flash,
+                                                  &adc_instance, sizeof(struct flash_operation));
+  int count = 0,pkt=0;
+  // while (1)
+  {
+    flash.timestamp = (uint64_t)time(NULL);
+    if (raw_afd < 0)
+    {
+      syslog(LOG_ERR, "Raw ADC advertise failed. %i\n", raw_afd);
+    }
+    else
+    {
+
+      {
+        printf("\nData sent :\nTimestamp : %d \nPacket Type:%d \nPacket Number:%d \n",
+               flash.timestamp,
+               flash.packet_type,
+               flash.packet_number);
+        struct file fp;
+        int fd = file_open(&fp, path, O_RDONLY);
+        uint8_t data[80] = {'\0'};
+        if (fd >= 0)
+        {
+          count = address;
+          do
+          {
+            printf("file has been opened with name %s\n", path);
+            printf("\n----------------------------\n");
+            pkt++;
+            //TODO:read data at once and send it accordingly instead
+
+            file_seek(&fp, count, SEEK_SET);
+            // file_read(&fp, &flash.data, sizeof(data));
+            file_read(&fp, data, sizeof(data));
+            // flash.data = data;
+            for(int i=0;i<80;i++){
+              printf("%02x ", data[i]);
+              flash.data[i] = data[i];
+            }
+            flash.packet_type=0x0a;
+            flash.packet_number= pkt;
+            printf("cc: %d num_of_pkt:%d   Packet number:%d\n",count,num_of_packets, flash.packet_number);
+            printf("\n----------------------------\n");
+            count += 80;
+
+            if (OK != orb_publish(ORB_ID(flash_operation), raw_afd, &flash))
+            {
+              syslog(LOG_ERR, "Orb Publish failed\n");
+            }
+            else
+            {
+              syslog(LOG_ERR, "Orb data published\n");
+            }
+            // if(num_of_packets == pkt) break;
+            num_of_packets -= 1;
+
+            sleep(1);
+          } while (num_of_packets > 0);
+        }
+        file_close(&fp);
+      }
+    }
+  }
+  // orb_unadvertise(raw_afd);
 }
