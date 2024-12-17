@@ -80,7 +80,7 @@ void print_beacon_b();
 void handle_reservation_command(int, struct reservation_command);
 void set_time(uint32_t);
 void get_top_rsv(struct reservation_command *res);
-void flash_operation_data();
+void flash_operation_data(uint16_t loop);
 uint64_t get_time_data();
 struct sensor_rgb sensor_rgb_0;
 struct reservation_command TO_EXECUTE;
@@ -142,6 +142,7 @@ struct adc_msg_s int_adc3_sample[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC3_GROUPSIZE];
 uint8_t COM_HANDSHAKE_STATUS = 0;
 bool FLASH_OPERATION = false;
 bool COM_UART_BUSY = false;
+bool FLASH_UORB_RESPONDING = true;
 struct mission_status MISSION_STATUS = {false, false, false}; // Initialize all to false
 uint8_t beacon_status = 0;
 uint8_t COM_BUSY = 0;
@@ -301,7 +302,7 @@ void watchdog_refresh_task(int fd);
 
 int configure_watchdog(int fd, int timeout);
 void send_beacon();
-void test_uorb();
+void flash_read_operation_uorb();
 void save_critics_flags(const CRITICAL_FLAGS *flags)
 {
   int fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_WRONLY | O_CREAT, 0644);
@@ -1160,15 +1161,20 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
 
               // uorb
               strcpy(command_uorb.path, __file_operations.filepath);
-              command_uorb.command = 0xffffff;
+              command_uorb.command = __file_operations.cmd;
               command_uorb.num_of_packets = (uint16_t)__file_operations.number_of_packets[0] << 8 | __file_operations.number_of_packets[1];
               // command_uorb.packet_type = 0x00;
               command_uorb.address = (uint32_t)__file_operations.address[0] << 24 | __file_operations.address[1] << 16 | __file_operations.address[2] << 8 | __file_operations.address[3] & 0xff;
               command_uorb.executed = 0;
-              test_uorb();//TODO 
+              MISSION_STATUS.FLASH_OPERATION = true;
+              FLASH_OPERATION = true;
+              flash_read_operation_uorb();//sends command using uorb 
+              flash_operation_data(command_uorb.num_of_packets);
+              
+              MISSION_STATUS.FLASH_OPERATION = false;
+              FLASH_OPERATION = false;
               // uorb
-
-              // perform_file_operations(&__file_operations);
+              //  perform_file_operations(&__file_operations);
 
               // uorb//
 
@@ -2840,7 +2846,7 @@ int main(int argc, FAR char *argv[])
     // printf("The data is %d\n",r);
     // clear_int_flag();
 
-    // test_uorb();
+    // flash_read_operation_uorb();
     // set_time(1733986468);
     // save_64_bit();
     // struct file fl1;
@@ -3167,11 +3173,11 @@ int main(int argc, FAR char *argv[])
           if (retval >= 0)
           {
             g_beacon_task_started = true;
-            retval = create_task("UORB_TASK_APP", 100, 3800, flash_operation_data);
-            if (retval >= 0)
-            {
-              g_beacon_task_started = true;
-            }
+            // retval = create_task("UORB_TASK_APP", 100, 3800, flash_operation_data);
+            // if (retval >= 0)
+            // {
+            //   g_beacon_task_started = true;
+            // }
           }
           else
           {
@@ -5139,7 +5145,7 @@ uint64_t get_time_data()
   return test;
 }
 
-void test_uorb()
+void flash_read_operation_uorb()
 {
   int adc_instance = 10;
   int raw_afd = orb_advertise_multi_queue_persist(ORB_ID(command), &command_uorb,
@@ -5173,30 +5179,40 @@ void test_uorb()
   }
   ret = orb_unadvertise(raw_afd);
 }
-void flash_operation_data() {
+void flash_operation_data(uint16_t loop) {
     struct flash_operation flash;
     int updated = 0;
     int flash_fd = orb_subscribe_multi(ORB_ID(flash_operation), 10);
-
-    while (1) {
+    uint32_t start_time = time(NULL);
+    uint32_t stop_time = 0;
+   do{
         orb_check(flash_fd, &updated);
         if (updated) {
             orb_copy(ORB_ID(flash_operation), flash_fd, &flash);
 
             // Print the received flash operation data
-            printf("\nTimestamp: %llu \nPacket_Type: %d\nPacket Number: %d\n",
+            printf("\nUORB DATA\nTimestamp: %llu \nPacket_Type: %d\nPacket Number: %d\n",
                    flash.timestamp, flash.packet_type, flash.packet_number);
 
             for (int i = 0; i < 80; i++) {
-                // printf("%02x ", flash.data[i]);
+                printf("%02x ", flash.data[i]);
             }
+            send_flash_data(flash_data);
             printf("\n------------------------------------\n");
 
             // Reset the updated flag
-            updated = 0;
+            // updated = 0;
+          loop--;
         }
         sleep(1);
-    }
+        stop_time = time(NULL);
+        FLASH_UORB_RESPONDING= true;
+        if(stop_time - start_time > 400){
+          FLASH_UORB_RESPONDING= false;
+          break;
+        }
+        // printf("the value of counter is %d\n",loop);
+    }while(loop>=0 && loop<65505);
 
     orb_unsubscribe(flash_fd);
 }
