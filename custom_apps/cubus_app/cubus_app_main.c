@@ -258,22 +258,6 @@ struct FILE_OPERATIONS
   uint8_t mcu_id;
 };
 
-struct SEEK_POINTER
-{
-  uint8_t SATELLITE_HEALTH_1; // SAT HEALTH POINTER status
-  uint8_t SATELLITE_HEALTH_2; // SAT HEALTH POINTER status
-
-  uint8_t MSN1_DATA_1; // MSN1 DATA POINTER status
-  uint8_t MSN1_DATA_2; // MSN1 DATA POINTER status
-
-  uint8_t MSN2_DATA_1; // MSN2 DATA POINTER status
-  uint8_t MSN2_DATA_2; // MSN2 DATA POINTER status
-
-  uint8_t MSN3_DATA_1; // MSN3 DATA POINTER status
-  uint8_t MSN3_DATA_2; // MSN3 DATA POINTER status
-                       // to make sure data is stored in internal flash
-};
-
 /*Private variable end*/
 
 /*Private function prototypes declaration start*/
@@ -684,7 +668,7 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
       }
     }
     sleep(2);
-    printf("Turning off  4v DCDC line..\n");
+    printf("\nTurning off  4v DCDC line..\n");
     int x = 0;
     while (x < 200000)
     {
@@ -1072,7 +1056,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 else
                   strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
               }
-              char filename[7][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
+              char filename[9][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam_rgb.txt", "/epdm.txt", "/adcs.txt","/cam_nir.txt","/digipeater.txt"};
 
               if ((cmds[2] == 0xF1))
               {
@@ -1130,15 +1114,48 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 __file_operations.mcu_id = 0xca;
                 strcat(__file_operations.filepath, "/cam_nir.txt");
               }
-              else if ((cmds[2] == 0xF8))
+              else if ((cmds[2] == 0xF9))
               {
                 __file_operations.select_file = DIGIPEATER_TXT;
                 __file_operations.mcu_id = 0x0a;
                 strcat(__file_operations.filepath, "/digipeater.txt");
               }
+              else if ((cmds[2] == 0xFA))
+              {struct file temp_fp;
+                uint8_t beacon[BEACON_DATA_SIZE] = {'\0'};
+                beacon[0]=0x53;
+                beacon[1]=0x51;
+                beacon[2]=0xed;
+                beacon[3]=0x00;
+
+                for(int i = 1; i < sizeof(filename); i++){
+                  uint32_t counter=0;
+                  int fd =0;
+                  if(i<4){
+                    fd = open_file_flash(&temp_fp, MFM_MAIN_STRPATH, filename[i], O_RDONLY);
+                  }
+                  else{
+                    fd = open_file_flash(&temp_fp, MFM_MSN_STRPATH, filename[i], O_RDONLY);
+                  }
+                  if(fd>=0){
+                    counter = file_seek(&temp_fp, 0, SEEK_SET);
+                  }
+                  if(counter >= 0){
+                    beacon[i*4] = counter;
+                    beacon[i*4 + 1] = counter>>8;
+                    beacon[i*4 + 2] = counter>>16;
+                    beacon[i*4 + 3] = counter>>24;
+                  }
+                  send_flash_data(beacon);
+                }
+                // __file_operations.select_file = DIGIPEATER_TXT;
+                // __file_operations.mcu_id = 0x0a;
+                // strcat(__file_operations.filepath, "/digipeater.txt");
+              }
 
               // TODO check reservation table here
-
+              if(cmds[2] != 0xFA)
+              {
               __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
               __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
 
@@ -1163,19 +1180,21 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               strcpy(command_uorb.path, __file_operations.filepath);
               command_uorb.command = __file_operations.cmd;
               command_uorb.num_of_packets = (uint16_t)__file_operations.number_of_packets[0] << 8 | __file_operations.number_of_packets[1];
-              // command_uorb.packet_type = 0x00;
+              // command_uorb.packet_type = 0x00;//TODO removed from struct
               command_uorb.address = (uint32_t)__file_operations.address[0] << 24 | __file_operations.address[1] << 16 | __file_operations.address[2] << 8 | __file_operations.address[3] & 0xff;
-              command_uorb.executed = 0;
+              command_uorb.pkt_type = __file_operations.mcu_id;
               MISSION_STATUS.FLASH_OPERATION = true;
               FLASH_OPERATION = true;
-              flash_read_operation_uorb();//sends command using uorb 
+              flash_read_operation_uorb(); // sends command using uorb
               flash_operation_data(command_uorb.num_of_packets);
-              
+
               MISSION_STATUS.FLASH_OPERATION = false;
               FLASH_OPERATION = false;
-              // uorb
-              //  perform_file_operations(&__file_operations);
-
+              }
+              // if (FLASH_UORB_RESPONDING == false)
+              // {
+              // perform_file_operations(&__file_operations);//TODO need to check this logic of file operation execute this function if uorb is not responding though a variable has been initialized and if the loop is there for some static second then var is initialized
+              // }
               // uorb//
 
               // memset(command_uorb.data, '\0', sizeof(command_uorb.data));
@@ -1563,7 +1582,7 @@ void send_beacon(int argc, char *argv)
 
   for (;;)
   {
-    if (COM_HANDSHAKE_STATUS == 1 && count_beacon % 88 == 0)
+    if (COM_HANDSHAKE_STATUS == 1 && count_beacon % 90 == 0)
     {
       count_beacon = 0;
       read_int_adc1();
@@ -1573,7 +1592,7 @@ void send_beacon(int argc, char *argv)
       make_satellite_health();
       print_satellite_health_data(&sat_health);
       send_beacon_data(); // TODO uncomment this
-      pet_counter = 0;    // TODO remove this after uncommenting above
+      // pet_counter = 0;    // TODO remove this after uncommenting above
       count_beacon = 0;
     }
     count_beacon += 1;
@@ -2571,7 +2590,7 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
           printf("\n\n--------------------------Data read from flash pkt no :%d  ----\n", loop1 + 1);
           for (int j = 0; j < size_of_buffer; j++)
           {
-            flash_data[j + 3] = data_retrieved[j];
+            flash_data[j + 4] = data_retrieved[j];
             printf("%02x ", data_retrieved[j]); // Print in hexadecimal format
           }
           loop1 += 1;
@@ -2676,9 +2695,9 @@ void perform_file_operations(struct FILE_OPERATIONS *file_operations)
            file_operations->number_of_packets[3], file_operations->number_of_packets[2], file_operations->number_of_packets[1], file_operations->number_of_packets[0]);
 
     printf("-------Data download function has been called\n");
-    printf("Turning off  4v dcdc line..\n");
+    printf("\nTurning off  4v dcdc line..\n");
     gpio_write(GPIO_DCDC_4V_EN, 0);
-    printf("Turning off COM 4V line..\n");
+    printf("\nTurning off COM 4V line..\n");
     gpio_write(GPIO_COM_4V_EN, 0);
     MISSION_STATUS.FLASH_OPERATION = false;
     FLASH_OPERATION = false;
@@ -3343,9 +3362,9 @@ void send_flash_data(uint8_t *beacon_data)
     }
   }
   sleep(1);
-  printf("Turning off 4v dcdc line..\n");
+  printf("\nTurning off 4v dcdc line..\n");
   gpio_write(GPIO_DCDC_4V_EN, 0);
-  printf("Turning off COM 4V line..\n");
+  printf("\nTurning off COM 4V line..\n");
   gpio_write(GPIO_COM_4V_EN, 0);
   close_uart(fd);
 }
@@ -3521,13 +3540,13 @@ void Antenna_Deployment(int argc, char *argv[])
     } while (i < ANT_DEPLOY_TIME);
 
     printf("Entering antenna deployment sequence\n");
-    for (int i = 0; i <= 2; i++)
+    for (int i = 0; i < 2; i++)
     {
       printf("Turning on burner circuit\nAttempt: %d\n", i + 1);
       retval = gpio_write(GPIO_BURNER_EN, true);
       retval1 = gpio_write(GPIO_UNREG_EN, true);
       sleep(8); // Antenna deployment time
-      printf("Turning off burner circuit\n");
+      printf("\nTurning off burner circuit\n");
       gpio_write(GPIO_UNREG_EN, false);
       gpio_write(GPIO_BURNER_EN, false);
       sleep(10);
@@ -4756,6 +4775,7 @@ void new_camera_operation()
     syslog(LOG_DEBUG, "Command %s sent\n", data2);
     int p = 0;
     counter = 0;
+    counter1 = 0;
     // uint8_t cam[11500] = {'\0'};
     int fd2 = open(CAM_UART, O_RDONLY);
     // sleep(10);
@@ -4787,10 +4807,12 @@ void new_camera_operation()
     } while (1);
     close(fd);
     gpio_write(GPIO_SFM_MODE, false);
+    uint32_t nir_size = 0;
     if (i == 0)
     {
       fd = file_open(&file_pointer, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_CREAT | O_RDWR | O_APPEND);
-      if (file_seek(&file_pointer, 0, SEEK_END) > 16000000)
+      nir_size = file_seek(&file_pointer, 0, SEEK_END);
+      if (nir_size > 16000000)
       {
         if (file_seek(&file_pointer, 0, SEEK_SET) >= 0)
         {
@@ -4800,6 +4822,22 @@ void new_camera_operation()
       if (fd >= 0)
       {
         counter2 = file_write(&file_pointer, cam, counter1);
+        if (counter2 >= 0)
+        {
+          struct file fp;
+          uint8_t temp[4] = {'\0'};
+          if (file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/cam_nir_logs.txt", O_CREAT | O_WRONLY | O_APPEND) >= 0)
+          {
+            temp[0] = nir_size;
+            temp[1] = nir_size >> 8;
+            temp[2] = nir_size >> 8;
+            temp[3] = nir_size >> 8;
+            if (file_write(&fp, temp, sizeof(temp)) >= 0)
+            {
+              printf("Here the cam_nir_log has been updated\n");
+            }
+          }
+        }
         printf("\n\nData of length %d has been written to camnir.txt\n\n", counter2);
         file_close(&file_pointer);
       }
@@ -4807,7 +4845,8 @@ void new_camera_operation()
     else
     {
       file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_CREAT | O_WRONLY | O_APPEND);
-      if (file_seek(&file_pointer, 0, SEEK_END) > 16000000)
+      nir_size = file_seek(&file_pointer, 0, SEEK_END);
+      if (nir_size > 16000000)
       {
         if (file_seek(&file_pointer, 0, SEEK_SET) >= 0)
         {
@@ -4817,6 +4856,22 @@ void new_camera_operation()
       if (fd >= 0)
       {
         counter2 = file_write(&file_pointer2, cam, counter1);
+        if (counter2 >= 0)
+        {
+          struct file fp;
+          uint8_t temp[4] = {'\0'};
+          if (file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/cam_rgb_logs.txt", O_CREAT | O_WRONLY | O_APPEND) >= 0)
+          {
+            temp[0] = nir_size;
+            temp[1] = nir_size >> 8;
+            temp[2] = nir_size >> 8;
+            temp[3] = nir_size >> 8;
+            if (file_write(&fp, temp, sizeof(temp)) >= 0)
+            {
+              printf("Here the cam_rgb_logs has been updated\n");
+            }
+          }
+        }
         printf("\n\nData of length %d has been written to camrgb.txt\n\n", counter2);
         file_close(&file_pointer2);
       }
@@ -5167,52 +5222,67 @@ void flash_read_operation_uorb()
       {
         // syslog(LOG_DEBUG, "Reservation Command Orb Published\n");
         // printf("----Sent data : %d %d %d %d\n", command_uorb.timestamp, command_uorb.command, command_uorb.packet_number, command_uorb.num_of_packets);
-        printf("\nData sent :\nTimestamp : %d \nPath: %s \nAddress:%d \nCommand:%d \nExecuted:%d \n",
+        printf("\nData sent :\nTimestamp : %d \nPath: %s \nAddress:%d \nCommand:%d \nPacket_type:%d \n",
                command_uorb.timestamp,
                command_uorb.path,
                command_uorb.command,
                command_uorb.num_of_packets,
                command_uorb.address,
-               command_uorb.executed);
+               command_uorb.pkt_type);
       }
     }
   }
   ret = orb_unadvertise(raw_afd);
 }
-void flash_operation_data(uint16_t loop) {
-    struct flash_operation flash;
-    int updated = 0;
-    int flash_fd = orb_subscribe_multi(ORB_ID(flash_operation), 10);
-    uint32_t start_time = time(NULL);
-    uint32_t stop_time = 0;
-   do{
-        orb_check(flash_fd, &updated);
-        if (updated) {
-            orb_copy(ORB_ID(flash_operation), flash_fd, &flash);
+void flash_operation_data(uint16_t loop)
+{
+  struct flash_operation flash;
+  int updated = 0;
+  int flash_fd = orb_subscribe_multi(ORB_ID(flash_operation), 10);
+  uint32_t start_time = time(NULL);
+  uint32_t stop_time = 0;
+  uint8_t beacon_data[BEACON_DATA_SIZE] = {'\0'};
+  do
+  {
+    orb_check(flash_fd, &updated);
+    if (updated)
+    {
+      orb_copy(ORB_ID(flash_operation), flash_fd, &flash);
 
-            // Print the received flash operation data
-            printf("\nUORB DATA\nTimestamp: %llu \nPacket_Type: %d\nPacket Number: %d\n",
-                   flash.timestamp, flash.packet_type, flash.packet_number);
+      // Print the received flash operation data
+      printf("\nUORB DATA\nTimestamp: %llu \nPacket_Type: %d\nPacket Number: %d\n",
+             flash.timestamp, flash.packet_type, flash.packet_number);
 
-            for (int i = 0; i < 80; i++) {
-                printf("%02x ", flash.data[i]);
-            }
-            send_flash_data(flash_data);
-            printf("\n------------------------------------\n");
+      for (int i = 0; i < 80; i++)
+      {
+        printf("%02x ", flash.data[i]);
+        beacon_data[i + 4] = flash.data[i];
+      }
+      beacon_data[0] = 83;
+      beacon_data[1] = flash.packet_type;
+      beacon_data[2] = 0x51;
+      beacon_data[3] = flash.packet_number;
+      beacon_data[BEACON_DATA_SIZE - 2] = 0x7e;
+      beacon_data[BEACON_DATA_SIZE - 1] = '\0';
+      send_flash_data(beacon_data);
+      printf("\n------------------------------------\n");
 
-            // Reset the updated flag
-            // updated = 0;
-          loop--;
-        }
-        sleep(1);
-        stop_time = time(NULL);
-        FLASH_UORB_RESPONDING= true;
-        if(stop_time - start_time > 400){
-          FLASH_UORB_RESPONDING= false;
-          break;
-        }
-        // printf("the value of counter is %d\n",loop);
-    }while(loop>=0 && loop<65505);
+      // Reset the updated flag
+      // updated = 0;
+      loop--;
+      start_time = time(NULL);
+    }
+    stop_time = time(NULL);
 
-    orb_unsubscribe(flash_fd);
+    sleep(1);
+    FLASH_UORB_RESPONDING = true;
+    if (stop_time - start_time > 2)
+    {
+      FLASH_UORB_RESPONDING = false;
+      break;
+    }
+    // printf("the value of counter is %d\n",loop);
+  } while (loop >= 0 && loop < 65505);
+
+  orb_unsubscribe(flash_fd);
 }

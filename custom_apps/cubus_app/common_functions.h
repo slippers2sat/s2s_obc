@@ -51,7 +51,28 @@
 #define file_name_cam_msn           "/cam.txt"
 #define file_name_test_msn          "/test_msn.txt"
 
+struct SEEK_POINTER
+{
+  uint16_t SAT_HEALTH;
+  uint16_t SAT_LOG;
+  uint16_t CAM_RGB;
+  uint16_t CAM_NIR;
+  uint16_t EPDM;
+  uint16_t ADCS;
+//   uint8_t SATELLITE_HEALTH_1; // SAT HEALTH POINTER status
+//   uint8_t SATELLITE_HEALTH_2; // SAT HEALTH POINTER status
 
+//   uint8_t MSN1_DATA_1; // MSN1 DATA POINTER status
+//   uint8_t MSN1_DATA_2; // MSN1 DATA POINTER status
+
+//   uint8_t MSN2_DATA_1; // MSN2 DATA POINTER status
+//   uint8_t MSN2_DATA_2; // MSN2 DATA POINTER status
+
+//   uint8_t MSN3_DATA_1; // MSN3 DATA POINTER status
+//   uint8_t MSN3_DATA_2; // MSN3 DATA POINTER status
+
+                       // to make sure data is stored in internal flash
+};
 
 typedef struct  {
 	// uint64_t timestamp;
@@ -198,7 +219,7 @@ typedef struct {
 	uint8_t UL_STATE;			//uplink success
 	uint8_t OPER_MODE;			//operation modes
 	uint8_t KILL_SWITCH_STAT;	//kill switch status
-	uint8_t RST_COUNT;				//to make sure data is stored in internal flash 
+	uint16_t RST_COUNT;				//to make sure data is stored in internal flash 
 }CRITICAL_FLAGS;
 
 typedef enum _OPERA_MODES {

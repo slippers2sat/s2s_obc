@@ -43,7 +43,6 @@
 #include <sched.h>
 #include <math.h>
 
-
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
 
 static bool g_ads7953_daemon_started;
@@ -63,7 +62,7 @@ int ads7953_daemon(int argc, FAR char *argv[])
   int volts_afd;
   uint8_t raw_temp[2];
   uint8_t counter;
-  float t5,mean[8]={0.0f};
+  float t5, mean[8] = {0.0f};
 
   struct ads7953_raw_msg e_ads7953_0;
   struct sat_temp_msg sat_temps;
@@ -148,7 +147,7 @@ int ads7953_daemon(int argc, FAR char *argv[])
     close(fd); // closing ADC sesnor path after reading is completed
 
     e_ads7953_0.timestamp = orb_absolute_time();
-    
+
     if (OK != orb_publish(ORB_ID(ads7953_raw_msg), raw_afd, &e_ads7953_0))
     {
       syslog(LOG_ERR, "Orb Publish failed\n");
@@ -157,19 +156,19 @@ int ads7953_daemon(int argc, FAR char *argv[])
     // Processing temperature sensor reading
     float temp = e_ads7953_0.temp_chan_volts[1] * 10000 / (2.5 - e_ads7953_0.temp_chan_volts[1]);
     sat_temps.batt_temp = 3976 * 298 / (3976 - (298 * log(10000 / temp)));
-    
+
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[2] * 1000))));
     sat_temps.temp_bpb = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
-    
+
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[0] * 1000))));
-    sat_temps.temp_ant= (((5.506 - temp) / (-0.00352) )+ 30) * 100.0f;// * 100.0f;
+    sat_temps.temp_ant = (((5.506 - temp) / (-0.00352)) + 30) * 100.0f; // * 100.0f;
     //((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[3] * 1000))));
     sat_temps.temp_z_pos = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
-   
+
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[4] * 1000))));
     sat_temps.temp_5 = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
-   
+
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[5] * 1000))));
     sat_temps.temp_4 = ((((5.506 - temp) / (2 * (-0.00176))) + 30)) * 100.0f;
     temp = sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[6] * 1000))));
@@ -181,30 +180,32 @@ int ads7953_daemon(int argc, FAR char *argv[])
     //  temp = (sqrtf((5.506 * 5.506) + (4 * 0.00176 * (870.6 - (e_ads7953_0.temp_chan_volts[7] * 1000)))))/(2*(-0.00176))+30;
     // sat_temps.temp_2 = (((5.506 - temp) / (2 * (-0.00176)) + 30)) * 100;
     sat_temps.timestamp = e_ads7953_0.timestamp;
-     if(counter == 0){
-      mean[0]= sat_temps.temp_ant;
-      mean[1]= sat_temps.batt_temp;
-      mean[2]= sat_temps.temp_bpb;
-      mean[3]= sat_temps.temp_z_pos;
-      mean[4]= sat_temps.temp_4;
-      mean[5]= sat_temps.temp_5;
-      mean[6]= sat_temps.temp_3;
-      mean[7]= sat_temps.temp_2;
-
+    if (counter == 0)
+    {
+      mean[0] = sat_temps.temp_ant;
+      mean[1] = sat_temps.batt_temp;
+      mean[2] = sat_temps.temp_bpb;
+      mean[3] = sat_temps.temp_z_pos;
+      mean[4] = sat_temps.temp_4;
+      mean[5] = sat_temps.temp_5;
+      mean[6] = sat_temps.temp_3;
+      mean[7] = sat_temps.temp_2;
     }
-    else{
+    else
+    {
       // mean=(mean + sat_temps.temp_ant)/2;
-      
-      mean[0]= (mean[0] + sat_temps.temp_ant) / 2;
-      mean[1]= (mean[1] + sat_temps.batt_temp) / 2;
-      mean[2]= (mean[2] + sat_temps.temp_bpb) / 2;
-      mean[3]= (mean[3] + sat_temps.temp_z_pos) / 2;
-      mean[4]= (mean[4] + sat_temps.temp_4) / 2;
-      mean[5]= (mean[5] + sat_temps.temp_5) / 2;
-      mean[6]= (mean[6] + sat_temps.temp_3) / 2;
-      mean[7]= (mean[7] + sat_temps.temp_2) / 2;
+
+      mean[0] = (mean[0] + sat_temps.temp_ant) / 2;
+      mean[1] = (mean[1] + sat_temps.batt_temp) / 2;
+      mean[2] = (mean[2] + sat_temps.temp_bpb) / 2;
+      mean[3] = (mean[3] + sat_temps.temp_z_pos) / 2;
+      mean[4] = (mean[4] + sat_temps.temp_4) / 2;
+      mean[5] = (mean[5] + sat_temps.temp_5) / 2;
+      mean[6] = (mean[6] + sat_temps.temp_3) / 2;
+      mean[7] = (mean[7] + sat_temps.temp_2) / 2;
     }
-    if(counter % 50 == 0){
+    if (counter % 50 == 0)
+    {
       // syslog(LOG_DEBUG,"MEan 50 is %f",mean);
       sat_temps.temp_ant = mean[0];
       sat_temps.batt_temp = mean[1];
@@ -214,12 +215,12 @@ int ads7953_daemon(int argc, FAR char *argv[])
       sat_temps.temp_5 = mean[5];
       sat_temps.temp_3 = mean[6];
       sat_temps.temp_2 = mean[7];
-
     }
     counter++;
 
     // syslog(LOG_DEBUG,"Got temp value %f Temp %f",sat_temps.temp_ant, t5);
-    if(counter% 450 ==0){
+    if (counter % 450 == 0)
+    {
       // syslog(LOG_DEBUG,"MEan 450 is %f\n",mean);
       //  struct file fptr;
       //  char log[20];
@@ -240,19 +241,20 @@ int ads7953_daemon(int argc, FAR char *argv[])
       sat_temps.temp_5 = mean[5];
       sat_temps.temp_3 = mean[6];
       sat_temps.temp_2 = mean[7];
-
-
-      for(int i = 1;i < 8;i++){
-        mean[i] = 0.0f;
-      }
-      // mean=0;
-      counter=0;
-
     }
     // temperature sensor data processed
     if (OK != orb_publish(ORB_ID(sat_temp_msg), temp_afd, &sat_temps))
     {
       syslog(LOG_ERR, "Sat temp Orb Publish failed\n");
+    }
+    if (counter > 450 || counter % 450 == 0)
+    {
+      for (int i = 1; i < 8; i++)
+      {
+        mean[i] = 0.0f;
+      }
+      // mean=0;
+      counter = 0;
     }
 
     /* Processing Voltage sensor data */
@@ -300,10 +302,10 @@ int main(int argc, FAR char *argv[])
 {
   int ret;
 
-  syslog(LOG_INFO,"[ads7953] Starting task.\n");
+  syslog(LOG_INFO, "[ads7953] Starting task.\n");
   if (g_ads7953_daemon_started)
   {
-    syslog(LOG_WARNING,"[ads7953] Task already started.\n");
+    syslog(LOG_WARNING, "[ads7953] Task already started.\n");
     return EXIT_SUCCESS;
   }
 
@@ -314,12 +316,11 @@ int main(int argc, FAR char *argv[])
   if (ret < 0)
   {
     int errcode = errno;
-    syslog(LOG_ERR,"[ads7953] ERROR: Failed to start ads7953_dameon: %d\n",
+    syslog(LOG_ERR, "[ads7953] ERROR: Failed to start ads7953_dameon: %d\n",
            errcode);
     return EXIT_FAILURE;
   }
 
-  syslog(LOG_INFO,"[ads7953] ads7953_daemon started\n");
+  syslog(LOG_INFO, "[ads7953] ads7953_daemon started\n");
   return EXIT_SUCCESS;
 }
-
