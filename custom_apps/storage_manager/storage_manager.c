@@ -46,6 +46,16 @@ void Setup();
 
 #define NB_LOWERHALFS 1
 #define FLASH_DATA_SIZE 80
+
+struct SEEK_POINTER
+  {
+    uint16_t SAT_HEALTH;
+    uint16_t SAT_LOG;
+    uint16_t CAM_RGB;
+    uint16_t CAM_NIR;
+    uint16_t EPDM;
+    uint16_t ADCS;
+  };
 // #include <sensor/adc.h>
 static struct work_s work_storage;
 static int8_t count = 0;
@@ -693,116 +703,124 @@ void sort_reservation_command(uint16_t file_size, bool reorder)
   //     }
 }
 
-void maintain_data_consistency()
-{
-  struct file mfm_file_pointer, sfm_file_pointer;
-  int mfm_fd, sfm_fd;
-  uint32_t mfm_read, sfm_read, sfm_seek_pointer_status = 0, mfm_seek_pointer_status = 0;
-  uint8_t temp[2000], count = 0;
+// void maintain_data_consistency()
+// {
+//   struct file mfm_file_pointer, sfm_file_pointer;
+//   int mfm_fd, sfm_fd;
+//   uint32_t mfm_read, sfm_read, sfm_seek_pointer_status = 0, mfm_seek_pointer_status = 0;
+//   uint8_t temp[2000], count = 0;
 
-  char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
-  for (int i = 0; i < 4; i++)
+//   char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
+//   for (int i = 0; i < 4; i++)
+//   {
+//     mfm_fd = file_open_flash(mfm_file_pointer, MFM_MAIN_STRPATH, filename[i], O_RDWR);
+//     sfm_fd = file_open_flash(mfm_file_pointer, SFM_MAIN_STRPATH, filename[i], O_RDWR);
+//     if (mfm_fd >= 0)
+//     {
+//       mfm_read = file_seek(&mfm_file_pointer, 0, SEEK_END);
+//     }
+
+//     if (sfm_fd >= 0)
+//     {
+//       sfm_read = file_seek(&sfm_file_pointer, 0, SEEK_END);
+//     }
+//     if (mfm_fd >= 0 & sfm_fd >= 0)
+//     {
+//       if (mfm_read != sfm_read)
+//       {
+//         if (mfm_read < sfm_read)
+//         {
+//           sfm_seek_pointer_status = mfm_read;
+//           mfm_seek_pointer_status = sfm_read;
+//           do
+//           {
+//             file_seek(&sfm_file_pointer, sfm_seek_pointer_status, SEEK_SET);
+//             if (sfm_read - count > 2000)
+//             {
+//               count = 2000;
+//             }
+//             else
+//             {
+//               count = sfm_read - count;
+//             }
+//             if (file_read(&sfm_file_pointer, temp, count) >= 0)
+//             {
+//               ssize_t written = file_write(&mfm_file_pointer, temp, count);
+//               printf("Data of size %d has been writtern\n", written);
+//             }
+//             sfm_seek_pointer_status += count;
+
+//           } while (sfm_seek_pointer_status <= sfm_read);
+//         }
+//         if (mfm_read > sfm_read)
+//         {
+//           sfm_seek_pointer_status = mfm_read;
+//           mfm_seek_pointer_status = sfm_read;
+//           do
+//           {
+//             file_seek(&mfm_file_pointer, mfm_seek_pointer_status, SEEK_SET);
+//             if (sfm_read - count > 2000)
+//             {
+//               count = 2000;
+//             }
+//             else
+//             {
+//               count = sfm_read - count;
+//             }
+//             if (file_read(&mfm_file_pointer, temp, count) >= 0)
+//             {
+//               ssize_t written = file_write(&sfm_file_pointer, temp, count);
+//               printf("Data of size %d has been writtern\n", written);
+//             }
+//             mfm_seek_pointer_status += count;
+//           } while (mfm_seek_pointer_status <= mfm_read);
+//         }
+//       }
+//     }
+//     file_close(&mfm_file_pointer);
+//     file_close(&sfm_file_pointer);
+//   }
+// }
+
+void print_seek_pointer(){
+  struct file fp_seek;
+  struct SEEK_POINTER seek_pointer;
+  int fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
+  if (fd_seek >= 0)
   {
-    mfm_fd = file_open_flash(mfm_file_pointer, MFM_MAIN_STRPATH, filename[i], O_RDWR);
-    sfm_fd = file_open_flash(mfm_file_pointer, SFM_MAIN_STRPATH, filename[i], O_RDWR);
-    if (mfm_fd >= 0)
-    {
-      mfm_read = file_seek(&mfm_file_pointer, 0, SEEK_END);
-    }
-
-    if (sfm_fd >= 0)
-    {
-      sfm_read = file_seek(&sfm_file_pointer, 0, SEEK_END);
-    }
-    if (mfm_fd >= 0 & sfm_fd >= 0)
-    {
-      if (mfm_read != sfm_read)
-      {
-        if (mfm_read < sfm_read)
-        {
-          sfm_seek_pointer_status = mfm_read;
-          mfm_seek_pointer_status = sfm_read;
-          do
-          {
-            file_seek(&sfm_file_pointer, sfm_seek_pointer_status, SEEK_SET);
-            if (sfm_read - count > 2000)
-            {
-              count = 2000;
-            }
-            else
-            {
-              count = sfm_read - count;
-            }
-            if (file_read(&sfm_file_pointer, temp, count) >= 0)
-            {
-              ssize_t written = file_write(&mfm_file_pointer, temp, count);
-              printf("Data of size %d has been writtern\n", written);
-            }
-            sfm_seek_pointer_status += count;
-
-          } while (sfm_seek_pointer_status <= sfm_read);
-        }
-        if (mfm_read > sfm_read)
-        {
-          sfm_seek_pointer_status = mfm_read;
-          mfm_seek_pointer_status = sfm_read;
-          do
-          {
-            file_seek(&mfm_file_pointer, mfm_seek_pointer_status, SEEK_SET);
-            if (sfm_read - count > 2000)
-            {
-              count = 2000;
-            }
-            else
-            {
-              count = sfm_read - count;
-            }
-            if (file_read(&mfm_file_pointer, temp, count) >= 0)
-            {
-              ssize_t written = file_write(&sfm_file_pointer, temp, count);
-              printf("Data of size %d has been writtern\n", written);
-            }
-            mfm_seek_pointer_status += count;
-          } while (mfm_seek_pointer_status <= mfm_read);
-        }
-      }
-    }
-    file_close(&mfm_file_pointer);
-    file_close(&sfm_file_pointer);
+    printf("SAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n",
+           seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
+           seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
   }
+  file_close(&fp_seek);
 }
 
 void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets, uint8_t packet_type)
 {
   int adc_instance = 10;
-  struct SEEK_POINTER
-  {
-    uint16_t SAT_HEALTH;
-    uint16_t SAT_LOG;
-    uint16_t CAM_RGB;
-    uint16_t CAM_NIR;
-    uint16_t EPDM;
-    uint16_t ADCS;
-  };
+  
   struct flash_operation flash = {'\0'};
   struct file fp_seek;
   // uint16_t test[8];
   struct SEEK_POINTER seek_pointer;
-  int fd_seek = file_open(&fp_seek, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_RDWR|O_TRUNC);
-  if(file_seek(&fp_seek, 0,SEEK_END) == 0){
+  int fd_seek = file_open(&fp_seek, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_RDWR | O_TRUNC);
+  if (file_seek(&fp_seek, 0, SEEK_END) == 0)
+  {
     file_write(&fp_seek, &seek_pointer, sizeof(struct SEEK_POINTER));
   }
   if (fd_seek >= 0)
   {
     printf("The seek pointer file has opened\n");
   }
-  fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
-  if (fd_seek >= 0)
-  {
-    printf("SAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n",
-    seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
-    seek_pointer.CAM_NIR,seek_pointer.EPDM, seek_pointer.ADCS);
-  }
+  // fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
+  // if (fd_seek >= 0)
+  // {
+  //   printf("SAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n",
+  //          seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
+  //          seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
+  // }
+  file_close(&fp_seek);
+  print_seek_pointer();
   int raw_afd = orb_advertise_multi_queue_persist(ORB_ID(flash_operation), &flash,
                                                   &adc_instance, sizeof(struct flash_operation));
   int count = 0, pkt = 0;
@@ -874,28 +892,70 @@ void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets, u
           } while (num_of_packets > 0);
         }
         file_close(&fp);
+        struct SEEK_POINTER temp;
+        fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_WRONLY);
+        if (fd >= 0)
+        {
+          if (file_read(&fp, &temp, sizeof(struct SEEK_POINTER)) >= 0)
+          {
+            if (path == "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt")
+             temp.SAT_HEALTH += count;
+            else if (path == "/mnt/fs/mfm/mtd_mission/cam_rgb.txt")
+              temp.CAM_RGB += count;
+            else if (path == "/mnt/fs/mfm/mtd_mission/epdm.txt")
+             temp.EPDM += count;
+              else if (path == "/mnt/fs/mfm/mtd_mission/cam_nir.txt")
+             temp.CAM_NIR += count;
+            else if (path == "/mnt/fs/mfm/mtd_mission/adcs.txt")
+             temp.ADCS += count;
+            if (file_write(&fp, &temp, sizeof(struct SEEK_POINTER)) >= 0)
+            {
+              printf("seek pointer updated\n");
+              print_seek_pointer();
+            }
+          }
+        }
       }
     }
   }
   // orb_unadvertise(raw_afd);
 }
 
-// void download_file_from_flash_uorb(char filepath[100], uint32_t address, uint16_t number_of_packets, uint8_t *data_retrieved, uint8_t size_of_buffer)
+// void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets, uint8_t packet_type)
 // {
 //   int adc_instance = 10;
-
-//   struct flash_operation flash;
+//   struct SEEK_POINTER
+//   {
+//     uint16_t SAT_HEALTH;
+//     uint16_t SAT_LOG;
+//     uint16_t CAM_RGB;
+//     uint16_t CAM_NIR;
+//     uint16_t EPDM;
+//     uint16_t ADCS;
+//   };
+//   struct flash_operation flash = {'\0'};
+//   struct file fp_seek;
+//   struct SEEK_POINTER seek_pointer;
+//   int fd_seek = file_open(&fp_seek, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_RDWR | O_TRUNC);
+//   if (file_seek(&fp_seek, 0, SEEK_END) == 0)
+//   {
+//     file_write(&fp_seek, &seek_pointer, sizeof(struct SEEK_POINTER));
+//   }
+//   if (fd_seek >= 0)
+//   {
+//     printf("The seek pointer file has opened\n");
+//   }
+//   fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
+//   if (fd_seek >= 0)
+//   {
+//     printf("SAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n",
+//            seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
+//            seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
+//   }
 //   int raw_afd = orb_advertise_multi_queue_persist(ORB_ID(flash_operation), &flash,
 //                                                   &adc_instance, sizeof(struct flash_operation));
 //   int count = 0, pkt = 0;
-//   struct file file_ptr;
-//   int fd = file_open(&file_ptr, filepath, O_RDONLY);
-//   if (fd < 0)
-//   {
-//     syslog(LOG_SYSLOG, "File named %s reading mode failed fd:%d\n", filepath, fd);
-//     return;
-//   }
-//   else
+//   flash.packet_type = packet_type;
 //   {
 //     if (raw_afd < 0)
 //     {
@@ -903,80 +963,34 @@ void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets, u
 //     }
 //     else
 //     {
-//       int8_t seek_pointer[16];
-
-//       uint8_t flash_data[FLASH_DATA_SIZE];
-//       // uint32_t address = file_operations->address[0] << 24 | file_operations->address[1] << 16 | file_operations->address[2] << 8 | file_operations->address[3] & 0xff;
-//       // uint16_t number_of_packets = file_operations->number_of_packets[0] << 8 | file_operations->number_of_packets[1] & 0xff;
-//       ssize_t read_bytes;
-//       int size_of_file = file_seek(&file_ptr, 0, SEEK_END);
-//       printf("---------------------------------------\n");
-//       printf("---------------------------------------\n");
-//       printf("Address is %d\n", address);
-//       printf("Number of packets is %d\n", number_of_packets);
-//       printf("TEXT file is %s", filepath);
-//       // number_of_packets =0;
-
-//       printf("---------------------------------------\n");
-//       printf("---------------------------------------\n");
-
-//       int off; //= file_seek(&file_ptr, address, SEEK_SET);
-//       printf("\nSize of file is %d %d\n", size_of_file, address);
-//       uint8_t update_address = 0;
-//       uint32_t readBytes2;
-//       if (address == 0)
+//       printf("\nData sent :\nTimestamp : %d \nPacket Type:%d \nPacket Number:%d \n",
+//              flash.timestamp,
+//              flash.packet_type,
+//              flash.packet_number);
+//       struct file fp;
+//       int fd = file_open(&fp, path, O_RDONLY);
+//       int64_t size_of_file = file_seek(&fp, 0, SEEK_END);
+//       printf("The size of file named %s is : %d\n", path, size_of_file);
+//       uint8_t data[80] = {'\0'};
+//       if (fd >= 0)
 //       {
-//         update_address = 1;
-//         // todo read the address from the text file
-//         struct file fl1;
-//         int fd2 = file_open(&fl1, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_RDWR);
-//         if (fd2 >= 0)
+//         count = address;
+//         do
 //         {
-//           readBytes2 = file_read(&fl1, seek_pointer, sizeof(seek_pointer));
-//           if (readBytes2 < 0)
+//           if (size_of_file > 0 && count <= size_of_file)
 //           {
-//             syslog(LOG_SYSLOG, "Error while reading the seek_pointer.txt in mfm\n");
-//             file_close(&fl1);
-//             readBytes2 = 0;
-//           }
-//         }
-//       }
-
-//       // uint8_t data_retrieved[412];
-//       // data_retrieved1 = data_retrieved;
-//       // (file_operations->address[3] << 24) |
-//       //                    (file_operations->address[2] << 16) |
-//       //                    (file_operations->address[1] << 8)  |
-//       //                    (file_operations->address[0] & 0xFF);
-//       int loop1 = 0;
-//       // for (int loop1 = 1; loop1 < number_of_packets; loop1++)
-
-//       do
-//       {
-//         flash.timestamp = (uint64_t)time(NULL);
-//         if (size_of_file > 0 && size_of_file > address) //& size_of_file > address + 80
-//         {
-//           pkt++;
-//           off = file_seek(&file_ptr, address, SEEK_SET); // Set file pointer to the calculated address
-//           read_bytes = file_read(&file_ptr, data_retrieved, size_of_buffer);
-//           if (read_bytes >= 0)
-//           {
-//             syslog(LOG_SYSLOG, "Data retrieved from the flash address %d\n", address);
-
-//             printf("\n--------------------**************Read size = %zd\n", read_bytes);
-//             printf("\n\n--------------------------Data read from flash pkt no :%d  ----\n", loop1 + 1);
-//             for (int j = 0; j < size_of_buffer; j++)
+//             flash.timestamp = (uint64_t)time(NULL);
+//             pkt++;
+//             file_seek(&fp, count, SEEK_SET);
+//             file_read(&fp, data, sizeof(data));
+//             for (int i = 0; i < 80; i++)
 //             {
-//               flash_data[j] = data_retrieved[j];
-//               printf("%02x ", data_retrieved[j]); // Print in hexadecimal format
+//               flash.data[i] = data[i];
 //             }
-//             loop1 += 1;
-//             // send_flash_data(flash_data);
-
-//             if (number_of_packets > 0)
-//               number_of_packets -= 1;
-//             address += size_of_buffer;
+//             flash.packet_type = packet_type;
 //             flash.packet_number = pkt;
+//             count += 80;
+
 //             if (OK != orb_publish(ORB_ID(flash_operation), raw_afd, &flash))
 //             {
 //               syslog(LOG_ERR, "Orb Publish failed\n");
@@ -985,41 +999,39 @@ void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets, u
 //             {
 //               syslog(LOG_ERR, "Orb data published\n");
 //             }
-//             sleep(1);
+//             num_of_packets -= 1;
 //           }
 //           else
 //           {
-//             syslog(LOG_SYSLOG, "Failed to read data from the flash address %d\n", address);
-//             file_close(&file_ptr);
-
 //             break;
 //           }
-//         }
-//         else
-//         {
-//           break;
-//         }
-//         // TODO add else to perform the number of dat
-//       } while (number_of_packets > 0); // loop1 < number_of_packets |
-//       // todo : add seekpointer read index in internal and external flash memories
-//       file_close(&file_ptr);
 
-//       // if (update_address == 1)
-//       // {
-//       //   file_operations->address[0] = (uint8_t)address >> 24 & 0xff;
-//       //   file_operations->address[1] = (uint8_t)address >> 16 & 0xff;
-//       //   file_operations->address[2] = (uint8_t)address >> 8 & 0xff;
-//       //   file_operations->address[3] = (uint8_t)address & 0xff;
-//       //   track_read_seek_pointer(file_operations, seek_pointer);
-//       // }
+//           sleep(1);
+//         } while (num_of_packets > 0);
+//       }
+//       file_close(&fp);
+//       struct SEEK_POINTER temp;
+//       fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_WRONLY);
+//       if (fd >= 0)
+//       {
+//         if (file_read(&fp, &temp, sizeof(struct SEEK_POINTER)) >= 0)
+//         {
+//           if (strcmp(path, "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt") == 0)
+//             temp.SAT_HEALTH += count;
+//           else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt") == 0)
+//             temp.CAM_RGB += count;
+//           else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/epdm.txt") == 0)
+//             temp.EPDM += count;
+//           else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/cam_nir.txt") == 0)
+//             temp.CAM_NIR += count;
+//           else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/adcs.txt") == 0)
+//             temp.ADCS += count;
+//           if (file_write(&fp, &temp, sizeof(struct SEEK_POINTER)) >= 0)
+//           {
+//             printf("seek pointer updated\n");
+//           }
+//         }
+//       }
 //     }
 //   }
-//   file_close(&file_ptr);
-//   // data_retrieved[read_bytes]= '\0';
-//   // printf("\n\n--------------------------Data received----\n");
-//   // for (int j = 0; j < sizeof(data_retrieved); j++)
-//   // {
-//   //   printf("%02x|%c ", data_retrieved[j],data_retrieved1[j]); // Print in hexadecimal format
-//   // }
-//   // printf("\n--------------------**************Size = %zu\n", sizeof(data_retrieved));
 // }

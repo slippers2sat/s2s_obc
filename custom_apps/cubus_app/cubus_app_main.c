@@ -1056,7 +1056,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 else
                   strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
               }
-              char filename[9][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam_rgb.txt", "/epdm.txt", "/adcs.txt","/cam_nir.txt","/digipeater.txt"};
+              char filename[9][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt", "/cam_rgb.txt", "/epdm.txt", "/adcs.txt", "/cam_nir.txt", "/digipeater.txt"};
 
               if ((cmds[2] == 0xF1))
               {
@@ -1121,31 +1121,40 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 strcat(__file_operations.filepath, "/digipeater.txt");
               }
               else if ((cmds[2] == 0xFA))
-              {struct file temp_fp;
+              {
+                struct file temp_fp;
                 uint8_t beacon[BEACON_DATA_SIZE] = {'\0'};
-                beacon[0]=0x53;
-                beacon[1]=0x51;
-                beacon[2]=0xed;
-                beacon[3]=0x00;
+                beacon[0] = 0x53;
+                beacon[1] = 0x51;
+                beacon[2] = 0xed;
+                beacon[3] = 0x00;
 
-                for(int i = 1; i < sizeof(filename); i++){
-                  uint32_t counter=0;
-                  int fd =0;
-                  if(i<4){
+                for (int i = 1; i < sizeof(filename); i++)
+                {
+                  uint32_t counter = 0;
+                  int fd = 0;
+                  if (i < 4)
+                  {
                     fd = open_file_flash(&temp_fp, MFM_MAIN_STRPATH, filename[i], O_RDONLY);
                   }
-                  else{
+                  else
+                  {
                     fd = open_file_flash(&temp_fp, MFM_MSN_STRPATH, filename[i], O_RDONLY);
                   }
-                  if(fd>=0){
+                  if (fd >= 0)
+                  {
                     counter = file_seek(&temp_fp, 0, SEEK_SET);
                   }
-                  if(counter >= 0){
-                    beacon[i*4] = counter;
-                    beacon[i*4 + 1] = counter>>8;
-                    beacon[i*4 + 2] = counter>>16;
-                    beacon[i*4 + 3] = counter>>24;
+                  if (counter >= 0)
+                  {
+                    beacon[i * 4] = counter;
+                    beacon[i * 4 + 1] = counter >> 8;
+                    beacon[i * 4 + 2] = counter >> 16;
+                    beacon[i * 4 + 3] = counter >> 24;
                   }
+                  beacon[BEACON_DATA_SIZE - 2] = 0x7e;
+                  beacon[BEACON_DATA_SIZE - 1] = '\0';
+
                   send_flash_data(beacon);
                 }
                 // __file_operations.select_file = DIGIPEATER_TXT;
@@ -1154,42 +1163,42 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               }
 
               // TODO check reservation table here
-              if(cmds[2] != 0xFA)
+              if (cmds[2] != 0xFA)
               {
-              __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
-              __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
+                __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
+                __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
 
-              // TODO check address here
-              __file_operations.address[0] = COM_RX_DATA[HEADER + 6];
-              __file_operations.address[1] = COM_RX_DATA[HEADER + 7];
-              __file_operations.address[2] = COM_RX_DATA[HEADER + 8];
-              __file_operations.address[3] = COM_RX_DATA[HEADER + 9];
+                // TODO check address here
+                __file_operations.address[0] = COM_RX_DATA[HEADER + 6];
+                __file_operations.address[1] = COM_RX_DATA[HEADER + 7];
+                __file_operations.address[2] = COM_RX_DATA[HEADER + 8];
+                __file_operations.address[3] = COM_RX_DATA[HEADER + 9];
 
-              // TODO check for number of packets here
-              __file_operations.number_of_packets[0] = COM_RX_DATA[HEADER + 10];
-              __file_operations.number_of_packets[1] = COM_RX_DATA[HEADER + 11];
+                // TODO check for number of packets here
+                __file_operations.number_of_packets[0] = COM_RX_DATA[HEADER + 10];
+                __file_operations.number_of_packets[1] = COM_RX_DATA[HEADER + 11];
 
-              syslog(LOG_DEBUG, "mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
-                     __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
-                     __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
-                     __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
-              sleep(1);
-              send_data_uart(COM_UART, ack, sizeof(ack));
+                syslog(LOG_DEBUG, "mcu id %d, cmd : %d, select_file:%d, select_flash: %d, rsv_table:%d, filepath:%s,address :%d %d %d %d, number_of packets:%d %d\n",
+                       __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
+                       __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
+                       __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
+                sleep(1);
+                send_data_uart(COM_UART, ack, sizeof(ack));
 
-              // uorb
-              strcpy(command_uorb.path, __file_operations.filepath);
-              command_uorb.command = __file_operations.cmd;
-              command_uorb.num_of_packets = (uint16_t)__file_operations.number_of_packets[0] << 8 | __file_operations.number_of_packets[1];
-              // command_uorb.packet_type = 0x00;//TODO removed from struct
-              command_uorb.address = (uint32_t)__file_operations.address[0] << 24 | __file_operations.address[1] << 16 | __file_operations.address[2] << 8 | __file_operations.address[3] & 0xff;
-              command_uorb.pkt_type = __file_operations.mcu_id;
-              MISSION_STATUS.FLASH_OPERATION = true;
-              FLASH_OPERATION = true;
-              flash_read_operation_uorb(); // sends command using uorb
-              flash_operation_data(command_uorb.num_of_packets);
+                // uorb
+                strcpy(command_uorb.path, __file_operations.filepath);
+                command_uorb.command = __file_operations.cmd;
+                command_uorb.num_of_packets = (uint16_t)__file_operations.number_of_packets[0] << 8 | __file_operations.number_of_packets[1];
+                // command_uorb.packet_type = 0x00;//TODO removed from struct
+                command_uorb.address = (uint32_t)__file_operations.address[0] << 24 | __file_operations.address[1] << 16 | __file_operations.address[2] << 8 | __file_operations.address[3] & 0xff;
+                command_uorb.pkt_type = __file_operations.mcu_id;
+                MISSION_STATUS.FLASH_OPERATION = true;
+                FLASH_OPERATION = true;
+                flash_read_operation_uorb(); // sends command using uorb
+                flash_operation_data(command_uorb.num_of_packets);
 
-              MISSION_STATUS.FLASH_OPERATION = false;
-              FLASH_OPERATION = false;
+                MISSION_STATUS.FLASH_OPERATION = false;
+                FLASH_OPERATION = false;
               }
               // if (FLASH_UORB_RESPONDING == false)
               // {
@@ -3472,7 +3481,7 @@ int send_beacon_data()
         digipeating = 1;
       }
       // printf("Beacon Type %d sequence complete\n", beacon_type);
-
+      print_seek_pointer();
       beacon_type = !beacon_type;
 
       // work_queue(HPWORK, &work_beacon, send_beacon_data, NULL, SEC2TICK(BEACON_DELAY));
@@ -4741,7 +4750,7 @@ void new_camera_operation()
   struct file file_pointer, file_pointer2;
   uint8_t hand = 1;
   uint64_t counter1 = 0;
-  uint64_t counter = 0, counter2 = 0;
+  uint64_t counter_sfm_rgb = 0, counter_sfm_nir = 0;
   int32_t ret, count;
   uint8_t cam[37000] = {'\0'};
 
@@ -4767,6 +4776,17 @@ void new_camera_operation()
   // close(fd);
   // if (hand == 0)
   uint8_t data3[7] = {'\0'}, data4[7] = {'\0'}, uart_data, temp;
+  if (file_open(&file_pointer, "/mnt/fs/sfm/mtd_mission/cam_rgb.txt", O_RDONLY) >= 0)
+  {
+    counter_sfm_rgb = file_seek(&file_pointer, 0, SEEK_END);
+  }
+  file_close(&file_pointer);
+
+  if (file_open(&file_pointer, "/mnt/fs/sfm/mtd_mission/cam_nir.txt", O_RDONLY) >= 0)
+  {
+    counter_sfm_nir = file_seek(&file_pointer, 0, SEEK_END);
+  }
+  file_close(&file_pointer);
 
   for (int i = 0; i < 2; i++)
   {
@@ -4774,7 +4794,6 @@ void new_camera_operation()
     memset(cam, '\0', sizeof(cam));
     syslog(LOG_DEBUG, "Command %s sent\n", data2);
     int p = 0;
-    counter = 0;
     counter1 = 0;
     // uint8_t cam[11500] = {'\0'};
     int fd2 = open(CAM_UART, O_RDONLY);
@@ -4808,7 +4827,7 @@ void new_camera_operation()
     close(fd);
     gpio_write(GPIO_SFM_MODE, false);
     uint32_t nir_size = 0;
-    if (i == 0)
+    if (i == 0 && counter_sfm_nir == 0)
     {
       fd = file_open(&file_pointer, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_CREAT | O_RDWR | O_APPEND);
       nir_size = file_seek(&file_pointer, 0, SEEK_END);
@@ -4821,12 +4840,14 @@ void new_camera_operation()
       }
       if (fd >= 0)
       {
-        counter2 = file_write(&file_pointer, cam, counter1);
+        uint32_t counter2 = file_write(&file_pointer, cam, counter1);
         if (counter2 >= 0)
         {
           struct file fp;
+          nir_size += counter2;
+
           uint8_t temp[4] = {'\0'};
-          if (file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/cam_nir_logs.txt", O_CREAT | O_WRONLY | O_APPEND) >= 0)
+          if (file_open(&fp, "/mnt/fs/mfm/mtd_mission/cam_nir_logs.txt", O_CREAT | O_WRONLY | O_APPEND) >= 0)
           {
             temp[0] = nir_size;
             temp[1] = nir_size >> 8;
@@ -4834,7 +4855,7 @@ void new_camera_operation()
             temp[3] = nir_size >> 8;
             if (file_write(&fp, temp, sizeof(temp)) >= 0)
             {
-              printf("Here the cam_nir_log has been updated\n");
+              printf("Here the cam_nir_log has been updated with data:%d\n", nir_size);
             }
           }
         }
@@ -4844,36 +4865,40 @@ void new_camera_operation()
     }
     else
     {
-      file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_CREAT | O_WRONLY | O_APPEND);
-      nir_size = file_seek(&file_pointer, 0, SEEK_END);
-      if (nir_size > 16000000)
+      if (counter_sfm_rgb == 0)
       {
-        if (file_seek(&file_pointer, 0, SEEK_SET) >= 0)
+        file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt", O_CREAT | O_WRONLY | O_APPEND);
+        nir_size = file_seek(&file_pointer, 0, SEEK_END);
+        if (nir_size > 16000000)
         {
-          printf("The camera rgb.txt file size exceeded limit so setting seek pointer to 0\n");
-        }
-      }
-      if (fd >= 0)
-      {
-        counter2 = file_write(&file_pointer2, cam, counter1);
-        if (counter2 >= 0)
-        {
-          struct file fp;
-          uint8_t temp[4] = {'\0'};
-          if (file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/cam_rgb_logs.txt", O_CREAT | O_WRONLY | O_APPEND) >= 0)
+          if (file_seek(&file_pointer, 0, SEEK_SET) >= 0)
           {
-            temp[0] = nir_size;
-            temp[1] = nir_size >> 8;
-            temp[2] = nir_size >> 8;
-            temp[3] = nir_size >> 8;
-            if (file_write(&fp, temp, sizeof(temp)) >= 0)
-            {
-              printf("Here the cam_rgb_logs has been updated\n");
-            }
+            printf("The camera rgb.txt file size exceeded limit so setting seek pointer to 0\n");
           }
         }
-        printf("\n\nData of length %d has been written to camrgb.txt\n\n", counter2);
-        file_close(&file_pointer2);
+        if (fd >= 0)
+        {
+          uint32_t counter2 = file_write(&file_pointer2, cam, counter1);
+          nir_size += counter2;
+          if (counter2 >= 0)
+          {
+            struct file fp;
+            uint8_t temp[4] = {'\0'};
+            if (file_open(&fp, "/mnt/fs/mfm/mtd_mission/cam_rgb_logs.txt", O_CREAT | O_WRONLY | O_APPEND) >= 0)
+            {
+              temp[0] = nir_size;
+              temp[1] = nir_size >> 8;
+              temp[2] = nir_size >> 8;
+              temp[3] = nir_size >> 8;
+              if (file_write(&fp, temp, sizeof(temp)) >= 0)
+              {
+                printf("Here the cam_rgb_logs has been updated with data:%d\n", nir_size);
+              }
+            }
+          }
+          printf("\n\nData of length %d has been written to camrgb.txt\n\n", counter2);
+          file_close(&file_pointer2);
+        }
       }
     }
     // printf("Data of length %d has been written to camnir.txt\n", counter2);
@@ -4883,50 +4908,70 @@ void new_camera_operation()
   //   sleep(1);
   uint8_t data1[3500] = {'\0'};
 
-  if (counter == 0)
+  // if (counter_sfm_nir == 0)
+  // {
+  //   file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_CREAT | O_WRONLY | O_APPEND);
+  //   if (fd >= 0)
+  //   {
+  //     uint32_t counter2 = file_write(&file_pointer2, cam, counter1);
+  //     printf("Data of length %d has been written to camnir.txt\n", counter2);
+  //   }
+  //   file_close(&file_pointer2);
+  // }
+  // else
+  for(int i=0; i<2; i++)
   {
-    file_open(&file_pointer2, "/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_CREAT | O_WRONLY | O_APPEND);
-    if (fd >= 0)
-    {
-      counter2 = file_write(&file_pointer2, cam, counter1);
-      printf("Data of length %d has been written to camnir.txt\n", counter2);
-    }
+    // uint32_t
     file_close(&file_pointer2);
-  }
-  else
-  {
-    do
-    {
-      if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
-      {
-        if (counter - counter2 > 3500)
-        {
-          count = 3500;
-        }
-        else
-        {
-          count = counter - counter2;
-        }
-        counter2 += count;
-        ret = file_read(&file_pointer, data1, count);
-        printf("ret is %d %d", ret, counter - counter2);
-        for (int32_t i = 0; i < count; i++)
-        {
-          printf("%02X ", data1[i]);
-          if (count % 500 == 0)
-          {
-            usleep(4000);
-          }
-        }
-        // if ( >= 0)
-        gpio_write(GPIO_SFM_MODE, false);
-        ret = open("/mnt/fs/mfm/mtd_mission/cam_nir.txt", O_WRONLY | O_APPEND);
-        ssize_t writeBytes = write(ret, data1, count);
-        close(ret);
-        // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
-        printf("The file of size %d has been written\n", writeBytes);
+    char src_pathname[100],destination_pathname[100];
+    if (i==0) {
+      strcpy(src_pathname,"/mnt/fs/sfm/mtd_mission/cam_nir.txt\0");
+      strcpy(destination_pathname,"/mnt/fs/mfm/mtd_mission/cam_nir.txt\0");
       }
-    } while (counter2 < counter);
+    else {
+      strcpy(src_pathname,"/mnt/fs/sfm/mtd_mission/cam_rgb.txt\0");
+      strcpy(destination_pathname,"/mnt/fs/mfm/mtd_mission/cam_rgb.txt\0");
+
+      }
+    if (file_open(&file_pointer2, src_pathname, O_CREAT | O_WRONLY | O_APPEND) >= 0)
+    {
+      printf("File %s has been opened\n",src_pathname);
+
+      uint32_t counter2, counter;
+      do
+      {
+        if (file_seek(&file_pointer, counter2, SEEK_SET) >= 0)
+        {
+          if (counter - counter2 > 3500)
+          {
+            count = 3500;
+          }
+          else
+          {
+            count = counter - counter2;
+          }
+          counter2 += count;
+          ret = file_read(&file_pointer, data1, count);
+          printf("ret is %d %d", ret, counter - counter2);
+          for (int32_t i = 0; i < count; i++)
+          {
+            printf("%02X ", data1[i]);
+            if (count % 500 == 0)
+            {
+              usleep(4000);
+            }
+          }
+          // if ( >= 0)
+          gpio_write(GPIO_SFM_MODE, false);
+          ret = open(destination_pathname, O_WRONLY | O_APPEND);
+          ssize_t writeBytes = write(ret, data1, count);
+          close(ret);
+          // ssize_t writeBytes = file_write(&file_pointer2, &data1, 4000);
+          printf("The file of size %d has been written\n", writeBytes);
+        }
+      } while (counter2 < counter);
+      file_close(&file_pointer2);
+    }
   }
   pet_counter = 0;
 
@@ -5285,4 +5330,13 @@ void flash_operation_data(uint16_t loop)
   } while (loop >= 0 && loop < 65505);
 
   orb_unsubscribe(flash_fd);
+}
+
+void operation_log(char data[10])
+{
+  struct file fp;
+  int fs = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/operation_log.txt", O_CREAT | O_APPEND | O_WRONLY);
+  if (file_write(&fp, data, strlen(data)) > 0)
+  {
+  }
 }

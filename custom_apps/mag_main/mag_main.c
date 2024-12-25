@@ -196,9 +196,9 @@ int  mag_daemon(int argc, FAR char *argv[])
       mag_scaled.mag_x = mag0.mag_x * 0.058f;
       mag_scaled.mag_y = mag0.mag_y * 0.058f;
       mag_scaled.mag_z = mag0.mag_z * 0.058f;
-      // printf("Mag X : %0.02f \t", mag_scaled.mag_x);
-      // printf("Y : %0.02f \t", mag_scaled.mag_y);
-      // printf("Z : %0.02f \t\n", mag_scaled.mag_z);
+      printf("Mag X : %0.02f \t", mag_scaled.mag_x);
+      printf("Y : %0.02f \t", mag_scaled.mag_y);
+      printf("Z : %0.02f \t\n", mag_scaled.mag_z);
       mag_scaled.temperature = mag0.temperature - 50;
       mag_scaled.timestamp = orb_absolute_time();
       
