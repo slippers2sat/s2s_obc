@@ -48,14 +48,14 @@ void Setup();
 #define FLASH_DATA_SIZE 80
 
 struct SEEK_POINTER
-  {
-    uint16_t SAT_HEALTH;
-    uint16_t SAT_LOG;
-    uint16_t CAM_RGB;
-    uint16_t CAM_NIR;
-    uint16_t EPDM;
-    uint16_t ADCS;
-  };
+{
+  uint16_t SAT_HEALTH;
+  uint16_t SAT_LOG;
+  uint16_t CAM_RGB;
+  uint16_t CAM_NIR;
+  uint16_t EPDM;
+  uint16_t ADCS;
+};
 // #include <sensor/adc.h>
 static struct work_s work_storage;
 static int8_t count = 0;
@@ -323,8 +323,8 @@ void flash_operations()
       updated = false;
       // temp_command_ops = command_ops;
       orb_copy_multi(flash_fd, &command_ops, sizeof(struct command));
-      printf("Comparing  command_ops.path : %d, command_ops.address : %d, command_ops.num_of_packets : %d\n", command_ops.path, command_ops.address, command_ops.num_of_packets);
-      printf("Comparing strcmp(temp_command_ops.path)temp_command_ops.path : %d, temp_command_ops.address : %d, temp_command_ops.num_of_packets : %d\n", strcmp(temp_command_ops.path, command_ops.path), temp_command_ops.path, temp_command_ops.address, temp_command_ops.num_of_packets);
+      // printf("Comparing  command_ops.path : %d, command_ops.address : %d, command_ops.num_of_packets : %d\n", command_ops.path, command_ops.address, command_ops.num_of_packets);
+      // printf("Comparing strcmp(temp_command_ops.path)temp_command_ops.path : %d, temp_command_ops.address : %d, temp_command_ops.num_of_packets : %d\n", strcmp(temp_command_ops.path, command_ops.path), temp_command_ops.path, temp_command_ops.address, temp_command_ops.num_of_packets);
 
       // printf("----Received mcu id : %d \n",command_ops.mcu_id);
       // printf("\nData received :\nTimestamp : %d \nPath: %s \nAddress:%d \nCommand:%d \nNumber of packets:%d\n",
@@ -782,27 +782,30 @@ void sort_reservation_command(uint16_t file_size, bool reorder)
 //   }
 // }
 
-void print_seek_pointer(){
+void print_seek_pointer()
+{
   struct file fp_seek;
   struct SEEK_POINTER seek_pointer;
   int fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
   if (fd_seek >= 0)
   {
-    printf("SAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n",
+    printf("\n----------------------------------------------------------\nSAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n----------------------------------------------------------\n",
            seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
            seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
   }
   file_close(&fp_seek);
 }
 
-void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets, uint8_t packet_type)
+void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, uint8_t packet_type)
 {
   int adc_instance = 10;
-  
+
   struct flash_operation flash = {'\0'};
   struct file fp_seek;
   // uint16_t test[8];
   struct SEEK_POINTER seek_pointer;
+  struct file fp;
+  int fd = file_open(&fp, path, O_RDONLY);
   int fd_seek = file_open(&fp_seek, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_RDWR | O_TRUNC);
   if (file_seek(&fp_seek, 0, SEEK_END) == 0)
   {
@@ -839,8 +842,7 @@ void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets, u
                flash.timestamp,
                flash.packet_type,
                flash.packet_number);
-        struct file fp;
-        int fd = file_open(&fp, path, O_RDONLY);
+
         int64_t size_of_file = file_seek(&fp, 0, SEEK_END);
         printf("The size of file named %s is : %d\n", path, size_of_file);
         uint8_t data[80] = {'\0'};
@@ -899,15 +901,15 @@ void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets, u
           if (file_read(&fp, &temp, sizeof(struct SEEK_POINTER)) >= 0)
           {
             if (path == "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt")
-             temp.SAT_HEALTH += count;
+              temp.SAT_HEALTH += count;
             else if (path == "/mnt/fs/mfm/mtd_mission/cam_rgb.txt")
               temp.CAM_RGB += count;
             else if (path == "/mnt/fs/mfm/mtd_mission/epdm.txt")
-             temp.EPDM += count;
-              else if (path == "/mnt/fs/mfm/mtd_mission/cam_nir.txt")
-             temp.CAM_NIR += count;
+              temp.EPDM += count;
+            else if (path == "/mnt/fs/mfm/mtd_mission/cam_nir.txt")
+              temp.CAM_NIR += count;
             else if (path == "/mnt/fs/mfm/mtd_mission/adcs.txt")
-             temp.ADCS += count;
+              temp.ADCS += count;
             if (file_write(&fp, &temp, sizeof(struct SEEK_POINTER)) >= 0)
             {
               printf("seek pointer updated\n");

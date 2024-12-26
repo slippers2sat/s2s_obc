@@ -3090,11 +3090,12 @@ int main(int argc, FAR char *argv[])
   // {
   //   epdm_operation();
   // }
-  // else if (strcmp(argv[1], "cam") == 0)
-  // {
-  //   // cam_operation();
-  //   new_camera_operation();
-  // }
+  else if (strcmp(argv[1], "cam") == 0)
+  {
+    // cam_operation();
+    // new_camera_operation();
+     turn_msn_on_off(2, true);
+  }
   // else if (strcmp(argv[1], "adcs") == 0)
   // {
   //   adcs_operation(0x01);
@@ -3835,13 +3836,14 @@ void epdm_operation()
       data4 = data3;
       ret = read(fd2, &data3, 1);
       // syslog(LOG_DEBUG,
-      // printf("%02x ", data3);
+      printf("%02x ", data3);
       if (counter1 % 400 == 0)
       {
-        syslog(LOG_DEBUG, "COUNTER : %d\n pet_counter: %d", counter1, pet_counter);
+        // syslog(LOG_DEBUG, "COUNTER : %d\n pet_counter: %d", counter1, pet_counter);
         pet_counter = 0;
       }
-      cam[counter1] = data3;
+      
+      // cam[counter1] = data3;//TODO remove this
       if (data4 == 0xff && data3 == 0xd9 && counter1 > 35000)
       {
         // data4=000;
