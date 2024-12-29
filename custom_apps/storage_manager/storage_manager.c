@@ -61,6 +61,7 @@ static struct work_s work_storage;
 static int8_t count = 0;
 static bool g_storage_manager_started;
 
+void flash_operations();
 void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname);
 void sort_reservation_command(uint16_t file_size, bool reorder);
 int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filename, int open_mode);
@@ -90,7 +91,7 @@ void read_and_print_mag_data(void)
     return;
   }
   uint8_t count = 0;
-  sleep(30);
+  // sleep(30);
 
   // sort_reservation_command(1, false);
 
@@ -99,7 +100,7 @@ void read_and_print_mag_data(void)
     if (count % 10 == 0)
     {
       sort_reservation_command(1, false);
-      flash_operations();
+      // flash_operations();
     }
     count++;
     orb_check(fd_reservation, &updated);
@@ -135,10 +136,11 @@ void read_and_print_mag_data(void)
       sleep(1);
     }
     // updated = false;
-
+      // printf("the counter value is %d \n", count);
+    
     if (count % 90 == 0)
     {
-      count = 0;
+      count = 1;
       orb_check(sub_fd, &updated);
       if (updated)
       {
@@ -190,7 +192,7 @@ void read_and_print_mag_data(void)
         satellite_health.mag_x = mag_data.mag_x;
         satellite_health.mag_y = mag_data.mag_y;
         satellite_health.mag_z = mag_data.mag_z;
-        if (satellite_health.msn_flag != 0x11 & satellite_health.ant_dep_stat == DEPLOYED)
+        // if (satellite_health.msn_flag != 0x11 && satellite_health.ant_dep_stat == DEPLOYED)
         {
           store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
           print_satellite_health_data(&satHealth);
@@ -218,7 +220,7 @@ int main(int argc, FAR char *argv[])
   int ret;
 
   printf("[storage_manager] Starting task.\n");
-  Setup();
+  // Setup();
   if (g_storage_manager_started)
   {
     printf("[storage_manager] Task already started.\n");
@@ -232,6 +234,14 @@ int main(int argc, FAR char *argv[])
   {
     int errcode = errno;
     printf("[storage_manager] ERROR: Failed to start storage_manager_daemon: %d\n", errcode);
+    return EXIT_FAILURE;
+  }
+   ret = task_create("flash_operations", SCHED_PRIORITY_DEFAULT, 8078, flash_operations, NULL);
+
+  if (ret < 0)
+  {
+    int errcode = errno;
+    printf("[storage_manager] ERROR: Failed to start flash_operations: %d\n", errcode);
     return EXIT_FAILURE;
   }
 
@@ -249,9 +259,9 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
   //   gpio_write(GPIO_SFM_MODE, false);
   // }
   // TODO: discuss and figure out if we need to set limit to size of file and truncate contents once the file size limit is reached ...
-  if (open_file_flash(&file_p, pathname, file_name_sat_health, O_CREAT | O_RDWR | O_APPEND) >= 0)
+  if (open_file_flash(&file_p, pathname, file_name_sat_health, O_CREAT |O_WRONLY | O_APPEND) >= 0)
   {
-
+    // uint8_t data_temp[];
     ssize_t bytes_written = file_write(&file_p, sat_health_data, sizeof(satellite_health_s));
     if (bytes_written > 0)
     {
@@ -262,6 +272,8 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
     {
       // syslog(LOG_INFO, "Write Failure.\n");
     }
+    // file_close(&file_p);
+
     if (ret = file_syncfs(&file_p) < 0)
     {
       // syslog(LOG_DEBUG, "some issue while synfs closing: %d\n",ret);
@@ -347,6 +359,9 @@ void flash_operations()
           // MISSION_STATUS.FLASH_OPERATION = true;
           temp_command_ops.address = command_ops.address;
           temp_command_ops.num_of_packets = command_ops.num_of_packets;
+          printf("***************************************************************\n");
+          printf("command_ops.address %d\n command_ops.num_of_packets %d\n", command_ops.address, command_ops.num_of_packets);
+          printf("***************************************************************\n");
           send_data_uorb(command_ops.path, command_ops.address, command_ops.num_of_packets, command_ops.pkt_type);
           uint8_t data_retrieved[80];
           // download_file_from_flash_uorb(command_ops.path, command_ops.address, command_ops.num_of_packets, &data_retrieved, 80);
@@ -703,95 +718,98 @@ void sort_reservation_command(uint16_t file_size, bool reorder)
   //     }
 }
 
-// void maintain_data_consistency()
-// {
-//   struct file mfm_file_pointer, sfm_file_pointer;
-//   int mfm_fd, sfm_fd;
-//   uint32_t mfm_read, sfm_read, sfm_seek_pointer_status = 0, mfm_seek_pointer_status = 0;
-//   uint8_t temp[2000], count = 0;
+void maintain_data_consistency()
+{
+  struct file mfm_file_pointer, sfm_file_pointer;
+  int mfm_fd, sfm_fd;
+  uint32_t mfm_read, sfm_read, sfm_seek_pointer_status = 0, mfm_seek_pointer_status = 0;
+  uint8_t temp[2000], count = 0;
 
-//   char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
-//   for (int i = 0; i < 4; i++)
-//   {
-//     mfm_fd = file_open_flash(mfm_file_pointer, MFM_MAIN_STRPATH, filename[i], O_RDWR);
-//     sfm_fd = file_open_flash(mfm_file_pointer, SFM_MAIN_STRPATH, filename[i], O_RDWR);
-//     if (mfm_fd >= 0)
-//     {
-//       mfm_read = file_seek(&mfm_file_pointer, 0, SEEK_END);
-//     }
+  char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
+  for (int i = 0; i < 4; i++)
+  {
+    mfm_fd = open_file_flash(&mfm_file_pointer, MFM_MAIN_STRPATH, filename[i], O_RDWR);
+    sfm_fd = open_file_flash(&mfm_file_pointer, SFM_MAIN_STRPATH, filename[i], O_RDWR);
+    if (mfm_fd >= 0)
+    {
+      mfm_read = file_seek(&mfm_file_pointer, 0, SEEK_END);
+    }
 
-//     if (sfm_fd >= 0)
-//     {
-//       sfm_read = file_seek(&sfm_file_pointer, 0, SEEK_END);
-//     }
-//     if (mfm_fd >= 0 & sfm_fd >= 0)
-//     {
-//       if (mfm_read != sfm_read)
-//       {
-//         if (mfm_read < sfm_read)
-//         {
-//           sfm_seek_pointer_status = mfm_read;
-//           mfm_seek_pointer_status = sfm_read;
-//           do
-//           {
-//             file_seek(&sfm_file_pointer, sfm_seek_pointer_status, SEEK_SET);
-//             if (sfm_read - count > 2000)
-//             {
-//               count = 2000;
-//             }
-//             else
-//             {
-//               count = sfm_read - count;
-//             }
-//             if (file_read(&sfm_file_pointer, temp, count) >= 0)
-//             {
-//               ssize_t written = file_write(&mfm_file_pointer, temp, count);
-//               printf("Data of size %d has been writtern\n", written);
-//             }
-//             sfm_seek_pointer_status += count;
+    if (sfm_fd >= 0)
+    {
+      sfm_read = file_seek(&sfm_file_pointer, 0, SEEK_END);
+    }
+    if (mfm_fd >= 0 & sfm_fd >= 0)
+    {
+      if (mfm_read != sfm_read)
+      {
+        if (mfm_read < sfm_read)
+        {
+          sfm_seek_pointer_status = mfm_read;
+          mfm_seek_pointer_status = sfm_read;
+          do
+          {
+            file_seek(&sfm_file_pointer, sfm_seek_pointer_status, SEEK_SET);
+            if (sfm_read - count > 2000)
+            {
+              count = 2000;
+            }
+            else
+            {
+              count = sfm_read - count;
+            }
+            if (file_read(&sfm_file_pointer, temp, count) >= 0)
+            {
+              ssize_t written = file_write(&mfm_file_pointer, temp, count);
+              printf("Data of size %d has been writtern\n", written);
+            }
+            sfm_seek_pointer_status += count;
 
-//           } while (sfm_seek_pointer_status <= sfm_read);
-//         }
-//         if (mfm_read > sfm_read)
-//         {
-//           sfm_seek_pointer_status = mfm_read;
-//           mfm_seek_pointer_status = sfm_read;
-//           do
-//           {
-//             file_seek(&mfm_file_pointer, mfm_seek_pointer_status, SEEK_SET);
-//             if (sfm_read - count > 2000)
-//             {
-//               count = 2000;
-//             }
-//             else
-//             {
-//               count = sfm_read - count;
-//             }
-//             if (file_read(&mfm_file_pointer, temp, count) >= 0)
-//             {
-//               ssize_t written = file_write(&sfm_file_pointer, temp, count);
-//               printf("Data of size %d has been writtern\n", written);
-//             }
-//             mfm_seek_pointer_status += count;
-//           } while (mfm_seek_pointer_status <= mfm_read);
-//         }
-//       }
-//     }
-//     file_close(&mfm_file_pointer);
-//     file_close(&sfm_file_pointer);
-//   }
-// }
+          } while (sfm_seek_pointer_status <= sfm_read);
+        }
+        if (mfm_read > sfm_read)
+        {
+          sfm_seek_pointer_status = mfm_read;
+          mfm_seek_pointer_status = sfm_read;
+          do
+          {
+            file_seek(&mfm_file_pointer, mfm_seek_pointer_status, SEEK_SET);
+            if (sfm_read - count > 2000)
+            {
+              count = 2000;
+            }
+            else
+            {
+              count = sfm_read - count;
+            }
+            if (file_read(&mfm_file_pointer, temp, count) >= 0)
+            {
+              ssize_t written = file_write(&sfm_file_pointer, temp, count);
+              printf("Data of size %d has been writtern\n", written);
+            }
+            mfm_seek_pointer_status += count;
+          } while (mfm_seek_pointer_status <= mfm_read);
+        }
+      }
+    }
+    file_close(&mfm_file_pointer);
+    file_close(&sfm_file_pointer);
+  }
+}
 
 void print_seek_pointer()
 {
   struct file fp_seek;
   struct SEEK_POINTER seek_pointer;
-  int fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
-  if (fd_seek >= 0)
+  if (open_file_flash(&fp_seek, MFM_MAIN_STRPATH, "/seek_pointer.txt", O_RDONLY) >= 0)
   {
-    printf("\n----------------------------------------------------------\nSAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n----------------------------------------------------------\n",
-           seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
-           seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
+    int fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
+    if (fd_seek >= 0)
+    {
+      printf("\n----------------------------------------------------------\nSAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n----------------------------------------------------------\n",
+             seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
+             seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
+    }
   }
   file_close(&fp_seek);
 }
@@ -826,7 +844,7 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
   print_seek_pointer();
   int raw_afd = orb_advertise_multi_queue_persist(ORB_ID(flash_operation), &flash,
                                                   &adc_instance, sizeof(struct flash_operation));
-  int count = 0, pkt = 0;
+  uint32_t count = 0, pkt = 0;
   flash.packet_type = packet_type;
   // while (1)
   {
@@ -849,6 +867,7 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
         if (fd >= 0)
         {
           count = address;
+          printf("the value of count seek pointer is %d %d\n", address);
           do
           {
             if (size_of_file > 0 && count <= size_of_file)
@@ -917,6 +936,8 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
             }
           }
         }
+        close(fd);
+        file_close(&fp);
       }
     }
   }

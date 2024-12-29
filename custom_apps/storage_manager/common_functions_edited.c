@@ -337,15 +337,7 @@ void Setup()
   }
   file_close(&flp1);
 
-  /*delete this later
-  */
-     fd = open_file_flash(&flp1, MFM_MAIN_STRPATH, file_name_sat_health, O_TRUNC);
-  if (fd < 0)
-  {
-    syslog(LOG_ERR, "Could not create file named sat_health... \n");
-  }
-  file_close(&flp1);
-  close(fd);
+ 
  return 0;
 /*
   */
