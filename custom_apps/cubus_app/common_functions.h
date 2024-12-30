@@ -27,6 +27,7 @@
 #include "gpio_definitions.h"
 #include <stdint.h>
 
+
 #define RES_LMP8640				0.025
 #define GAIN_LMP8640			10
 
