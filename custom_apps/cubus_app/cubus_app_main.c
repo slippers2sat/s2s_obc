@@ -285,7 +285,6 @@ int configure_watchdog(int fd, int timeout);
 void send_beacon();
 void flash_read_operation_uorb();
 
-
 /*Private function prototypes declaration end */
 
 /****************************************************************************
@@ -729,14 +728,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
   ack[BEACON_DATA_SIZE - 2] = 0x7e;
   ack[BEACON_DATA_SIZE - 1] = 0x7e;
   if (COM_RX_DATA[0] == 0x53 && critic_flags.OPER_MODE == NRML_MODE)
-  { // SEND 85 BYTES BACK
-    // 53 0A 2B 53 02 53 digipeating format
-    // if (digipeating == 1 && COM_RX_DATA[1] == 0x0a && COM_RX_DATA[2] == 0x2b && COM_RX_DATA[3] == 0x53 && COM_RX_DATA[4] == 0x02 && COM_RX_DATA[5] == 0x53)
-    // {
-    //   send_data_uart(COM_UART, COM_RX_DATA, sizeof(COM_RX_DATA));
-    //   return 33;
-    // }
-    // else
+  {
     if (COM_RX_DATA[0] == 0x53 & COM_RX_DATA[1] == 0xac & COM_RX_DATA[2] == 0x04)
     {
       if (COM_RX_DATA[3] == 0X02 & COM_RX_DATA[4] == 0XFC & COM_RX_DATA[5] == 0XEE)
@@ -1050,7 +1042,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                        __file_operations.mcu_id, __file_operations.cmd, __file_operations.select_flash, __file_operations.select_file, __file_operations.rsv_table[1], __file_operations.rsv_table[0], __file_operations.filepath,
                        __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
                        __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
-                sleep(1);
+                // sleep(1);
                 send_data_uart(COM_UART, ack, sizeof(ack));
 
                 // uorb
@@ -1169,10 +1161,13 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               sleep(1);
               send_data_uart(COM_UART, ack, sizeof(ack));
               syslog(LOG_DEBUG, "------------  ADCS mission turned on (command received using radio frequency)--------------\n");
+              uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
               if (cmds[0] == 0xA0)
-                adcs_operation(0x01);
+                // adcs_operation(0x01);
+                data2[4] = 0x01;
               else
-                adcs_operation(0x02);
+                data2[4] = 0x02;
+              mission_operation(1, data2);
               syslog(LOG_DEBUG, "------------  ADCS mission turned off (command received using radio frequency) --------------\n");
             }
             else
@@ -1204,7 +1199,8 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               syslog(LOG_DEBUG, "------------------------  cam mission turned on (Command received from COM using RF)------------------\n");
               send_data_uart(COM_UART, ack, sizeof(ack));
               // new_camera_operation();
-              mission_operation(2);
+              uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
+              mission_operation(2, data2);
               syslog(LOG_DEBUG, "------------------------  cam mission turned off(Command received from COM using RF)--------------------\n");
             }
             else
@@ -1230,12 +1226,13 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             syslog(LOG_DEBUG, "EPDM MCU ID has been received\n");
             if (cmds[0] == 0xEC && cmds[1] == 0xCF && cmds[2] == 0xCF)
             {
-              sleep(1);
+              // sleep(1);
               send_data_uart(COM_UART, ack, sizeof(ack));
 
               syslog(LOG_DEBUG, "----------------EPDM  turned on ------------------\n");
               // epdm_operation();
-              mission_operation(3);
+              uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
+              mission_operation(3, data2);
               syslog(LOG_DEBUG, "----------------EPDM  turned off -----------------\n");
             }
             else
@@ -1344,6 +1341,8 @@ static int COM_TASK(int argc, char *argv[])
   // usleep(2000000);
   sleep(2);
   ret = handshake_COM(data); // tx rx data is flushed before closing the file
+  // ret = handshake_COM(data); // tx rx data is flushed before closing the file
+
   // usleep(PRINT_DELAY * 100);
   sleep(1);
   if (ret == 0)
@@ -1637,14 +1636,19 @@ int handshake_MSN_ADCS(uint8_t subsystem, uint8_t *ack)
   return 0;
 }
 
+#define HANDSHAKE_ATTEMPTS 3
+#define HANDSHAKE_INTERVAL 20 // seconds
+#define UART_READ_TIMEOUT 3   // seconds
+
 int handshake_MSN(uint8_t subsystem, uint8_t *ack)
 {
   int fd;
   char devpath[15];
   uint8_t data1[7] = {'\0'};
-  int i;
-  ssize_t wr1, ret;
-  uint8_t counter = 0;
+  ssize_t ret;
+  int attempt;
+  struct timeval timeout;
+  fd_set read_fds;
 
   switch (subsystem)
   {
@@ -1665,105 +1669,212 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
     return -1;
   }
 
-  printf("Opening UART dev path: %s\n", devpath);
-  usleep(PRINT_DELAY);
-  fd = open(devpath, O_WRONLY); // Open in non-blocking mode
-  if (fd < 0)
+  for (attempt = 0; attempt < HANDSHAKE_ATTEMPTS; attempt++)
   {
-    printf("Error opening %s\n", devpath);
+    pet_counter = 0;
+    printf("Opening UART dev path: %s\n", devpath);
     usleep(PRINT_DELAY);
-    return -1;
-  }
 
-  // Writing handshake data
-  ret = write(fd, ack, 7);
-  close(fd);
-  // sleep(1);
-  fd = open(devpath, O_RDONLY); // Open in non-blocking mode
+    fd = open(devpath, O_RDWR | O_NONBLOCK); // Open in non-blocking mode
+    if (fd < 0)
+    {
+      printf("Error opening %s\n", devpath);
+      usleep(PRINT_DELAY);
+      return -1;
+    }
 
-  printf("6 bytes written\n");
-  usleep(3000 * 1000); // 3 seconds delay
+    // Writing handshake data
+    ret = write(fd, ack, 7);
+    if (ret < 0)
+    {
+      printf("Error writing to %s\n", devpath);
+      close(fd);
+      return -1;
+    }
 
-  // Reading data from UART
-  // for (i = 0; i < 6; i++)
-  // {
-  //   ret = read(fd, &data1[i], 1);
-  //   if (ret < 0)
-  //   {
-  //     if (errno == EAGAIN)
-  //     {
-  //       // printf("No data available for reading\n");
-  //       // usleep(500000);
-  //       usleep(500);
-  //       i--; // Retry reading the same index
-  //       continue;
-  //     }
-  //     printf("Error reading from %s\n", devpath);
-  //     close(fd);
-  //     return -1;
-  //   }
-  //   else{
-  //     break;
-  //   }
-  // }
-  // for (i = 0; i < 6; i++)
-  // int loop = 0;
-  // while (1)
-  // {
-  //   ret = read(fd, &data1[i], 1);
-  //   if (ret < 0)
-  //   {
-  //     if (errno == EAGAIN)
-  //     {
-  //       // Uncomment for debugging
-  //       // printf("No data available for reading\n");
-  //       usleep(50); // usleep(5000); // Increase the sleep time to 500 ms
-  //       i--;        // Retry reading the same index
-  //       continue;
-  //     }
-  //     printf("Error reading from %s\n", devpath);
-  //     close(fd);
-  //     return -1;
-  //   }
-  //   loop++;
-  //   // If we successfully read a character, check if we have more data
-  //   if (ret == 1)
-  //   {
-  //     // Optionally print the character read for debugging
-  //     printf("Read character: %c\n", data1[i]);
-  //     break; // Exit the loop if a character was successfully read
-  //   }
-  // }
-  ret = read(fd, ack, sizeof(ack));
-  printf("Data received from %s:\n", devpath);
-  usleep(PRINT_DELAY);
-  for (int j = 0; j < 7; j++)
-  {
-    printf("%02X ", data1[j]);
-  }
-  printf("\n");
-  usleep(PRINT_DELAY);
+    printf("6 bytes written\n");
+    usleep(3000 * 1000); // 3 seconds delay
 
-  if (data1[0] == ack[0] && data1[5] == ack[5])
-  {
-    printf("\n******Acknowledgement received******\n");
-    usleep(PRINT_DELAY);
-  }
-  else
-  {
+    // Reading data from UART
+    FD_ZERO(&read_fds);
+    FD_SET(fd, &read_fds);
+    timeout.tv_sec = UART_READ_TIMEOUT;
+    timeout.tv_usec = 0;
+
+    ret = select(fd + 1, &read_fds, NULL, NULL, &timeout);
+    if (ret > 0 && FD_ISSET(fd, &read_fds))
+    {
+      ret = read(fd, data1, sizeof(data1));
+      if (ret < 0)
+      {
+        printf("Error reading from %s\n", devpath);
+        close(fd);
+        return -1;
+      }
+
+      printf("Data received from %s:\n", devpath);
+      usleep(PRINT_DELAY);
+      for (int j = 0; j < 7; j++)
+      {
+        printf("%02X ", data1[j]);
+      }
+      printf("\n");
+      usleep(PRINT_DELAY);
+
+      if (data1[0] == ack[0] && data1[5] == ack[5] | data1[1] == ack[0] )
+      {
+        printf("\n******Acknowledgement received******\n");
+        usleep(PRINT_DELAY);
+        printf("Handshake complete\n");
+        usleep(PRINT_DELAY);
+        ioctl(fd, TCFLSH, 2);
+        ioctl(fd, TCDRN, NULL);
+        printf("Flushed TX/RX buffer\n");
+        close(fd);
+        return 0;
+      }
+    }
+    else
+    {
+      printf("No data received or select timeout.\n");
+    }
+
     close(fd);
-    return 1;
+    printf("Retrying handshake attempt %d/%d in %d seconds\n", attempt + 1, HANDSHAKE_ATTEMPTS, HANDSHAKE_INTERVAL);
+    sleep(HANDSHAKE_INTERVAL);
   }
 
-  printf("Handshake complete\n");
-  usleep(PRINT_DELAY);
-  printf("\n");
-  ioctl(fd, TCFLSH, 2);
-  ioctl(fd, TCDRN, NULL);
-  printf("Flushed TX/RX buffer\n");
-  close(fd);
-  return 0;
+  printf("Handshake failed after %d attempts\n", HANDSHAKE_ATTEMPTS);
+  return -1;
 }
+
+// int handshake_MSN(uint8_t subsystem, uint8_t *ack)
+// {
+//   int fd;
+//   char devpath[15];
+//   uint8_t data1[7] = {'\0'};
+//   int i;
+//   ssize_t wr1, ret;
+//   uint8_t counter = 0;
+
+//   switch (subsystem)
+//   {
+//   case 1:
+//     strcpy(devpath, ADCS_UART);
+//     printf("Turned on power line for ADCS\n");
+//     break;
+//   case 2:
+//     strcpy(devpath, CAM_UART);
+//     printf("Turned on power line for CAM\n");
+//     break;
+//   case 3:
+//     strcpy(devpath, EPDM_UART);
+//     printf("Turned on power line for EPDM\n");
+//     break;
+//   default:
+//     printf("Unknown MSN subsystem selected\n");
+//     return -1;
+//   }
+
+//   printf("Opening UART dev path: %s\n", devpath);
+//   usleep(PRINT_DELAY);
+//   fd = open(devpath, O_WRONLY); // Open in non-blocking mode
+//   if (fd < 0)
+//   {
+//     printf("Error opening %s\n", devpath);
+//     usleep(PRINT_DELAY);
+//     return -1;
+//   }
+
+//   // Writing handshake data
+//   ret = write(fd, ack, 7);
+//   close(fd);
+//   // sleep(1);
+//   fd = open(devpath, O_RDONLY); // Open in non-blocking mode
+
+//   printf("6 bytes written\n");
+//   usleep(3000 * 1000); // 3 seconds delay
+
+//   // Reading data from UART
+//   // for (i = 0; i < 6; i++)
+//   // {
+//   //   ret = read(fd, &data1[i], 1);
+//   //   if (ret < 0)
+//   //   {
+//   //     if (errno == EAGAIN)
+//   //     {
+//   //       // printf("No data available for reading\n");
+//   //       // usleep(500000);
+//   //       usleep(500);
+//   //       i--; // Retry reading the same index
+//   //       continue;
+//   //     }
+//   //     printf("Error reading from %s\n", devpath);
+//   //     close(fd);
+//   //     return -1;
+//   //   }
+//   //   else{
+//   //     break;
+//   //   }
+//   // }
+//   // for (i = 0; i < 6; i++)
+//   // int loop = 0;
+//   // while (1)
+//   // {
+//   //   ret = read(fd, &data1[i], 1);
+//   //   if (ret < 0)
+//   //   {
+//   //     if (errno == EAGAIN)
+//   //     {
+//   //       // Uncomment for debugging
+//   //       // printf("No data available for reading\n");
+//   //       usleep(50); // usleep(5000); // Increase the sleep time to 500 ms
+//   //       i--;        // Retry reading the same index
+//   //       continue;
+//   //     }
+//   //     printf("Error reading from %s\n", devpath);
+//   //     close(fd);
+//   //     return -1;
+//   //   }
+//   //   loop++;
+//   //   // If we successfully read a character, check if we have more data
+//   //   if (ret == 1)
+//   //   {
+//   //     // Optionally print the character read for debugging
+//   //     printf("Read character: %c\n", data1[i]);
+//   //     break; // Exit the loop if a character was successfully read
+//   //   }
+//   // }
+//   ret = read(fd, ack, sizeof(ack));
+//   printf("Data received from %s:\n", devpath);
+//   usleep(PRINT_DELAY);
+//   for (int j = 0; j < 7; j++)
+//   {
+//     printf("%02X ", data1[j]);
+//   }
+//   printf("\n");
+//   usleep(PRINT_DELAY);
+
+//   if (data1[0] == ack[0] && data1[5] == ack[5])
+//   {
+//     printf("\n******Acknowledgement received******\n");
+//     usleep(PRINT_DELAY);
+//   }
+//   else
+//   {
+//     close(fd);
+//     return 1;
+//   }
+
+//   printf("Handshake complete\n");
+//   usleep(PRINT_DELAY);
+//   printf("\n");
+//   ioctl(fd, TCFLSH, 2);
+//   ioctl(fd, TCDRN, NULL);
+//   printf("Flushed TX/RX buffer\n");
+//   close(fd);
+//   return 0;
+// }
 
 // static int COM_TASK(int argc, char *argv[]);
 
@@ -2549,7 +2660,7 @@ int main(int argc, FAR char *argv[])
         }
         else
         {
-          int retval = task_create("COMMANDER_TASK_APP", 100, 66096, COM_TASK, NULL);
+          int retval = task_create("COMMANDER_TASK_APP", 100, 56096, COM_TASK, NULL);
 
           // int retval = task_create("ADC_TASK_APP", 100, 12, ads7953_receiver, NULL);
           // int retval = create_task("COMMANDER_TASK_APP", 100, 10096, COM_TASK);
@@ -2827,12 +2938,12 @@ int send_beacon_data()
 
 // //Commander //COM
 // // TODO: add work queue to antenna deployment
-void Antenna_Deployment(int argc, char *argv[]) 
+void Antenna_Deployment(int argc, char *argv[])
 {
   uint16_t i = 0;
   int retval, retval1 = 0;
   CRITICAL_FLAGS rd_flags_int = {0};
-  
+
   check_flag_data(&rd_flags_int);
   memcpy(&critic_flags, &rd_flags_int, sizeof(critic_flags));
 
@@ -2876,7 +2987,7 @@ void Antenna_Deployment(int argc, char *argv[])
 
     printf("Updated flag data...\n");
   }
-  
+
   rd_flags_int.RST_COUNT += 1;
   save_critics_flags(&critic_flags);
   store_flag_data(&rd_flags_int);
@@ -2885,7 +2996,6 @@ void Antenna_Deployment(int argc, char *argv[])
   load_critics_flags(&rd_flags_int);
   print_critical_flag_data(&rd_flags_int);
 }
-
 
 void adcs_operation(uint8_t mode)
 {
@@ -2992,7 +3102,7 @@ void adcs_operation(uint8_t mode)
   }
 }
 
-void mission_operation(uint8_t mission)
+void mission_operation(uint8_t mission, uint8_t handshake_data[7])
 {
   int hand;
   int fd;
@@ -3020,7 +3130,6 @@ void mission_operation(uint8_t mission)
       strcpy(file_name, "/adcs.txt\0");
       strcpy(dev_path, ADCS_UART);
       fd = open_file_flash(&file_pointer, SFM_MAIN_STRPATH, file_name, O_RDONLY);
-
       break;
     case 2:
       MISSION_STATUS.CAM_MISSION = true;
@@ -3054,68 +3163,41 @@ void mission_operation(uint8_t mission)
       file_close(&file_pointer);
       turn_msn_on_off(mission, 1);
       sleep(1);
-      hand = handshake_MSN(mission, data);
-      uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
+      hand = handshake_MSN(mission, handshake_data);
       uint8_t ret;
-      syslog(LOG_DEBUG, "Command %s sent\n", data2);
+      syslog(LOG_DEBUG, "Command %s sent\n", handshake_data);
 
       int p = 0;
       uint8_t data3, data4;
       uint32_t counter1 = 0, rgb_count = 0;
-
-      int fd2 = open(dev_path, O_RDWR);
-      for (int j = 0; j < i; j++)
+      if( hand >= 0)
       {
-        printf("\n----------------------------------------------------------------\n********************Reacher here with j value %d %d********************\n", j, i);
-        while (1)
+        int fd2 = open(dev_path, O_RDWR);
+        for (int j = 0; j < i; j++)
         {
-          data4 = data3;
-          ret = read(fd2, &data3, 1);
-          // syslog(LOG_DEBUG,
-          printf("%02x ", data3);
-          if (counter1 % 800 == 0 && j == 0)
+          printf("\n----------------------------------------------------------------\n********************Reached here with j value %d %d********************\n", j, i);
+          while (1)
           {
-            syslog(LOG_DEBUG, "COUNTER : %d\n pet_counter: %d", counter1, pet_counter);
-            pet_counter = 0;
-          }
-          // if (j == 0)
-          {
-            data_received[counter1] = data3;
-            counter1++;
-          }
-          // else
-          // {
-          //   rgb_cam[rgb_count] = data3;
-          //   rgb_count++;
-          // }
-          if (counter1 == 37000)
-          {
-            fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, file_name, O_RDWR | O_APPEND);
-            if (fd >= 0)
+            data4 = data3;
+            ret = read(fd2, &data3, 1);
+            // syslog(LOG_DEBUG,
+            printf("%02x ", data3);
+            if (counter1 % 800 == 0 && j == 0)
             {
-              final_count = file_seek(&file_pointer, 0, SEEK_END);
-              if ((final_count - initial_count > 100 && initial_count > 0) | (initial_count <= 0))
-              {
-                if (file_write(&file_pointer, data_received, counter1) > 10)
-                {
-                  printf("Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
-                  int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, "/cam_nir_logs.txt", O_RDWR | O_APPEND);
-                  if (fd_seek >= 0)
-                  {
-                    file_write(&file_pointer2, final_count, sizeof(final_count));
-                  }
-                  file_close(&file_pointer2);
-                }
-              }
+              syslog(LOG_DEBUG, "COUNTER : %d\n pet_counter: %d", counter1, pet_counter);
+              pet_counter = 0;
             }
-            file_close(&file_pointer);
-            counter1 = 0;
-          }
-          if (data4 == 0xff && data3 == 0xd9)
-          {
-            syslog(LOG_DEBUG, "Value of counter1 is %d\n", counter1);
-
-            if (mission == 3 && counter1 > 31000)
+            // if (j == 0)
+            {
+              data_received[counter1] = data3;
+              counter1++;
+            }
+            // else
+            // {
+            //   rgb_cam[rgb_count] = data3;
+            //   rgb_count++;
+            // }
+            if (counter1 == 37000)
             {
               fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, file_name, O_RDWR | O_APPEND);
               if (fd >= 0)
@@ -3126,26 +3208,6 @@ void mission_operation(uint8_t mission)
                   if (file_write(&file_pointer, data_received, counter1) > 10)
                   {
                     printf("Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
-                  }
-                }
-              }
-              file_close(&file_pointer);
-              break;
-            }
-            if (mission == 2)
-            {
-              if (j == 0)
-                fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, file_name, O_RDWR | O_APPEND);
-              else
-                fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, "/cam_rgb.txt", O_RDWR | O_APPEND);
-              if (fd >= 0)
-              {
-                final_count = file_seek(&file_pointer, 0, SEEK_END);
-                if ((final_count - initial_count > 100 && initial_count > 0) | (initial_count <= 0))
-                {
-                  if (file_write(&file_pointer, data_received, counter1) > 10)
-                  {
-                    printf("\nInside here------Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
                     int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, "/cam_nir_logs.txt", O_RDWR | O_APPEND);
                     if (fd_seek >= 0)
                     {
@@ -3157,18 +3219,66 @@ void mission_operation(uint8_t mission)
               }
               file_close(&file_pointer);
               counter1 = 0;
-              break;
             }
-            if (mission == 1 && counter1 > 180)
+            if (data4 == 0xff && data3 == 0xd9)
             {
-              break;
+              syslog(LOG_DEBUG, "Value of counter1 is %d\n", counter1);
+
+              if (mission == 3 && counter1 > 31000)
+              {
+                fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, file_name, O_RDWR | O_APPEND);
+                if (fd >= 0)
+                {
+                  final_count = file_seek(&file_pointer, 0, SEEK_END);
+                  if ((final_count - initial_count > 100 && initial_count > 0) | (initial_count <= 0))
+                  {
+                    if (file_write(&file_pointer, data_received, counter1) > 10)
+                    {
+                      printf("Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
+                    }
+                  }
+                }
+                file_close(&file_pointer);
+                break;
+              }
+              if (mission == 2)
+              {
+                if (j == 0)
+                  fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, file_name, O_RDWR | O_APPEND);
+                else
+                  fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, "/cam_rgb.txt", O_RDWR | O_APPEND);
+                if (fd >= 0)
+                {
+                  final_count = file_seek(&file_pointer, 0, SEEK_END);
+                  if ((final_count - initial_count > 100 && initial_count > 0) | (initial_count <= 0))
+                  {
+                    if (file_write(&file_pointer, data_received, counter1) > 10)
+                    {
+                      printf("\nInside here------Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
+                      int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, "/cam_nir_logs.txt", O_RDWR | O_APPEND);
+                      if (fd_seek >= 0)
+                      {
+                        file_write(&file_pointer2, final_count, sizeof(final_count));
+                      }
+                      file_close(&file_pointer2);
+                    }
+                  }
+                }
+                file_close(&file_pointer);
+                counter1 = 0;
+                break;
+              }
+              if (mission == 1 && counter1 > 180)
+              {
+                break;
+              }
             }
           }
         }
+        close(fd2);
       }
-      close(fd2);
       turn_msn_on_off(mission, 0);
-      
+
       sat_health.msn_flag = 0x21;
     }
   }
@@ -3903,7 +4013,7 @@ void flash_operation_data(uint16_t loop)
   int flash_fd = orb_subscribe_multi(ORB_ID(flash_operation), 10);
   uint32_t start_time = time(NULL);
   uint32_t stop_time = 0;
-  int32_t count=-1;
+  int32_t count = -1;
   uint8_t beacon_data[BEACON_DATA_SIZE] = {'\0'};
   do
   {
@@ -3915,7 +4025,8 @@ void flash_operation_data(uint16_t loop)
       // Print the received flash operation data
       printf("\nUORB DATA\nTimestamp: %llu \nPacket_Type: %d\nPacket Number: %d\n",
              flash.timestamp, flash.packet_type, flash.packet_number);
-      if(count < 0){
+      if (count < 0)
+      {
         count++;
         continue;
       }
