@@ -909,7 +909,8 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
               break;
             }
 
-            usleep(1050000);
+            // usleep(1050000);
+            sleep(2);
           } while (num_of_packets > 0);
         }
         file_close(&fp);

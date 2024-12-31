@@ -52,6 +52,7 @@
 #define file_name_cam_msn           "/cam.txt"
 #define file_name_test_msn          "/test_msn.txt"
 
+
 struct SEEK_POINTER
 {
   uint16_t SAT_HEALTH;
@@ -274,4 +275,7 @@ void print_critical_flag_data(CRITICAL_FLAGS *flags);
 int gpio_write(uint32_t pin, uint8_t mode);
 int gpio_read(uint32_t pin);
 void mission_data(char *filename, uint8_t *data, uint16_t size1);
+int load_critics_flags(CRITICAL_FLAGS *flags);
+void save_critics_flags(const CRITICAL_FLAGS *flags);
+
 #endif

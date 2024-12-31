@@ -46,6 +46,9 @@
 #include <poll.h>
 #include <sensor/rgb.h>
 
+#include "common_functions.h"
+
+
 
 struct orb_mag_s
 {

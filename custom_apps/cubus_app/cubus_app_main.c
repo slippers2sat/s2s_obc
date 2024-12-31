@@ -25,7 +25,6 @@
 #include <pthread.h>
 #include <sys/ioctl.h>
 #include "cubus_app_main.h"
-#include "common_functions.h"
 // #include<sys/ddi.h>
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/progmem.h>
@@ -285,35 +284,7 @@ void watchdog_refresh_task(int fd);
 int configure_watchdog(int fd, int timeout);
 void send_beacon();
 void flash_read_operation_uorb();
-void save_critics_flags(const CRITICAL_FLAGS *flags)
-{
-  int fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_WRONLY | O_CREAT);
-  if (fd < 0)
-  {
-    perror("Failed to open flags.txt for writing");
-    return;
-  }
-  write(fd, flags, sizeof(CRITICAL_FLAGS));
-  close(fd);
-}
 
-int load_critics_flags(CRITICAL_FLAGS *flags)
-{
-  int fd = open("/dev/intflash", O_RDONLY); /// mnt/fs/mfm/mtd_mainstorage/
-  if (fd < 0)
-  {
-    perror("Failed to open /dev/intflash for reading");
-    return -1;
-  }
-  ssize_t bytesRead = read(fd, flags, sizeof(CRITICAL_FLAGS));
-  close(fd);
-  if (bytesRead != sizeof(CRITICAL_FLAGS))
-  {
-    perror("Failed to read complete flags data");
-    return -1;
-  }
-  return 0;
-}
 
 /*Private function prototypes declaration end */
 
@@ -2523,19 +2494,19 @@ int main(int argc, FAR char *argv[])
   /*TODO : REMOVE LATER Independent testing*/
   else
   {
-    if (load_critics_flags(&critic_flags) != 0)
-    {
-      // Handle error or initialize flags
-      memset(&critic_flags, 0, sizeof(CRITICAL_FLAGS));
-    }
-    if (critic_flags.ANT_DEP_STAT != DEPLOYED)
-    {
-      printf("antenna not deployed\n");
-    }
-    else
-    {
-      printf("antenna already deployed\n");
-    }
+    // if (load_critics_flags(&critic_flags) != 0)
+    // {
+    //   // Handle error or initialize flags
+    //   memset(&critic_flags, 0, sizeof(CRITICAL_FLAGS));
+    // }
+    // if (critic_flags.ANT_DEP_STAT != DEPLOYED)
+    // {
+    //   printf("antenna not deployed\n");
+    // }
+    // else
+    // {
+    //   printf("antenna already deployed\n");
+    // }
     printf("************************************************\n");
     printf("***********S2S commander app************\n");
 
@@ -2856,28 +2827,26 @@ int send_beacon_data()
 
 // //Commander //COM
 // // TODO: add work queue to antenna deployment
-void Antenna_Deployment(int argc, char *argv[])
+void Antenna_Deployment(int argc, char *argv[]) 
 {
   uint16_t i = 0;
   int retval, retval1 = 0;
   CRITICAL_FLAGS rd_flags_int = {0};
-  // CRITICAL_FLAGS rd_flags_mfm = {255, 255, 255, 255, 255, 255}; // = {0xff};
-  ssize_t read_size_mfm = 0;
+  
+  check_flag_data(&rd_flags_int);
+  memcpy(&critic_flags, &rd_flags_int, sizeof(critic_flags));
 
-  check_flag_data();
-  load_critics_flags(&critic_flags);
+  printf("\n----------------Antenna Deployment Flag: %d------------\n", rd_flags_int.ANT_DEP_STAT);
 
-  printf("\n----------------Antenna Deployment Flag: %d------------\n", critic_flags.ANT_DEP_STAT);
-
-  // If the antenna is undeployed and no uplink received, perform deployment
-  if (critic_flags.ANT_DEP_STAT != DEPLOYED || critic_flags.UL_STATE != UL_RX)
+  if (rd_flags_int.ANT_DEP_STAT != DEPLOYED || rd_flags_int.UL_STATE != UL_RX)
   {
-    printf("****************************************\n*************************************************\n**************************************\n");
+    printf("****************************************\n");
     printf("ANtenna not deployed\n-----------------Antenna deployment starting-----------------\n");
-    printf("****************************************\n*************************************************\n**************************************\n");
+    printf("****************************************\n");
+
     do
     {
-      sleep(1); // 60
+      sleep(1);
       i++;
       if (0 == i % 60)
       {
@@ -2886,17 +2855,17 @@ void Antenna_Deployment(int argc, char *argv[])
     } while (i < ANT_DEPLOY_TIME);
 
     printf("Entering antenna deployment sequence\n");
-    for (int i = 0; i < 2; i++)
+    for (int j = 0; j < 2; j++)
     {
-      printf("Turning on burner circuit\nAttempt: %d\n", i + 1);
+      printf("Turning on burner circuit\nAttempt: %d\n", j + 1);
       retval = gpio_write(GPIO_BURNER_EN, true);
       retval1 = gpio_write(GPIO_UNREG_EN, true);
-      sleep(8); // Antenna deployment time
+      sleep(8);
       printf("\nTurning off burner circuit\n");
       gpio_write(GPIO_UNREG_EN, false);
       gpio_write(GPIO_BURNER_EN, false);
       sleep(10);
-      printf("%d Antenna deployment sequence completed\n", i);
+      printf("%d Antenna deployment sequence completed\n", j);
     }
 
     critic_flags.ANT_DEP_STAT = DEPLOYED;
@@ -2907,14 +2876,16 @@ void Antenna_Deployment(int argc, char *argv[])
 
     printf("Updated flag data...\n");
   }
+  
+  rd_flags_int.RST_COUNT += 1;
   save_critics_flags(&critic_flags);
-  store_flag_data(&critic_flags);
+  store_flag_data(&rd_flags_int);
 
-  // memset(critics_flags, "\0", sizeof(critic_flags));
-  // critic_flags.ANT_DEP_STAT = 0x00;
-  // load_critics_flags(&critic_flags);
-  print_critical_flag_data(&critic_flags);
+  rd_flags_int.ANT_DEP_STAT = 0x00;
+  load_critics_flags(&rd_flags_int);
+  print_critical_flag_data(&rd_flags_int);
 }
+
 
 void adcs_operation(uint8_t mode)
 {
@@ -3913,13 +3884,13 @@ void flash_read_operation_uorb()
       {
         // syslog(LOG_DEBUG, "Reservation Command Orb Published\n");
         // printf("----Sent data : %d %d %d %d\n", command_uorb.timestamp, command_uorb.command, command_uorb.packet_number, command_uorb.num_of_packets);
-        printf("\nData sent :\nTimestamp : %d \nPath: %s \nAddress:%d \nCommand:%d \nPacket_type:%d \n",
-               command_uorb.timestamp,
-               command_uorb.path,
-               command_uorb.command,
-               command_uorb.num_of_packets,
-               command_uorb.address,
-               command_uorb.pkt_type);
+        // printf("\nData sent :\nTimestamp : %d \nPath: %s \nAddress:%d \nCommand:%d \nPacket_type:%d \n",
+        //        command_uorb.timestamp,
+        //        command_uorb.path,
+        //        command_uorb.command,
+        //        command_uorb.num_of_packets,
+        //        command_uorb.address,
+        //        command_uorb.pkt_type);
       }
     }
   }
@@ -3932,6 +3903,7 @@ void flash_operation_data(uint16_t loop)
   int flash_fd = orb_subscribe_multi(ORB_ID(flash_operation), 10);
   uint32_t start_time = time(NULL);
   uint32_t stop_time = 0;
+  int32_t count=-1;
   uint8_t beacon_data[BEACON_DATA_SIZE] = {'\0'};
   do
   {
@@ -3943,7 +3915,10 @@ void flash_operation_data(uint16_t loop)
       // Print the received flash operation data
       printf("\nUORB DATA\nTimestamp: %llu \nPacket_Type: %d\nPacket Number: %d\n",
              flash.timestamp, flash.packet_type, flash.packet_number);
-
+      if(count < 0){
+        count++;
+        continue;
+      }
       for (int i = 0; i < 80; i++)
       {
         printf("%02x ", flash.data[i]);
