@@ -64,8 +64,10 @@
 #include "watchdog.h"
 int wdog_fd = -1;
 // wdog
-#define ANT_DEPLOY_TIME 60                  // 60 *30
+#define ANT_DEPLOY_TIME 60 * 30                  // 60 *30 seconds = 30minutes
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
+#define GBL_RESET_TIME 240//86400 //in seconds
+
 float x[8], y[8];
 
 int ads7953_receiver(int argc, FAR char *argv[]);
@@ -1161,9 +1163,8 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               sleep(1);
               send_data_uart(COM_UART, ack, sizeof(ack));
               syslog(LOG_DEBUG, "------------  ADCS mission turned on (command received using radio frequency)--------------\n");
-              uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
+              uint8_t data2[] = {0x53, 0x0a, 0x0d, 0x0c, 0x01, 0x7e};
               if (cmds[0] == 0xA0)
-                // adcs_operation(0x01);
                 data2[4] = 0x01;
               else
                 data2[4] = 0x02;
@@ -1721,7 +1722,7 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
       printf("\n");
       usleep(PRINT_DELAY);
 
-      if (data1[0] == ack[0] && data1[5] == ack[5] | data1[1] == ack[0] )
+      if (data1[0] == ack[0] || data1[1] == ack[0])
       {
         printf("\n******Acknowledgement received******\n");
         usleep(PRINT_DELAY);
@@ -1738,7 +1739,8 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
     {
       printf("No data received or select timeout.\n");
     }
-
+    ioctl(fd, TCFLSH, 2);
+    ioctl(fd, TCDRN, NULL);
     close(fd);
     printf("Retrying handshake attempt %d/%d in %d seconds\n", attempt + 1, HANDSHAKE_ATTEMPTS, HANDSHAKE_INTERVAL);
     sleep(HANDSHAKE_INTERVAL);
@@ -2512,19 +2514,54 @@ Declaring structure necessary for collecting HK data
 //     usleep(50);
 //   }
 // }
-void global_reset()
+void alarm_handler(int sig)
 {
-  printf("******Global reset called******");
-  for (;;)
-  {
-    // sleep(300);
-    sleep(75400);
-    critic_flags.RST_COUNT = critic_flags.RST_COUNT + 1;
+    printf("Alarm triggered!\n");
+     critic_flags.RST_COUNT = critic_flags.RST_COUNT + 1;
     // store_flag_data(1,&critic_flags);
     save_critics_flags(&critic_flags);
     print_critical_flag_data(&critic_flags);
-    sleep(10000);
+    sleep(20);
     gpio_write(GPIO_GBL_RST, true);
+}
+
+void rtc_alarm_func(uint16_t time){
+    struct sigaction sa;
+    struct itimerspec timer_spec;
+    timer_t timer_id;
+
+    // Set up the signal handler
+    sa.sa_handler = alarm_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGALRM, &sa, NULL);
+
+    // Create the timer
+    timer_create(CLOCK_REALTIME, NULL, &timer_id);
+
+    // Set the timer to expire in 5 seconds
+    timer_spec.it_value.tv_sec = time;
+    timer_spec.it_value.tv_nsec = 0;
+    timer_spec.it_interval.tv_sec = 0;
+    timer_spec.it_interval.tv_nsec = 0;
+
+    timer_settime(timer_id, 0, &timer_spec, NULL);
+
+    // Wait for the alarm to trigger
+    pause();   
+}
+
+void global_reset()
+{
+  printf("\n******Global reset task has started*****\n");
+  rtc_alarm_func(GBL_RESET_TIME);
+
+  // for (;;)
+  {
+    // sleep(300);
+    // sleep(75400);
+    sleep(60);
+    
   }
 }
 
@@ -2642,7 +2679,7 @@ int main(int argc, FAR char *argv[])
         }
         else
         {
-          int retval = create_task("RESET_TASK_APP", 100, 1500, global_reset);
+          int retval = create_task("RESET_TASK_APP", 100, 1000, global_reset);
           if (retval >= 0)
           {
             g_reset_task_started = true;
@@ -2660,7 +2697,7 @@ int main(int argc, FAR char *argv[])
         }
         else
         {
-          int retval = task_create("COMMANDER_TASK_APP", 100, 56096, COM_TASK, NULL);
+          int retval = task_create("COMMANDER_TASK_APP", 100, 48096, COM_TASK, NULL);
 
           // int retval = task_create("ADC_TASK_APP", 100, 12, ads7953_receiver, NULL);
           // int retval = create_task("COMMANDER_TASK_APP", 100, 10096, COM_TASK);
@@ -2800,7 +2837,6 @@ void send_flash_data(uint8_t *beacon_data)
   }
   else
   {
-    sleep(2);
 
     uint8_t ack_com[43];
     int ret = write(fd, beacon_data, BEACON_DATA_SIZE);
@@ -3149,7 +3185,6 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
       break;
     }
     {
-
       sat_health.msn_flag = 0x21;
       // fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/epdm.txt", O_RDONLY);
       if (fd >= 0)
@@ -3165,12 +3200,11 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
       sleep(1);
       hand = handshake_MSN(mission, handshake_data);
       uint8_t ret;
-      syslog(LOG_DEBUG, "Command %s sent\n", handshake_data);
 
       int p = 0;
       uint8_t data3, data4;
       uint32_t counter1 = 0, rgb_count = 0;
-      if( hand >= 0)
+      if (hand >= 0)
       {
         int fd2 = open(dev_path, O_RDWR);
         for (int j = 0; j < i; j++)
@@ -3180,23 +3214,15 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
           {
             data4 = data3;
             ret = read(fd2, &data3, 1);
-            // syslog(LOG_DEBUG,
             printf("%02x ", data3);
             if (counter1 % 800 == 0 && j == 0)
             {
               syslog(LOG_DEBUG, "COUNTER : %d\n pet_counter: %d", counter1, pet_counter);
               pet_counter = 0;
             }
-            // if (j == 0)
-            {
-              data_received[counter1] = data3;
-              counter1++;
-            }
-            // else
-            // {
-            //   rgb_cam[rgb_count] = data3;
-            //   rgb_count++;
-            // }
+            data_received[counter1] = data3;
+            counter1++;
+
             if (counter1 == 37000)
             {
               fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, file_name, O_RDWR | O_APPEND);
@@ -3224,7 +3250,7 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
             {
               syslog(LOG_DEBUG, "Value of counter1 is %d\n", counter1);
 
-              if (mission == 3 && counter1 > 31000)
+              if ((mission == 3 && counter1 > 31000) | (mission == 1 && counter1 > 179))
               {
                 fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, file_name, O_RDWR | O_APPEND);
                 if (fd >= 0)
@@ -3232,9 +3258,23 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                   final_count = file_seek(&file_pointer, 0, SEEK_END);
                   if ((final_count - initial_count > 100 && initial_count > 0) | (initial_count <= 0))
                   {
-                    if (file_write(&file_pointer, data_received, counter1) > 10)
+                    ssize_t write_bytes = file_write(&file_pointer, data_received, counter1);
+                    if ( write_bytes  > 10)
                     {
                       printf("Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
+                      char new_path[40] = {'\0'};
+                      if(mission ==1)
+                      strcpy(new_path, "adcs");
+                      if(mission == 3)
+                      strcpy(new_path, "epdm");                      
+                      strcat(new_path,"_logs.txt");
+                      int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, new_path, O_CREAT | O_RDWR | O_APPEND);
+                      if (fd_seek >= 0)
+                      {
+                       file_write(&file_pointer2, final_count + write_bytes, sizeof(final_count));
+
+                      }
+                      file_close(&file_pointer2);
                     }
                   }
                 }
@@ -3255,10 +3295,10 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                     if (file_write(&file_pointer, data_received, counter1) > 10)
                     {
                       printf("\nInside here------Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
-                      int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, "/cam_nir_logs.txt", O_RDWR | O_APPEND);
+                      int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, "/cam_rgb_logs.txt", O_RDWR | O_APPEND);
                       if (fd_seek >= 0)
                       {
-                        file_write(&file_pointer2, final_count, sizeof(final_count));
+                        ssize_t write_bytes = file_write(&file_pointer2, final_count, sizeof(final_count));
                       }
                       file_close(&file_pointer2);
                     }
@@ -3278,7 +3318,6 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
         close(fd2);
       }
       turn_msn_on_off(mission, 0);
-
       sat_health.msn_flag = 0x21;
     }
   }
@@ -3775,148 +3814,107 @@ void print_beacon_b()
 
 void handle_reservation_command(int fd_reservation, struct reservation_command res)
 {
-  if (critic_flags.OPER_MODE == NRML_MODE)
-  {
-
+    if (critic_flags.OPER_MODE == NRML_MODE)
     {
-
-      if (res.time[0] == 0 && res.time[1] == 0)
-      {
-        // res = {'\0'};
-        // memset(res, '\0',sizeof(res));
-        // res.cmd[0] = 0;
-        // res.cmd[1] = 0;
-        // res.cmd[2] = 0;
-      }
-      else
-      {
-        if (res.cmd[0] == TO_EXECUTE.cmd[0] && res.cmd[1] == TO_EXECUTE.cmd[1] && res.cmd[2] == TO_EXECUTE.cmd[2] && res.cmd[3] == TO_EXECUTE.cmd[3] && res.time[0] == TO_EXECUTE.time[0])
+        if (res.time[0] == 0 && res.time[1] == 0)
         {
-          // timer =0;
+            // Reset command
+            memset(&res, 0, sizeof(res));
         }
         else
         {
-          TO_EXECUTE = res;
+            if (memcmp(res.cmd, TO_EXECUTE.cmd, sizeof(res.cmd)) != 0 || res.time[0] != TO_EXECUTE.time[0])
+            {
+                TO_EXECUTE = res;
+            }
         }
-      }
-      // if(res.latest_time - orb_absolute_time() <= 0){
 
-      // }
-    }
-    uint32_t t1 = (uint32_t)TO_EXECUTE.cmd[3] << 8 | TO_EXECUTE.cmd[4];
-    TO_EXECUTE.latest_time = t1 * 60;
-    // t2 = TO_EXECUTE.latest_time - t2;
-    if (TO_EXECUTE.mcu_id != 0 && TO_EXECUTE.mcu_id < 10)
-    {
-      RSV_CMD[16] = TO_EXECUTE.mcu_id;
-      RSV_CMD[17] = TO_EXECUTE.cmd[0];
-      RSV_CMD[18] = TO_EXECUTE.cmd[1];
-      RSV_CMD[19] = TO_EXECUTE.cmd[2];
-      printf("---------------------------------------------\n");
-      printf("-_________________________________________________________________________\n");
-      printf("Here we have reservation command as %s and time remaining is %d %d\n", RSV_CMD, timer, TO_EXECUTE.latest_time);
-      printf("_________________________________________________________________________-\n");
-      printf("---------------------------------------------\n");
+        TO_EXECUTE.latest_time = ((uint32_t)TO_EXECUTE.cmd[3] << 8 | TO_EXECUTE.cmd[4]) * 60;
 
-      res.cmd[0] = 0;
-      res.cmd[1] = 0;
-      res.cmd[2] = 0;
-      res.time[0] = 0;
-      res.time[1] = 0;
-
-      sat_health.rsv_flag -= 1;
-      sat_health.rsv_cmd = 0x00;
-    }
-  }
-  if (RSV_CMD[16] != 0x00 && RSV_CMD[16] == TO_EXECUTE.mcu_id && RSV_CMD[17] != 0x00 && RSV_CMD[18] != 0x00 && timer > TO_EXECUTE.latest_time)
-  {
-    parse_command(&RSV_CMD);
-    TO_EXECUTE.cmd[0] = 0;
-    TO_EXECUTE.cmd[1] = 0;
-    TO_EXECUTE.cmd[2] = 0;
-    TO_EXECUTE.time[0] = 0;
-    TO_EXECUTE.time[1] = 0;
-    RSV_CMD[16] = 0;
-    RSV_CMD[17] = 0;
-    RSV_CMD[18] = 0;
-    RSV_CMD[19] = 0;
-    RSV_CMD[20] = 0;
-    timer = 0;
-    struct file file_ptr;
-    uint16_t temp = 0;
-
-    int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
-    struct reservation_command res_temp[16];
-    uint16_t t = 0x00;
-
-    uint16_t file_size = file_seek(&file_ptr, 0, SEEK_END);
-
-    // Read reservation commands
-    for (int i = 0; i < (file_size / 10); i++)
-    {
-      file_seek(&file_ptr, temp, SEEK_SET);
-      temp += sizeof(struct reservation_command);
-      if (file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command)) > 0)
-      {
-      }
-    }
-    file_close(&file_ptr);
-
-    int n = file_size / 10;
-
-    {
-      // Bubble sort, starting from index 1
-      for (int i = 1; i < n - 1; i++)
-      {
-        for (int j = 1; j < n - i; j++)
+        if (TO_EXECUTE.mcu_id != 0 && TO_EXECUTE.mcu_id < 10)
         {
-          uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
-          uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
-          if (t1 > t2)
-          {
-            // Swap res_temp[j] and res_temp[j + 1]
-            struct reservation_command temp = res_temp[j];
-            res_temp[j] = res_temp[j + 1];
-            res_temp[j + 1] = temp;
-          }
+            RSV_CMD[16] = TO_EXECUTE.mcu_id;
+            memcpy(&RSV_CMD[17], TO_EXECUTE.cmd, 3);
+
+            printf("---------------------------------------------\n");
+            printf("-_________________________________________________________________________\n");
+            printf("Here we have reservation command as %s and time remaining is %d %d\n", RSV_CMD, timer, TO_EXECUTE.latest_time);
+            printf("_________________________________________________________________________-\n");
+            printf("---------------------------------------------\n");
+
+            memset(&res, 0, sizeof(res));
+
+            sat_health.rsv_flag -= 1;
+            sat_health.rsv_cmd = 0x00;
         }
-      }
+    }
 
-      // Print sorted commands, starting from index 1
-      for (int i = 1; i < n; i++)
-      {
-        printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
-        printf("_________________Sorted________________________\n");
-        printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
-               res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed, t);
-        printf("__________________Sorted_______________________\n");
-      }
+    if (RSV_CMD[16] != 0x00 && RSV_CMD[16] == TO_EXECUTE.mcu_id && RSV_CMD[17] != 0x00 && RSV_CMD[18] != 0x00 && timer > TO_EXECUTE.latest_time)
+    {
+        parse_command(&RSV_CMD);
+        memset(&TO_EXECUTE, 0, sizeof(TO_EXECUTE));
+        memset(RSV_CMD + 16, 0, 5);
+        timer = 0;
 
-      // Write sorted commands back to the file, starting from index 1
+        struct file file_ptr;
+        uint16_t temp = 0;
 
-      if (n == 1)
-      {
-        fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC);
+        int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+        struct reservation_command res_temp[16];
+        uint16_t file_size = file_seek(&file_ptr, 0, SEEK_END);
+
+        for (int i = 0; i < (file_size / sizeof(struct reservation_command)); i++)
+        {
+            file_seek(&file_ptr, temp, SEEK_SET);
+            temp += sizeof(struct reservation_command);
+            file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
+        }
         file_close(&file_ptr);
-      }
-      else
-      {
-        fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC | O_WRONLY | O_APPEND);
-        if (fd >= 0)
+
+        int n = file_size / sizeof(struct reservation_command);
+
+        for (int i = 1; i < n - 1; i++)
         {
-          for (int i = 1; i < n; i++)
-          {
-            file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
-          }
+            for (int j = 1; j < n - i; j++)
+            {
+                uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
+                uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
+                if (t1 > t2)
+                {
+                    struct reservation_command temp = res_temp[j];
+                    res_temp[j] = res_temp[j + 1];
+                    res_temp[j + 1] = temp;
+                }
+            }
         }
-        if (file_close(&file_ptr) < 0)
+
+        for (int i = 1; i < n; i++)
         {
-          file_close(&file_ptr);
+            printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
+            printf("_________________Sorted________________________\n");
+            printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
+                   res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed);
+            printf("__________________Sorted_______________________\n");
         }
-      }
+
+        if (n == 1)
+        {
+            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC);
+        }
+        else
+        {
+            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC | O_WRONLY | O_APPEND);
+            for (int i = 1; i < n; i++)
+            {
+                file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
+            }
+        }
+        file_close(&file_ptr);
     }
-  }
 }
+
+
+
 
 void set_time(uint32_t received_timestamp)
 {

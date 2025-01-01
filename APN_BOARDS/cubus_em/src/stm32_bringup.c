@@ -196,7 +196,6 @@ void configure_rtc(void) {
     // rtc_enable_interrupt(rtc_alarm_callback);
 }
 
-
 int stm32_bringup(void)
 {
   configure_rtc();

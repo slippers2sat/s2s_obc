@@ -62,7 +62,7 @@
 
 	// setting watchdog and reset GPIOs
 	stm32_gpiowrite(GPIO_GBL_RST, 0);
-	// stm32_gpiowrite(GPIO_WD_WDI, 0); // setting initial watchdog pin status
+	stm32_gpiowrite(GPIO_WD_WDI, 0); // setting initial watchdog pin status
 
 	// setting power contorl pins
 	stm32_gpiowrite(GPIO_DCDC_MSN_3V3_2_EN, 0); 	// enable MSN regulator
@@ -106,7 +106,7 @@
 void stm32_boardinitialize(void)
 {
    	// Configure Watchdog and Reset control pins.
-	// stm32_configgpio(GPIO_WD_WDI);
+	stm32_configgpio(GPIO_WD_WDI);
 	stm32_configgpio(GPIO_GBL_RST);
 
 	// Configure KILL Switch Control and Monitoring GPIOs

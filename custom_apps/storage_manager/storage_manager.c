@@ -65,9 +65,10 @@ void flash_operations();
 void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname);
 void sort_reservation_command(uint16_t file_size, bool reorder);
 int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filename, int open_mode);
+
+
 void read_and_print_mag_data(void)
 {
-  count++;
   int sub_fd;
   struct reservation_command res;
   int fd_reservation;
@@ -84,16 +85,11 @@ void read_and_print_mag_data(void)
   fds2.events = POLLIN;
 
   sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
-  // ads = orb_subscibe(ORB_ID(e_ads7953_0));
   if (sub_fd < 0)
   {
-    // syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
+    syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
     return;
   }
-  uint8_t count = 0;
-  // sleep(30);
-
-  // sort_reservation_command(1, false);
 
   while (1)
   {
@@ -103,14 +99,15 @@ void read_and_print_mag_data(void)
       // flash_operations();
     }
     count++;
+
     orb_check(fd_reservation, &updated);
     if (updated)
     {
-      // updated = false;
       struct file file_ptr;
       orb_copy(ORB_ID(reservation_command), fd_reservation, &res);
-      printf("Value of reservation command uorb has been updated");
+      printf("Value of reservation command uorb has been updated\n");
       printf("The reservation command is %02x %02x %02x\n", res.cmd[0], res.cmd[1], res.cmd[2]);
+
       if (res.latest_time == 0x00 && res.mcu_id != 0)
       {
         int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_CREAT | O_WRONLY | O_APPEND);
@@ -118,26 +115,22 @@ void read_and_print_mag_data(void)
         ssize_t bytes_written = file_write(&file_ptr, &res, sizeof(res));
         if (bytes_written > 0)
         {
-          printf("File size is %d.\nReservation table with data size %d has been updated\n", file_size, bytes_written);
+          printf("File size is %zd.\nReservation table with data size %zd has been updated\n", file_size, bytes_written);
         }
-        if (ret = file_syncfs(&file_ptr) < 0)
+        if ((ret = file_syncfs(&file_ptr)) < 0)
         {
-          // syslog(LOG_DEBUG, "some issue while synfs closing: %d\n",ret);
+          syslog(LOG_DEBUG, "some issue while synfs closing: %d\n", ret);
           file_syncfs(&file_ptr);
         }
         if (file_close(&file_ptr) < 0)
         {
-          // syslog(LOG_DEBUG, "some issue while synfs closing\n");
-
+          syslog(LOG_DEBUG, "some issue while synfs closing\n");
           file_close(&file_ptr);
         }
-        // sort_reservation_command(1);
       }
       sleep(1);
     }
-    // updated = false;
-      // printf("the counter value is %d \n", count);
-    
+
     if (count % 90 == 0)
     {
       count = 1;
@@ -146,41 +139,23 @@ void read_and_print_mag_data(void)
       {
         orb_copy(ORB_ID(orb_mag_scaled), sub_fd, &mag_data);
 
-        // edited
         if (poll(&fds2, 1, 3000) > 0)
         {
           if (fds2.revents & POLLIN)
           {
             ret = orb_copy_multi(fd2, &satHealth, sizeof(struct sensor_rgb));
-            // print_satellite_health_data(&satHealth);
             if (ret < 0)
             {
               syslog(LOG_ERR, "ORB copy error, %d \n", ret);
-              return ret;
+              return;
             }
             else
             {
               printf("Satellite Health ORB is getting data %d\n", satellite_health.rsv_cmd);
-              // if (count % 12 == 0)
-              {
-              }
-              // printf("%d %d %d\n",satHealth.accl_x, satHealth.accl_y, satHealth.accl_z);
             }
-
-            // printf("Temperature: %0.02f \t", mag0.temperature);
           }
         }
-        // edited
 
-#ifdef LOGGING
-        // syslog(LOG_INFO, "\n\n\r****-------[Storage maanager ]Mag Data:\n");
-
-        // syslog(LOG_INFO, "  ACCELEROMETER X: %.4f Y: %.4f Z: %.4f\n", mag_data.acc_x, mag_data.acc_y, mag_data.acc_z);
-        // syslog(LOG_INFO, "  GYROSCOPE X: %.4f Y: %.4f Z: %.4f\n", mag_data.gyro_x, mag_data.gyro_y, mag_data.gyro_z);
-
-        // syslog(LOG_INFO, "  MAGNETOMETER X: %.4f Y: %.4f Z: %.4f\n", mag_data.mag_x, mag_data.mag_y, mag_data.mag_z);
-        // syslog(LOG_INFO, "  Temp:  %.4f\n", mag_data.temperature);
-#endif
         satellite_health.accl_x = mag_data.acc_x;
         satellite_health.accl_y = mag_data.acc_y;
         satellite_health.accl_z = mag_data.acc_z;
@@ -192,21 +167,163 @@ void read_and_print_mag_data(void)
         satellite_health.mag_x = mag_data.mag_x;
         satellite_health.mag_y = mag_data.mag_y;
         satellite_health.mag_z = mag_data.mag_z;
-        // if (satellite_health.msn_flag != 0x11 && satellite_health.ant_dep_stat == DEPLOYED)
-        {
-          store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
-          print_satellite_health_data(&satHealth);
-        }
-        // store_sat_health_data(&satellite_health, SFM_MAIN_STRPATH);
+
+        store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
+        print_satellite_health_data(&satHealth);
+        maintain_data_consistency();
       }
-      maintain_data_consistency();
     }
 
-    sleep(1); // Sleep for 500 ms
+    sleep(1); // Sleep for 1 second
   }
 
   orb_unsubscribe(sub_fd);
+  orb_unsubscribe(fd_reservation);
+  orb_unsubscribe(fd2);
 }
+
+// void read_and_print_mag_data(void)
+// {
+//   count++;
+//   int sub_fd;
+//   struct reservation_command res;
+//   int fd_reservation;
+//   fd_reservation = orb_subscribe(ORB_ID(reservation_command));
+//   struct orb_mag_scaled_s mag_data;
+//   satellite_health_s satellite_health;
+//   bool updated;
+
+//   struct pollfd fds2;
+//   struct sensor_rgb satHealth;
+//   int fd2, ret;
+//   fd2 = orb_subscribe_multi(ORB_ID(sensor_rgb), 0);
+//   fds2.fd = fd2;
+//   fds2.events = POLLIN;
+
+//   sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
+//   // ads = orb_subscibe(ORB_ID(e_ads7953_0));
+//   if (sub_fd < 0)
+//   {
+//     // syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
+//     return;
+//   }
+//   uint8_t count = 0;
+//   // sleep(30);
+
+//   // sort_reservation_command(1, false);
+
+//   while (1)
+//   {
+//     if (count % 10 == 0)
+//     {
+//       sort_reservation_command(1, false);
+//       // flash_operations();
+//     }
+//     count++;
+//     orb_check(fd_reservation, &updated);
+//     if (updated)
+//     {
+//       // updated = false;
+//       struct file file_ptr;
+//       orb_copy(ORB_ID(reservation_command), fd_reservation, &res);
+//       printf("Value of reservation command uorb has been updated");
+//       printf("The reservation command is %02x %02x %02x\n", res.cmd[0], res.cmd[1], res.cmd[2]);
+//       if (res.latest_time == 0x00 && res.mcu_id != 0)
+//       {
+//         int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_CREAT | O_WRONLY | O_APPEND);
+//         ssize_t file_size = file_seek(&file_ptr, 0, SEEK_END);
+//         ssize_t bytes_written = file_write(&file_ptr, &res, sizeof(res));
+//         if (bytes_written > 0)
+//         {
+//           printf("File size is %d.\nReservation table with data size %d has been updated\n", file_size, bytes_written);
+//         }
+//         if (ret = file_syncfs(&file_ptr) < 0)
+//         {
+//           // syslog(LOG_DEBUG, "some issue while synfs closing: %d\n",ret);
+//           file_syncfs(&file_ptr);
+//         }
+//         if (file_close(&file_ptr) < 0)
+//         {
+//           // syslog(LOG_DEBUG, "some issue while synfs closing\n");
+
+//           file_close(&file_ptr);
+//         }
+//         // sort_reservation_command(1);
+//       }
+//       sleep(1);
+//     }
+//     // updated = false;
+//       // printf("the counter value is %d \n", count);
+    
+//     if (count % 90 == 0)
+//     {
+//       count = 1;
+//       orb_check(sub_fd, &updated);
+//       if (updated)
+//       {
+//         orb_copy(ORB_ID(orb_mag_scaled), sub_fd, &mag_data);
+
+//         // edited
+//         if (poll(&fds2, 1, 3000) > 0)
+//         {
+//           if (fds2.revents & POLLIN)
+//           {
+//             ret = orb_copy_multi(fd2, &satHealth, sizeof(struct sensor_rgb));
+//             // print_satellite_health_data(&satHealth);
+//             if (ret < 0)
+//             {
+//               syslog(LOG_ERR, "ORB copy error, %d \n", ret);
+//               return ret;
+//             }
+//             else
+//             {
+//               printf("Satellite Health ORB is getting data %d\n", satellite_health.rsv_cmd);
+//               // if (count % 12 == 0)
+//               {
+//               }
+//               // printf("%d %d %d\n",satHealth.accl_x, satHealth.accl_y, satHealth.accl_z);
+//             }
+
+//             // printf("Temperature: %0.02f \t", mag0.temperature);
+//           }
+//         }
+//         // edited
+
+// #ifdef LOGGING
+//         // syslog(LOG_INFO, "\n\n\r****-------[Storage maanager ]Mag Data:\n");
+
+//         // syslog(LOG_INFO, "  ACCELEROMETER X: %.4f Y: %.4f Z: %.4f\n", mag_data.acc_x, mag_data.acc_y, mag_data.acc_z);
+//         // syslog(LOG_INFO, "  GYROSCOPE X: %.4f Y: %.4f Z: %.4f\n", mag_data.gyro_x, mag_data.gyro_y, mag_data.gyro_z);
+
+//         // syslog(LOG_INFO, "  MAGNETOMETER X: %.4f Y: %.4f Z: %.4f\n", mag_data.mag_x, mag_data.mag_y, mag_data.mag_z);
+//         // syslog(LOG_INFO, "  Temp:  %.4f\n", mag_data.temperature);
+// #endif
+//         satellite_health.accl_x = mag_data.acc_x;
+//         satellite_health.accl_y = mag_data.acc_y;
+//         satellite_health.accl_z = mag_data.acc_z;
+
+//         satellite_health.gyro_x = mag_data.gyro_x;
+//         satellite_health.gyro_y = mag_data.gyro_y;
+//         satellite_health.gyro_z = mag_data.gyro_z;
+
+//         satellite_health.mag_x = mag_data.mag_x;
+//         satellite_health.mag_y = mag_data.mag_y;
+//         satellite_health.mag_z = mag_data.mag_z;
+//         // if (satellite_health.msn_flag != 0x11 && satellite_health.ant_dep_stat == DEPLOYED)
+//         {
+//           store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
+//           print_satellite_health_data(&satHealth);
+//         }
+//         // store_sat_health_data(&satellite_health, SFM_MAIN_STRPATH);
+//       }
+//       maintain_data_consistency();
+//     }
+
+//     sleep(1); // Sleep for 500 ms
+//   }
+
+//   orb_unsubscribe(sub_fd);
+// }
 
 int storage_manager_daemon(int argc, FAR char *argv[])
 {
@@ -363,17 +480,8 @@ void flash_operations()
           printf("command_ops.address %d\n command_ops.num_of_packets %d\n", command_ops.address, command_ops.num_of_packets);
           printf("***************************************************************\n");
           send_data_uorb(command_ops.path, command_ops.address, command_ops.num_of_packets, command_ops.pkt_type);
-          uint8_t data_retrieved[80];
-          // download_file_from_flash_uorb(command_ops.path, command_ops.address, command_ops.num_of_packets, &data_retrieved, 80);
-          // FLASH_OPERATION = false;
-          // MISSION_STATUS.FLASH_OPERATION = false;
         }
-        // temp_command_ops.address = command_ops.address;
-        // temp_command_ops.num_of_packets = command_ops.num_of_packets;
-        // send_data_uorb(command_ops.path, command_ops.address, command_ops.num_of_packets);
-        // uint8_t data_retrieved[80];
-        // download_file_from_flash_uorb(command_ops.path, command_ops.address, command_ops.num_of_packets, &data_retrieved, 80);
-      }
+       }
       else
       {
         temp_command_ops.address = 1234567890;
@@ -397,18 +505,6 @@ void Setup()
   }
   file_close(&flp1);
 
-  /*delete this later
-   */
-  fd = open_file_flash(&flp1, MFM_MAIN_STRPATH, file_name_sat_health, O_TRUNC);
-  if (fd < 0)
-  {
-    syslog(LOG_ERR, "Could not create file named sat_health... \n");
-  }
-  file_close(&flp1);
-  close(fd);
-  return 0;
-  /*
-   */
   fd = open_file_flash(&flp2, MFM_MAIN_STRPATH, file_name_flag, O_CREAT);
   if (fd < 0)
   {
@@ -435,35 +531,55 @@ void Setup()
   print_critical_flag_data(&critic_flags);
 }
 
+// void get_top_rsv(struct reservation_command *res)
+// {
+//   struct file fptr;
+//   int ret;
+//   int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+//   uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+//   if (file_size == 0 || file_size < 6)
+//   {
+//     res->mcu_id = 0;
+//     res->cmd[0] = 0;
+//     res->cmd[1] = 0;
+//     res->cmd[2] = 0;
+//     res->time[0] = 0;
+//     res->time[1] = 0;
+//   }
+//   else
+//   {
+//     if (fd >= 0)
+//     {
+//       file_seek(&fptr, 0, SEEK_SET);
+//       if (file_read(&fptr, res, sizeof(struct reservation_command)) >= 0)
+//       {
+//         printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
+//       }
+//     }
+//     uint32_t t1 = (uint32_t)res->cmd[3] << 8 | res->cmd[4];
+//     res->latest_time = t1 * 60;
+//   }
+//   file_close(&fptr);
+// }
+
 void get_top_rsv(struct reservation_command *res)
 {
-  struct file fptr;
-  int ret;
-  int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
-  uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
-  if (file_size == 0 || file_size < 6)
-  {
-    res->mcu_id = 0;
-    res->cmd[0] = 0;
-    res->cmd[1] = 0;
-    res->cmd[2] = 0;
-    res->time[0] = 0;
-    res->time[1] = 0;
-  }
-  else
-  {
-    if (fd >= 0)
+    struct file fptr;
+    int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+    uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+
+    if (file_size == 0 || file_size < sizeof(struct reservation_command))
     {
-      file_seek(&fptr, 0, SEEK_SET);
-      if (file_read(&fptr, res, sizeof(struct reservation_command)) >= 0)
-      {
-        printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
-      }
+        memset(res, 0, sizeof(struct reservation_command));
     }
-    uint32_t t1 = (uint32_t)res->cmd[3] << 8 | res->cmd[4];
-    res->latest_time = t1 * 60;
-  }
-  file_close(&fptr);
+    else
+    {
+        file_seek(&fptr, 0, SEEK_SET);
+        file_read(&fptr, res, sizeof(struct reservation_command));
+        printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
+        res->latest_time = ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
+    }
+    file_close(&fptr);
 }
 
 // void sort_reservation_command(uint16_t file_size, bool reorder) {
@@ -910,8 +1026,27 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
             }
 
             // usleep(1050000);
-            sleep(2);
+            sleep(1);
           } while (num_of_packets > 0);
+        }
+        else{
+          // flash.data[0] = 0x53;
+          flash.packet_number = 0x01;
+          flash.packet_type = packet_type;
+          flash.data[0] = 0x04;
+          flash.data[1] = 0xac;
+          flash.data[2] = 0x04;
+          flash.data[3] = 0x63;
+          flash.data[4] = 0x62;
+          flash.data[84] = 0x7e;
+          flash.data[85] = 0x7e;
+
+
+          if (OK != orb_publish(ORB_ID(flash_operation), raw_afd, &flash))
+              {
+                syslog(LOG_ERR, "Orb Publish failed\n");
+              }
+          
         }
         file_close(&fp);
         struct SEEK_POINTER temp;

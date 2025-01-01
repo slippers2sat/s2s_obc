@@ -19,7 +19,7 @@
 //  ****************************************************************************/
 
 #include "common_functions.h"
-// //pthread_mutex_t flash_mutex =  //pthread_mutex_INITIALIZER;
+pthread_mutex_t flash_mutex =  PTHREAD_MUTEX_INITIALIZER;
 
 void mission_data(char *filename, uint8_t *data, uint16_t size1)
 {
@@ -54,7 +54,7 @@ int clear_int_flag(){
   CRITICAL_FLAGS c={'\0'};
   struct file fp;
   int fd;
-  //pthread_mutex_lock(&flash_mutex); // Lock the mutex
+  pthread_mutex_lock(&flash_mutex); // Lock the mutex
 
   fd = open("/dev/intflash", O_WRONLY);
   up_progmem_eraseblock(22);
@@ -63,7 +63,7 @@ int clear_int_flag(){
   close(fd);
   // fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_TRUNC);
   // file_close(&fp);
-  //pthread_mutex_unlock(&flash_mutex); // Lock the mutex
+  pthread_mutex_unlock(&flash_mutex); // Lock the mutex
 
 }
 int store_flag_data(CRITICAL_FLAGS *flag_data)
@@ -73,7 +73,8 @@ int store_flag_data(CRITICAL_FLAGS *flag_data)
 
   printf("\n**************SToring flag data*********\n");
   print_critical_flag_data(flag_data);
-
+  pthread_mutex_lock(&flash_mutex); // Lock the mutex
+  
   int fd = open("/dev/intflash", O_RDWR);
   if (fd >= 0)
   {
@@ -86,6 +87,7 @@ int store_flag_data(CRITICAL_FLAGS *flag_data)
     syslog(LOG_ERR, "Error opening internal flash to store new flag data ... \n");
     return -1;
   }
+  pthread_mutex_unlock(&flash_mutex); // Lock the mutex
   
   int fd1 = open_file_flash(&fp, MFM_MAIN_STRPATH, file_name_flag, O_RDWR);
   if (fd1 >= 0)
@@ -115,7 +117,8 @@ int check_flag_data(CRITICAL_FLAGS *flags)
   CRITICAL_FLAGS rd_flags_mfm = {0xff};
   ssize_t read_size_mfm = 0;
   struct file fp;
-
+  pthread_mutex_lock(&flash_mutex); // Lock the mutex
+  
   int fd = open("/dev/intflash", O_RDWR);
   if (fd >= 0)
   {
@@ -129,6 +132,8 @@ int check_flag_data(CRITICAL_FLAGS *flags)
     syslog(LOG_ERR, "Error opening internal flash\n");
     return -1;
   }
+  pthread_mutex_unlock(&flash_mutex); // Lock the mutex
+
 
   int fd1 = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_RDWR);
   if (fd1 >= 0)
@@ -200,6 +205,8 @@ void save_critics_flags(const CRITICAL_FLAGS *flags)
 int load_critics_flags(CRITICAL_FLAGS *flags)
 {
   memset(flags, 0, sizeof(CRITICAL_FLAGS));
+  pthread_mutex_lock(&flash_mutex); // Lock the mutex
+
   int fd = open("/dev/intflash", O_RDONLY);
   if (fd < 0)
   {
@@ -208,6 +215,8 @@ int load_critics_flags(CRITICAL_FLAGS *flags)
   }
   ssize_t bytesRead = read(fd, flags, sizeof(CRITICAL_FLAGS));
   close(fd);
+  pthread_mutex_unlock(&flash_mutex); // Lock the mutex
+
   if (bytesRead != sizeof(CRITICAL_FLAGS))
   {
     perror("Failed to read complete flags data");
@@ -269,19 +278,7 @@ int load_critics_flags(CRITICAL_FLAGS *flags)
 
 void print_critical_flag_data(CRITICAL_FLAGS *flags)
 {
-  CRITICAL_FLAGS rd_flags_int = {0xff};
-  //pthread_mutex_lock(&flash_mutex); // Lock the mutex
-  
-  int fd = open("/dev/intflash", O_RDONLY);
-  if (fd >= 0)
-  { // internal flash file opened successfully
-    syslog(LOG_INFO, "Printing Internal flash flag data.\n");
-    up_progmem_read(FLAG_DATA_INT_ADDR, &rd_flags_int, sizeof(rd_flags_int));
-    // print_critical_flag_data(&rd_flags_int);
-  }
 
-  close(fd);
-  //pthread_mutex_unlock(&flash_mutex); // Lock the mutex
   
   printf(" ********************************************\r\n");
   printf(" |   Antenna Deployment Status \t %d \t|\r\n", flags->ANT_DEP_STAT);
