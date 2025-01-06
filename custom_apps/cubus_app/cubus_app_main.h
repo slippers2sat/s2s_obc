@@ -80,6 +80,12 @@ struct mission_status {
 };
 
 extern struct mission_status MISSION_STATUS;
+#define ADC_MAX_LOOP 400
+#define I_ADC1_DATA_LEN 15
+uint16_t I_ADC1_RAW[I_ADC1_DATA_LEN][ADC_MAX_LOOP];
+uint16_t I_ADC1_DATA[I_ADC1_DATA_LEN];
+int32_t averageRaw[I_ADC1_DATA_LEN];
+ 
 
 // struct mpu6500_imu_msg
 // {

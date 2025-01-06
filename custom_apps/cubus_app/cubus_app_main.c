@@ -64,9 +64,9 @@
 #include "watchdog.h"
 int wdog_fd = -1;
 // wdog
-#define ANT_DEPLOY_TIME 60 * 30                  // 60 *30 seconds = 30minutes
+#define ANT_DEPLOY_TIME 2//60 * 30                  // 60 *30 seconds = 30minutes
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
-#define GBL_RESET_TIME 240//86400 //in seconds
+#define GBL_RESET_TIME 500 //seconds in a day
 
 float x[8], y[8];
 
@@ -399,6 +399,7 @@ int read_int_adc1()
       int nsamples = adc1_config.nbytes / sizeof(struct adc_msg_s);
       if (nsamples * sizeof(struct adc_msg_s) != adc1_config.nbytes)
       {
+        // I_ADC1_RAW[]
         // printf("adc_main: read size=%ld is not a multiple of "
         //        "sample size=%d, Ignoring\n",
         //        (long)adc1_config.nbytes, sizeof(struct adc_msg_s));
@@ -406,12 +407,21 @@ int read_int_adc1()
       else
       {
         // Print int adc values
-        // printf("\nSample:\n");
+        // printf("\nNumber of Samples: %d\n",nsamples);
         float chan;
+        memset(averageRaw,'\0',sizeof(averageRaw));
         for (int i = 0; i < nsamples; i++)
         {
+          averageRaw[i]= 0;
+          for(int j=0; j< ADC_MAX_LOOP;j++){
+            averageRaw[i] += int_adc1_sample[i].am_data;
+            // if(j%100 ==0)
+            // printf("%d: channel: %d value: %" PRId32 "",
+            //      i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
+          }
+          averageRaw[i] /= ADC_MAX_LOOP;
           // printf("%d: channel: %d value: %" PRId32 " \n",
-          //        i, int_adc1_sample[i].am_channel, int_adc1_sample[i].am_data);
+          //        i, int_adc1_sample[i].am_channel, averageRaw[i]);
         }
         // sat_health.sol_p2_c = (int16_t)int_adc1_sample[15].am_data;
         // sat_health.sol_p1_c = (int16_t)int_adc1_sample[14].am_data;
@@ -1194,13 +1204,14 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           // Command to ENABLE/DISABLE or run camera(MSN2) mission
           {
             syslog(LOG_DEBUG, "CAM MCU ID has been received\n");
-            if (cmds[0] == 0xCC && cmds[1] == 0x5E && cmds[2] == 0xBD)
+            if (cmds[0] == 0xCC &&  cmds[2] == 0xBD)
             {
               gpio_write(GPIO_SFM_MODE, true);
               syslog(LOG_DEBUG, "------------------------  cam mission turned on (Command received from COM using RF)------------------\n");
               send_data_uart(COM_UART, ack, sizeof(ack));
               // new_camera_operation();
-              uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
+              uint8_t data2[] = {0x53, 0x0c, 0x0a, 0x77, 0x01, 0x7e};
+              data2[4] = cmds[1];
               mission_operation(2, data2);
               syslog(LOG_DEBUG, "------------------------  cam mission turned off(Command received from COM using RF)--------------------\n");
             }
@@ -1449,7 +1460,6 @@ void send_beacon(int argc, char *argv)
       //   // ads7953_receiver(argc, argv);
 
       make_satellite_health();
-      // print_satellite_health_data(&sat_health);
       send_beacon_data(); // TODO uncomment this
       // pet_counter = 0;    // TODO remove this after uncommenting above
       count_beacon = 0;
@@ -1458,7 +1468,12 @@ void send_beacon(int argc, char *argv)
     timer++;
     sleep(1); // 90 // TODO make it 90 later
     // usleep(100000);
+  if(count_beacon %10 ==0){
+      // print_satellite_health_data(&sat_health);
+
   }
+  }
+
 }
 
 /****************************************************************************
@@ -1694,8 +1709,12 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
     }
 
     printf("6 bytes written\n");
+    // for(int i=0;i<6;i++){
+    //   printf("%02x ",ack[i]);
+    // }
     usleep(3000 * 1000); // 3 seconds delay
 
+    printf("\n");
     // Reading data from UART
     FD_ZERO(&read_fds);
     FD_SET(fd, &read_fds);
@@ -2521,7 +2540,7 @@ void alarm_handler(int sig)
     // store_flag_data(1,&critic_flags);
     save_critics_flags(&critic_flags);
     print_critical_flag_data(&critic_flags);
-    sleep(20);
+    sleep(1);
     gpio_write(GPIO_GBL_RST, true);
 }
 
@@ -2548,18 +2567,22 @@ void rtc_alarm_func(uint16_t time){
     timer_settime(timer_id, 0, &timer_spec, NULL);
 
     // Wait for the alarm to trigger
-    pause();   
+    // pause();   
+    while (1)
+    {
+      sleep(1);
+    }
+    
 }
 
 void global_reset()
 {
   printf("\n******Global reset task has started*****\n");
-  rtc_alarm_func(GBL_RESET_TIME);
-
   // for (;;)
   {
     // sleep(300);
     // sleep(75400);
+    // rtc_alarm_func(GBL_RESET_TIME);
     sleep(60);
     
   }
@@ -3015,9 +3038,10 @@ void Antenna_Deployment(int argc, char *argv[])
       printf("%d Antenna deployment sequence completed\n", j);
     }
 
-    critic_flags.ANT_DEP_STAT = DEPLOYED;
-    critic_flags.UL_STATE = UL_RX;
-
+    // critic_flags.ANT_DEP_STAT = DEPLOYED;
+    // critic_flags.UL_STATE = UL_RX;
+    rd_flags_int.ANT_DEP_STAT = DEPLOYED;
+    rd_flags_int.UL_STATE = UL_RX;
     sat_health.ant_dep_stat = critic_flags.ANT_DEP_STAT;
     sat_health.ul_state = critic_flags.UL_STATE;
 
@@ -3025,7 +3049,7 @@ void Antenna_Deployment(int argc, char *argv[])
   }
 
   rd_flags_int.RST_COUNT += 1;
-  save_critics_flags(&critic_flags);
+  // save_critics_flags(&rd_flags_int);
   store_flag_data(&rd_flags_int);
 
   rd_flags_int.ANT_DEP_STAT = 0x00;
@@ -3294,8 +3318,8 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                   {
                     if (file_write(&file_pointer, data_received, counter1) > 10)
                     {
-                      printf("\nInside here------Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
-                      int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, "/cam_rgb_logs.txt", O_RDWR | O_APPEND);
+                      printf("\nInside here------Data has been written to %s%s pa/th with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
+                      int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, "/cam_rgb_logs.txt", O_CREAT | O_RDWR | O_APPEND);
                       if (fd_seek >= 0)
                       {
                         ssize_t write_bytes = file_write(&file_pointer2, final_count, sizeof(final_count));
@@ -3354,37 +3378,85 @@ void watchdog_refresh_task(int fd)
  *
  ****************************************************************************/
 #ifdef CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1
+// void int_adc1_data_convert(float *temp_buff)
+// {
+//   // printf("\n----------------------------------------------------------\n");
+//   float int_adc1_v[15]={0.00}, int_adc1_c[15]={0.00};
+//   // float temp_buff[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_NSAMPLES];
+//   float ADC_SUP = 1.2 * 4095 / averageRaw[11];//(int_adc1_sample[14].am_data);
+//   printf("ADC i=8 value is %d & ADC_SUP is %f\n", averageRaw[11], ADC_SUP);
+
+//   // raw adc value here test baki
+//   // printf("ADC_SUP is %f\n", ADC_SUP);
+//   for (int i = 0; i < CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE; i++)
+//   {
+//     int_adc1_v[i] = (int_adc1_sample[i].am_data * 3.3 / 4095); // right now, using 1.2 as vrefint channel data... converting all the data to their respective voltages
+//     if (i == 4)
+//     {
+//       temp_buff[i] = (int_adc1_v[i] * (1100 + 931)) / 931; // this is for battery monitor (voltage data, no need for conversion)
+//       printf("***********\nBatt volatge: temp_buff[%d] %f******\n",i, temp_buff[i]);
+//     }
+//     // else if (i == 0 || i == 9 - 1 || i == 11 - 1) // this one is for battery current, solar panel total current and raw current respectively
+//     else if (int_adc1_sample[i].am_channel == 0 | int_adc1_sample[i].am_channel == 9 | int_adc1_sample[i].am_channel == 12)
+//     {
+//       // printf("THe value of temp_buff[%d] is %f", i, temp_buff[i]);
+//       temp_buff[i] = ((int_adc1_v[i] - 1.65) / SENS_TMCS) * 1000 * 1000;
+//       // printf("THe value of temp_buff[%d] is %f", i, temp_buff[i]);
+//     }
+//     else
+//     {
+//       // all current sensors use lmp8640 current sensor ...
+//       temp_buff[i] = (int_adc1_v[i] / (2 * RES_LMP8640 * GAIN_LMP8640)) * 1000;
+//     }
+//     printf("Channel no:%d Temp_buf[%d] : %f  Volatege[%d] : %f\n", int_adc1_sample[i].am_channel,i, temp_buff[i],i, int_adc1_v[i]);
+
+//   }
+//   // printf("\n----------------------------------------------------------\n");
+// }
+
 void int_adc1_data_convert(float *temp_buff)
 {
-  // printf("\n----------------------------------------------------------\n");
+  float int_adc1_v[15] = {0.00}; // Array to store the voltage values
+  float int_adc1_c[15] = {0.00}; // Array to store the current values
+  
+  // Calculate ADC_SUP using a specific channel's average raw value
+  float ADC_SUP = 1.2 * 4095 / averageRaw[11];
+  // printf("ADC i=11 value is %d & ADC_SUP is %f\n", averageRaw[11], ADC_SUP);
 
-  // float temp_buff[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_NSAMPLES];
-  float ADC_SUP = 1.2 * 4095 / (int_adc1_sample[14].am_data);
-  // raw adc value here test baki
-  // printf("ADC_SUP is %f\n", ADC_SUP);
+  // Iterate through the ADC channels to convert raw data to voltage and current
   for (int i = 0; i < CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE; i++)
   {
-    temp_buff[i] = (int_adc1_sample[i].am_data * 3.3 / 4095); // right now, using 1.2 as vrefint channel data... converting all the data to their respective voltages
-    if (i == 4)
+    // Convert raw ADC value to voltage
+    int_adc1_v[i] = (int_adc1_sample[i].am_data * 3.3 / 4095);
+
+    // Perform specific conversions based on the channel
+    if (i == 4) 
     {
-      temp_buff[i] = (temp_buff[i] * (1100 + 931)) / 931; // this is for battery monitor (voltage data, no need for conversion)
+      // Battery voltage conversion (specific calculation for channel 4)
+      temp_buff[i] = (int_adc1_v[i] * (1100 + 931)) / 931;
+      // printf("***********\nBatt voltage: temp_buff[%d] %f******\n", i, temp_buff[i]);
     }
-    // else if (i == 0 || i == 9 - 1 || i == 11 - 1) // this one is for battery current, solar panel total current and raw current respectively
-    else if (int_adc1_sample[i].am_channel == 0 | int_adc1_sample[i].am_channel == 9 | int_adc1_sample[i].am_channel == 12)
+    else if (int_adc1_sample[i].am_channel == 0 || int_adc1_sample[i].am_channel == 9 || int_adc1_sample[i].am_channel == 12)
     {
-      // printf("THe value of temp_buff[%d] is %f", i, temp_buff[i]);
-      temp_buff[i] = ((temp_buff[i] - 1.65) / SENS_TMCS) * 1000 * 1000;
-      // printf("THe value of temp_buff[%d] is %f", i, temp_buff[i]);
+      // Battery current, solar panel total current, and raw current conversion
+      temp_buff[i] = ((int_adc1_v[i] - 1.65) / SENS_TMCS) * 1000 * 1000;
     }
     else
     {
-      // all current sensors use lmp8640 current sensor ...
-      temp_buff[i] = (temp_buff[i] / (2 * RES_LMP8640 * GAIN_LMP8640)) * 1000;
+      // General current sensor conversion using LMP8640 current sensor
+      temp_buff[i] = (int_adc1_v[i] / (2 * RES_LMP8640 * GAIN_LMP8640)) * 1000;
     }
-    // printf("Temp_buf[%d] : %f \n", i, temp_buff[i]);
+
+    // Store the voltage value in a separate array for clarity
+    int_adc1_c[i] = temp_buff[i];
+
+    // Print the converted values for debugging
+    printf("Channel no:%d Voltage: %f  Current: %f\n", int_adc1_sample[i].am_channel, int_adc1_v[i], int_adc1_c[i]);
   }
-  // printf("\n----------------------------------------------------------\n");
+  printf("\n****************************************************************************\n");
 }
+
+
 #endif
 
 /****************************************************************************

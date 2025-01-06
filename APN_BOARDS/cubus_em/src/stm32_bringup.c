@@ -198,6 +198,7 @@ void configure_rtc(void) {
 
 int stm32_bringup(void)
 {
+  stm32_wdg_setup();
   configure_rtc();
   configure_rtc();
 
@@ -386,31 +387,31 @@ int stm32_bringup(void)
   }
 #endif
 
-// #ifdef CONFIG_STM32_TIM6
+#ifdef CONFIG_STM32_TIM6
 
-//   ret = stm32_timer_initialize("/dev/timer6", 6);
-//   if (ret < 0)
-//   {
-//     printf("failed to initialize /dev/timer6 : %d\n", ret);
-//   }
-//   else
-//   {
-//     printf("Timer 6 has been initialized successfully\n");
-//   }
-// #endif
+  ret = stm32_timer_initialize("/dev/timer6", 6);
+  if (ret < 0)
+  {
+    printf("failed to initialize /dev/timer6 : %d\n", ret);
+  }
+  else
+  {
+    printf("Timer 6 has been initialized successfully\n");
+  }
+#endif
 
-// #ifdef CONFIG_STM32_TIM7
-//   ret = stm32_timer_initialize("/dev/timer7", 7);
-//   if (ret < 0)
-//   {
-//     printf("failed to initialize /dev/timer7 : %d\n", ret);
-//   }
-//   else
-//   {
-//     printf("Timer 77 has been initialized successfully\n");
-//   }
+#ifdef CONFIG_STM32_TIM7
+  ret = stm32_timer_initialize("/dev/timer7", 7);
+  if (ret < 0)
+  {
+    printf("failed to initialize /dev/timer7 : %d\n", ret);
+  }
+  else
+  {
+    printf("Timer 77 has been initialized successfully\n");
+  }
 
-// #endif
+#endif
 
 // #ifdef CONFIG_STM32_TIM8
 //   ret = stm32_timer_initialize("/dev/timer8", 8);
