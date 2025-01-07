@@ -67,6 +67,7 @@ int wdog_fd = -1;
 #define ANT_DEPLOY_TIME 2//60 * 30                  // 60 *30 seconds = 30minutes
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
 #define GBL_RESET_TIME 500 //seconds in a day
+#define FLASH_DATA_LEN  0x52// flash packet length in hex
 
 float x[8], y[8];
 
@@ -2744,11 +2745,6 @@ int main(int argc, FAR char *argv[])
           if (retval >= 0)
           {
             g_beacon_task_started = true;
-            // retval = create_task("UORB_TASK_APP", 100, 3800, flash_operation_data);
-            // if (retval >= 0)
-            // {
-            //   g_beacon_task_started = true;
-            // }
           }
           else
           {
@@ -2988,6 +2984,7 @@ int send_beacon_data()
       // printf("Beacon Type %d sequence complete\n", beacon_type);
       // print_seek_pointer();
       beacon_type = !beacon_type;
+      print_satellite_health_data(&sat_health);
 
       // work_queue(HPWORK, &work_beacon, send_beacon_data, NULL, SEC2TICK(BEACON_DELAY));
     }
@@ -3288,17 +3285,18 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                       printf("Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
                       char new_path[40] = {'\0'};
                       if(mission ==1)
-                      strcpy(new_path, "adcs");
+                      strcpy(new_path, "/adcs");
                       if(mission == 3)
-                      strcpy(new_path, "epdm");                      
+                      strcpy(new_path, "/epdm");                      
                       strcat(new_path,"_logs.txt");
-                      int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, new_path, O_CREAT | O_RDWR | O_APPEND);
+                      struct file msn_flag_pointer;
+                      int fd_seek = open_file_flash(&msn_flag_pointer, MFM_MSN_STRPATH, new_path, O_CREAT | O_RDWR | O_APPEND);
                       if (fd_seek >= 0)
                       {
-                       file_write(&file_pointer2, final_count + write_bytes, sizeof(final_count));
+                       file_write(&msn_flag_pointer, final_count + write_bytes, sizeof(final_count));
 
                       }
-                      file_close(&file_pointer2);
+                      file_close(&msn_flag_pointer);
                     }
                   }
                 }
@@ -3422,7 +3420,7 @@ void int_adc1_data_convert(float *temp_buff)
   // Calculate ADC_SUP using a specific channel's average raw value
   float ADC_SUP = 1.2 * 4095 / averageRaw[11];
   // printf("ADC i=11 value is %d & ADC_SUP is %f\n", averageRaw[11], ADC_SUP);
-
+  memset(temp_buff,'\0', sizeof(temp_buff));
   // Iterate through the ADC channels to convert raw data to voltage and current
   for (int i = 0; i < CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE; i++)
   {
@@ -3451,9 +3449,19 @@ void int_adc1_data_convert(float *temp_buff)
     int_adc1_c[i] = temp_buff[i];
 
     // Print the converted values for debugging
-    printf("Channel no:%d Voltage: %f  Current: %f\n", int_adc1_sample[i].am_channel, int_adc1_v[i], int_adc1_c[i]);
+    // if (int_adc1_sample[i].am_channel == 18)  // ADC_CHANNEL_18
+    //   {
+    //       printf("Temperature Sensor Raw Value: %d\n", int_adc1_sample[i].am_data);
+    //   }
+
+
+    // printf("Channel no:%d Voltage: %f  Current: %f\n", int_adc1_sample[i].am_channel, int_adc1_v[i], int_adc1_c[i]);
+    // printf("Raw Data: %d \n",);
+    // printf("Channel no:%d Raw Data: %d Voltage: %f  Current: %f\n", int_adc1_sample[i].am_channel,int_adc1_sample[i].am_data, int_adc1_v[i], int_adc1_c[i]);
   }
   printf("\n****************************************************************************\n");
+  
+      usleep(500000);
 }
 
 
@@ -3474,9 +3482,9 @@ void int_adc3_data_convert(float *temp_buff_1)
 {
   for (int i = 0; i < CONFIG_CUSTOM_APPS_CUBUS_INT_ADC3_GROUPSIZE; i++)
   {
-    temp_buff_1[i] = (float)int_adc3_sample[0].am_data * 3.3 / 4095;
+    temp_buff_1[i] = (float)int_adc3_sample[i].am_data * 3.3 / 4095;
     temp_buff_1[i] = (float)(temp_buff_1[i] / (2 * RES_LMP8640 * GAIN_LMP8640)) * 1000;
-    // printf("THe value of 3v3_2_i is %f\n", temp_buff_1[i]);
+    // printf("THe value of adc3_data is %f\n", temp_buff_1[i]);
   }
 }
 #endif
@@ -3509,23 +3517,23 @@ void make_satellite_health()
   float int_adc3_temp[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC3_GROUPSIZE] = {'\0'};
   int_adc3_data_convert(int_adc3_temp);
 
-  sat_health.sol_t_c = (int16_t)(int_adc1_temp[0] * 100);
-  sat_health.v5_c = (int16_t)(int_adc1_temp[1] * 100);
-  sat_health.v3_com_c = (int16_t)(int_adc1_temp[2] * 100);
-  sat_health.v3_main_c = (int16_t)(int_adc1_temp[3] * 100);
-  sat_health.batt_volt = (int16_t)(int_adc1_temp[4] * 100);
-  sat_health.sol_p5_c = (int16_t)(int_adc1_temp[5] * 100);
-  sat_health.sol_p4_c = (int16_t)(int_adc1_temp[6] * 100);
-  sat_health.sol_p3_c = (int16_t)(int_adc1_temp[7] * 100);
-  sat_health.batt_c = (int16_t)(int_adc1_temp[8] * 100);
-  sat_health.unreg_c = (int16_t)(int_adc1_temp[9] * 100);
-  sat_health.v4_c = (int16_t)(int_adc1_temp[10] * 100);
+  sat_health.sol_t_c = (int16_t)(int_adc1_temp[0] * 1000 );
+  sat_health.v5_c = (int16_t)(int_adc1_temp[1] * 1000 );
+  sat_health.v3_com_c = (int16_t)(int_adc1_temp[2] * 1000 );
+  sat_health.v3_main_c = (int16_t)(int_adc1_temp[3] * 1000 );
+  sat_health.batt_volt = (int16_t)(int_adc1_temp[4] * 1000 );
+  sat_health.sol_p5_c = (int16_t)(int_adc1_temp[5] * 1000 );
+  sat_health.sol_p4_c = (int16_t)(int_adc1_temp[6] * 1000 );
+  sat_health.sol_p3_c = (int16_t)(int_adc1_temp[7] * 1000 );
+  sat_health.batt_c = (int16_t)(int_adc1_temp[8] * 1000 );
+  sat_health.unreg_c = (int16_t)(int_adc1_temp[9] * 1000 );
+  sat_health.v4_c = (int16_t)(int_adc1_temp[10] * 1000 );
 
-  sat_health.raw_c = (int32_t)(int_adc1_temp[11] * 100);
-  sat_health.sol_p1_c = (int16_t)(int_adc1_temp[12] * 100);
+  sat_health.raw_c = (int32_t)(int_adc1_temp[11] * 1000 );
+  sat_health.sol_p1_c = (int16_t)(int_adc1_temp[12] * 1000 );
 
-  sat_health.sol_p2_c = (int16_t)(int_adc1_temp[13] * 100);
-  sat_health.v3_2_c = (int16_t)(int_adc3_temp[0] * 100);
+  sat_health.sol_p2_c = (int16_t)(int_adc1_temp[13] * 1000 );
+  sat_health.v3_2_c = (int16_t)(int_adc3_temp[0] * 1000 );
 #endif
   sat_health.ant_dep_stat = critic_flags.ANT_DEP_STAT;
   sat_health.oper_mode = critic_flags.OPER_MODE;
@@ -3550,7 +3558,7 @@ void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel)
     root = sqrtf(
         (5.506 * 5.506) +
         (4 * 0.00176 * (870.6 + (adc_conv_buf[1] * 1000))));
-    temp_buf[1] = (((5.506 * root) / (2 * (-0.00176))) - 30) * 100;
+    temp_buf[1] = (((5.506 * root) / (2 * (-0.00176))) - 30) * 1000;
   }
 }
 
@@ -3702,7 +3710,7 @@ int ads7953_receiver(int argc, FAR char *argv[])
         // syslog(LOG_ERR, "ORB published checkpoint\n");
       }
     }
-    sleep(8);
+    sleep(20);
   }
   ret = orb_unadvertise(afd);
 
@@ -3734,25 +3742,25 @@ void print_satellite_health_data(satellite_health_s *sat_health)
   printf(" |   Solar Panel T Voltage: \t %d mV\t|\r\n", sat_health->sol_t_v);
   printf(" |----------------------------------------------------------|\r\n");
 
-  printf(" |   Solar Panel 1 Current: \t %d mA\t|\r\n", sat_health->sol_p1_c);
-  printf(" |   Solar Panel 2 Current: \t %d mA\t|\r\n", sat_health->sol_p2_c);
-  printf(" |   Solar Panel 3 Current: \t %d mA\t|\r\n", sat_health->sol_p3_c);
-  printf(" |   Solar Panel 4 Current: \t %d mA\t|\r\n", sat_health->sol_p4_c);
-  printf(" |   Solar Panel 5 Current: \t %d mA\t|\r\n", sat_health->sol_p5_c);
-  printf(" |   Solar Panel T Current: \t %d mA\t|\r\n", sat_health->sol_t_c);
+  printf(" |   Solar Panel 1 Current: \t %d uA\t|\r\n", sat_health->sol_p1_c);
+  printf(" |   Solar Panel 2 Current: \t %d uA\t|\r\n", sat_health->sol_p2_c);
+  printf(" |   Solar Panel 3 Current: \t %d uA\t|\r\n", sat_health->sol_p3_c);
+  printf(" |   Solar Panel 4 Current: \t %d uA\t|\r\n", sat_health->sol_p4_c);
+  printf(" |   Solar Panel 5 Current: \t %d uA\t|\r\n", sat_health->sol_p5_c);
+  printf(" |   Solar Panel T Current: \t %d uA\t|\r\n", sat_health->sol_t_c);
   printf(" |----------------------------------------------------------|\r\n");
 
-  printf(" |   Unreg Line Current:    \t %d mA\t|\r\n", sat_health->unreg_c);
-  printf(" |   Main 3v3 Current:      \t %d mA\t|\r\n", sat_health->v3_main_c);
-  printf(" |   COM 3v3 Current:       \t %d mA\t|\r\n", sat_health->v3_com_c);
-  printf(" |   5 Volts line Current:  \t %d mA\t|\r\n", sat_health->v5_c);
-  printf(" |   3v3 2 line Current:    \t %d mA\t|\r\n", sat_health->v3_2_c);
+  printf(" |   Unreg Line Current:    \t %d uA\t|\r\n", sat_health->unreg_c);
+  printf(" |   Main 3v3 Current:      \t %d uA\t|\r\n", sat_health->v3_main_c);
+  printf(" |   COM 3v3 Current:       \t %d uA\t|\r\n", sat_health->v3_com_c);
+  printf(" |   5 Volts line Current:  \t %d uA\t|\r\n", sat_health->v5_c);
+  printf(" |   3v3 2 line Current:    \t %d uA\t|\r\n", sat_health->v3_2_c);
   printf(" |----------------------------------------------------------|\r\n");
-  printf(" |   Raw Current:           \t %d mA\t|\r\n", sat_health->raw_c);
+  printf(" |   Raw Current:           \t %d uA\t|\r\n", sat_health->raw_c);
   printf(" |   Raw Voltage:           \t %d mV\t|\r\n", sat_health->raw_v);
   printf(" |----------------------------------------------------------|\r\n");
   printf(" |   Battery Total Voltage: \t %d mV\t|\r\n", sat_health->batt_volt);
-  printf(" |   Battery Total Current: \t %d mA\t|\r\n", sat_health->batt_c);
+  printf(" |   Battery Total Current: \t %d uA\t|\r\n", sat_health->batt_c);
   printf(" |   Battery Temperature:   \t %d C\t|\r\n", sat_health->temp_batt);
   printf(" |----------------------------------------------------------|\r\n");
   printf(" |   Solar Panel 1 Status   \t %s \t|\r\n", (sat_health->sol_p1_v) >= 1000 ? "Working" : "Not Working");
@@ -3807,16 +3815,16 @@ void subscribe_and_retrieve_data(void)
           continue;
         }
 
-        sat_health.accl_x = (int16_t)(mag_scaled.acc_x * 100);
-        sat_health.accl_y = (int16_t)(mag_scaled.acc_y * 100);
-        sat_health.accl_z = (int16_t)(mag_scaled.acc_z * 100);
-        sat_health.gyro_x = (int16_t)(mag_scaled.gyro_x * 100);
-        sat_health.gyro_y = (int16_t)(mag_scaled.gyro_y * 100);
-        sat_health.gyro_z = (int16_t)(mag_scaled.gyro_z * 100);
-        sat_health.mag_x = (int16_t)(mag_scaled.mag_x * 100);
-        sat_health.mag_y = (int16_t)(mag_scaled.mag_y * 100);
-        sat_health.mag_z = (int16_t)(mag_scaled.mag_z * 100);
-        sat_health.temp_obc = mag_scaled.temperature * 100;
+        sat_health.accl_x = (int16_t)(mag_scaled.acc_x * 1000);
+        sat_health.accl_y = (int16_t)(mag_scaled.acc_y * 1000);
+        sat_health.accl_z = (int16_t)(mag_scaled.acc_z * 1000);
+        sat_health.gyro_x = (int16_t)(mag_scaled.gyro_x * 1000);
+        sat_health.gyro_y = (int16_t)(mag_scaled.gyro_y * 1000);
+        sat_health.gyro_z = (int16_t)(mag_scaled.gyro_z * 1000);
+        sat_health.mag_x = (int16_t)(mag_scaled.mag_x * 1000);
+        sat_health.mag_y = (int16_t)(mag_scaled.mag_y * 1000);
+        sat_health.mag_z = (int16_t)(mag_scaled.mag_z * 1000);
+        sat_health.temp_obc = mag_scaled.temperature * 1000;
       }
     }
     else
@@ -4107,7 +4115,7 @@ void flash_operation_data(uint16_t loop)
       }
       beacon_data[0] = 83;
       beacon_data[1] = flash.packet_type;
-      beacon_data[2] = 0x52;
+      beacon_data[2] = FLASH_DATA_LEN;
       beacon_data[3] = flash.packet_number;
       beacon_data[BEACON_DATA_SIZE - 2] = 0x7e;
       beacon_data[BEACON_DATA_SIZE - 1] = '\0';

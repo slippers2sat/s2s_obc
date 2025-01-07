@@ -63,7 +63,8 @@
 /* TODO DMA */
 
 #define ADC1_NCHANNELS 16
-#define ADC3_NCHANNELS 1
+#define ADC3_NCHANNELS 2
+// #define A
 
 /****************************************************************************
  * Private Function Prototypes
@@ -121,7 +122,7 @@ static const uint32_t g_pinlist1[ADC1_NCHANNELS]  =
 
 static const uint8_t g_chanlist2[ADC3_NCHANNELS] =
 {
-  14,
+  14,15
 };
 
 /* Configurations of pins used by each ADC channel */
@@ -200,7 +201,7 @@ int stm32_adc_setup(void)
 
       /* Call stm32_adcinitialize() to get an instance of the ADC interface */
 
-      adc3 = stm32_adcinitialize(DEV2_PORT, g_chanlist2, 1);
+      adc3 = stm32_adcinitialize(DEV2_PORT, g_chanlist2, 2);
       if (adc3 == NULL)
         {
           aerr("ERROR: Failed to get ADC interface 2\n");
@@ -222,5 +223,11 @@ int stm32_adc_setup(void)
 
   return OK;
 }
-
+// void stm32_adc_enable_temp_sensor(void)
+// {
+//     // Enable temperature sensor in ADC common control register (ADC_CCR)
+//     uint32_t regval = getreg32(STM32_ADC_CCR);
+//     regval |= ADC_CCR_TSVREFE;  // TSVREFE enables Temp Sensor and VREFINT
+//     putreg32(regval, STM32_ADC_CCR);
+// }
 #endif /* CONFIG_ADC && (CONFIG_STM32_ADC1 || CONFIG_STM32_ADC3) */

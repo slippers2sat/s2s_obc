@@ -17,13 +17,12 @@
 #include <unistd.h>
 #include <nuttx/timers/watchdog.h>
 #include <time.h>
-#include "wdog.h"
 #include <nuttx/sched.h> // For task management
 // #include <nuttx/task.h>   // For task APIs
 
 #define DEVNAME "/dev/iwdg0"
 #define TIMEOUT 29000    // 10 seconds in milliseconds
-#define PING_INTERVAL 11 // 1 second for pinging
+#define PING_INTERVAL 10 // 1 second for pinging
 #define STACK_SIZE 848   // Stack size for the watchdog task
 
 extern CRITICAL_FLAGS critic_flags;
@@ -71,7 +70,7 @@ static int watchdog_task(int argc, char *argv[])
       // usleep(PING_INTERVAL * 1000); // Sleep for 1 second
 
       // Pet the watchdog
-      if (pet_counter <= 11)
+      if (pet_counter <= 14)
       {
         if (ioctl(fd, WDIOC_KEEPALIVE, 0) < 0)
         {
@@ -89,22 +88,8 @@ static int watchdog_task(int argc, char *argv[])
       else
       {
         printf("WDOG timeout reached!!!!!!!Reset soon!");
-        // if (ioctl(fd, WDIOC_KEEPALIVE, 0) < 0)
-        // {
-        //   printf("Failed to keep alive: %d\n", errno);
-        //   // Handle the failure condition as needed
-        // }
-        // else
         {
-          //  if(pet_counter % 6 == 0)
-          // printf("Watchdog petted! %d\n", pet_counter);
-          // pet_counter += 1;
-          critic_flags.RST_COUNT = critic_flags.RST_COUNT + 1;
-          // store_flag_data(&critic_flags);
-          // save_critics_flags(&critic_flags);
-
-          // ioctl(fd, WDIOC_KEEPALIVE, 0);
-          sleep(5);
+          sleep(2);
         }
       }
     }
@@ -115,17 +100,3 @@ static int watchdog_task(int argc, char *argv[])
   }
   return 0; // Return success
 }
-
-// // Main function to create the watchdog task
-// int main(int argc, FAR char *argv[])
-// {
-//     // Create the watchdog task
-//     pid_t wdog_pid = task_create("watchdog_task", 100, STACK_SIZE, watchdog_task, NULL);
-//     if (wdog_pid < 0)
-//     {
-//         printf("Failed to create watchdog task: %d\n", errno);
-//         return EXIT_FAILURE;
-//     }
-
-//     return EXIT_SUCCESS;
-// }

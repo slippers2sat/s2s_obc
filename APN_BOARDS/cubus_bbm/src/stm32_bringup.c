@@ -196,14 +196,13 @@ int stm32_bringup(void)
 // stm32_gpiowrite(GPIO_3V3_COM_EN,true);
   stm32_gpiowrite(GPIO_MUX_EN,  false);
   stm32_gpiowrite(GPIO_SFM_MODE, false);
-  
   stm32_gpiowrite(GPIO_3V3_COM_EN,true);
   
   int ret;
 
   /* Configure SPI-based devices */
   #ifdef CONFIG_RTC
-   ret = rtc_initialize("/dev/rtc",0); 
+  //  ret = rtc_initialize("/dev/rtc",0); 
 
   #endif
 
@@ -253,11 +252,6 @@ int stm32_bringup(void)
   stm32_gpiowrite(GPIO_SFM_MODE, true);
 
   cubus_mft_configure(board_get_manifest());
-  // stm32_gpiowrite();
-
-  // stm32_gpiowrite(GPIO_MUX_EN, true);
-  // stm32_gpiowrite(GPIO_SFM_CS, true);
-  // stm32_gpiowrite(GPIO_SFM_MODE, true);
   stm32_gpiowrite(GPIO_SFM_MODE, true);
 
 

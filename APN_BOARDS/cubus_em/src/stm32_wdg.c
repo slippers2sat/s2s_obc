@@ -54,12 +54,13 @@ void wdt_toggle_task(void *arg)
     // gpio_pin_configure(GPIO_PIN, GPIO_DIRECTION_OUT);
     // stm32_gpioconfig(GPIO_WD_WDI);
     stm32_gpiowrite(GPIO_WD_WDI,gpio_state?true:false);
+    
 
     while (1)
     {
         // Toggle GPIO state every 500ms
         gpio_state = !gpio_state;
-        stm32_gpiowrite(GPIO_WD_WDI,gpio_state?true:false);
+        stm32_gpiowrite(GPIO_WD_WDI,gpio_state);
         
 
         // printf("GPIO state: %d\n", gpio_state);  // Optional: print the GPIO state
@@ -78,11 +79,12 @@ void wdt_toggle_task(void *arg)
 
 int stm32_wdg_setup(void)
 {
-  pid_t pid = task_create("[WDT_toggle_task]", 100, 804, wdt_toggle_task, NULL);
+  pid_t pid = task_create("[WDT_toggle_task]", 90, 804, wdt_toggle_task, NULL);
     if (pid < 0)
     {
         printf("ERROR: Failed to create wdt_toggle_task\n");
-        return -1;
+        // return -1;
+        pid = task_create("[WDT_toggle_task]", 100, 1804, wdt_toggle_task, NULL);
     }
 
     printf("[WDT_Toggle_Task]WDT toggle task created successfully\n");
