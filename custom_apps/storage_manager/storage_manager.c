@@ -49,13 +49,15 @@ void Setup();
 
 struct SEEK_POINTER
 {
-  uint16_t SAT_HEALTH;
-  uint16_t SAT_LOG;
-  uint16_t CAM_RGB;
-  uint16_t CAM_NIR;
-  uint16_t EPDM;
-  uint16_t ADCS;
+  uint32_t SAT_HEALTH;
+  uint32_t SAT_LOG;
+  uint32_t CAM_RGB;
+  uint32_t CAM_NIR;
+  uint32_t EPDM;
+  uint32_t ADCS;
 };
+pthread_mutex_t main_flash_mutex =  PTHREAD_MUTEX_INITIALIZER;
+
 // #include <sensor/adc.h>
 static struct work_s work_storage;
 static int8_t count = 0;
@@ -66,120 +68,246 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname);
 void sort_reservation_command(uint16_t file_size, bool reorder);
 int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filename, int open_mode);
 
+// void read_and_print_mag_data(void)
+// {
+//   int sub_fd;
+//   struct reservation_command res;
+//   int fd_reservation;
+//   fd_reservation = orb_subscribe(ORB_ID(reservation_command));
+//   struct orb_mag_scaled_s mag_data;
+//   satellite_health_s satellite_health;
+//   bool updated;
+
+//   struct pollfd fds2;
+//   struct sensor_rgb satHealth;
+//   int fd2, ret;
+//   fd2 = orb_subscribe_multi(ORB_ID(sensor_rgb), 0);
+//   fds2.fd = fd2;
+//   fds2.events = POLLIN;
+
+//   sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
+//   if (sub_fd < 0)
+//   {
+//     syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
+//     return;
+//   }
+
+//   while (1)
+//   {
+//     if (count % 10 == 0)
+//     {
+//       sort_reservation_command(1, false);
+//       // flash_operations();
+//     }
+//     count++;
+
+//     orb_check(fd_reservation, &updated);
+//     if (updated)
+//     {
+//       struct file file_ptr;
+//       orb_copy(ORB_ID(reservation_command), fd_reservation, &res);
+//       printf("Value of reservation command uorb has been updated\n");
+//       printf("The reservation command is %02x %02x %02x\n", res.cmd[0], res.cmd[1], res.cmd[2]);
+
+//       if (res.latest_time == 0x00 && res.mcu_id != 0)
+//       {
+//         int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_CREAT | O_WRONLY | O_APPEND);
+//         ssize_t file_size = file_seek(&file_ptr, 0, SEEK_END);
+//         ssize_t bytes_written = file_write(&file_ptr, &res, sizeof(res));
+//         if (bytes_written > 0)
+//         {
+//           printf("File size is %zd.\nReservation table with data size %zd has been updated\n", file_size, bytes_written);
+//         }
+//         if ((ret = file_syncfs(&file_ptr)) < 0)
+//         {
+//           syslog(LOG_DEBUG, "some issue while synfs closing: %d\n", ret);
+//           file_syncfs(&file_ptr);
+//         }
+//         if (file_close(&file_ptr) < 0)
+//         {
+//           syslog(LOG_DEBUG, "some issue while synfs closing\n");
+//           file_close(&file_ptr);
+//         }
+//       }
+//       sleep(1);
+//     }
+
+//     if (count % 90 == 0)
+//     {
+//       count = 1;
+//       orb_check(sub_fd, &updated);
+//       if (updated)
+//       {
+//         orb_copy(ORB_ID(orb_mag_scaled), sub_fd, &mag_data);
+
+//         if (poll(&fds2, 1, 3000) > 0)
+//         {
+//           if (fds2.revents & POLLIN)
+//           {
+//             ret = orb_copy_multi(fd2, &satHealth, sizeof(struct sensor_rgb));
+//             if (ret < 0)
+//             {
+//               syslog(LOG_ERR, "ORB copy error, %d \n", ret);
+//               return;
+//             }
+//             else
+//             {
+//               printf("Satellite Health ORB is getting data %d\n", satellite_health.rsv_cmd);
+//             }
+//           }
+//         }
+
+//         satellite_health.accl_x = mag_data.acc_x;
+//         satellite_health.accl_y = mag_data.acc_y;
+//         satellite_health.accl_z = mag_data.acc_z;
+
+//         satellite_health.gyro_x = mag_data.gyro_x;
+//         satellite_health.gyro_y = mag_data.gyro_y;
+//         satellite_health.gyro_z = mag_data.gyro_z;
+
+//         satellite_health.mag_x = mag_data.mag_x;
+//         satellite_health.mag_y = mag_data.mag_y;
+//         satellite_health.mag_z = mag_data.mag_z;
+
+//         store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
+//         print_satellite_health_data(&satHealth);
+//         maintain_data_consistency();
+//       }
+//     }
+
+//     sleep(1); // Sleep for 1 second
+//   }
+
+//   orb_unsubscribe(sub_fd);
+//   orb_unsubscribe(fd_reservation);
+//   orb_unsubscribe(fd2);
+// }
 
 void read_and_print_mag_data(void)
 {
-  int sub_fd;
-  struct reservation_command res;
-  int fd_reservation;
-  fd_reservation = orb_subscribe(ORB_ID(reservation_command));
-  struct orb_mag_scaled_s mag_data;
-  satellite_health_s satellite_health;
-  bool updated;
+    int sub_fd;
+    struct reservation_command res, last_res = {0};
+    int fd_reservation;
+    fd_reservation = orb_subscribe(ORB_ID(reservation_command));
+    struct orb_mag_scaled_s mag_data;
+    satellite_health_s satellite_health;
+    bool updated;
 
-  struct pollfd fds2;
-  struct sensor_rgb satHealth;
-  int fd2, ret;
-  fd2 = orb_subscribe_multi(ORB_ID(sensor_rgb), 0);
-  fds2.fd = fd2;
-  fds2.events = POLLIN;
+    struct pollfd fds2;
+    struct sensor_rgb satHealth;
+    int fd2, ret;
+    fd2 = orb_subscribe_multi(ORB_ID(sensor_rgb), 0);
+    fds2.fd = fd2;
+    fds2.events = POLLIN;
 
-  sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
-  if (sub_fd < 0)
-  {
-    syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
-    return;
-  }
-
-  while (1)
-  {
-    if (count % 10 == 0)
+    sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
+    if (sub_fd < 0)
     {
-      sort_reservation_command(1, false);
-      // flash_operations();
-    }
-    count++;
-
-    orb_check(fd_reservation, &updated);
-    if (updated)
-    {
-      struct file file_ptr;
-      orb_copy(ORB_ID(reservation_command), fd_reservation, &res);
-      printf("Value of reservation command uorb has been updated\n");
-      printf("The reservation command is %02x %02x %02x\n", res.cmd[0], res.cmd[1], res.cmd[2]);
-
-      if (res.latest_time == 0x00 && res.mcu_id != 0)
-      {
-        int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_CREAT | O_WRONLY | O_APPEND);
-        ssize_t file_size = file_seek(&file_ptr, 0, SEEK_END);
-        ssize_t bytes_written = file_write(&file_ptr, &res, sizeof(res));
-        if (bytes_written > 0)
-        {
-          printf("File size is %zd.\nReservation table with data size %zd has been updated\n", file_size, bytes_written);
-        }
-        if ((ret = file_syncfs(&file_ptr)) < 0)
-        {
-          syslog(LOG_DEBUG, "some issue while synfs closing: %d\n", ret);
-          file_syncfs(&file_ptr);
-        }
-        if (file_close(&file_ptr) < 0)
-        {
-          syslog(LOG_DEBUG, "some issue while synfs closing\n");
-          file_close(&file_ptr);
-        }
-      }
-      sleep(1);
+        syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
+        return;
     }
 
-    if (count % 90 == 0)
+    while (1)
     {
-      count = 1;
-      orb_check(sub_fd, &updated);
-      if (updated)
-      {
-        orb_copy(ORB_ID(orb_mag_scaled), sub_fd, &mag_data);
+        // if (count % 10 == 0)
+        // {
+        //     sort_reservation_command(1, false);
+        // }
+        count++;
 
-        if (poll(&fds2, 1, 3000) > 0)
+        orb_check(fd_reservation, &updated);
+        // printf("The value of updated is %d\n",updated);
+        if (updated)
         {
-          if (fds2.revents & POLLIN)
-          {
-            ret = orb_copy_multi(fd2, &satHealth, sizeof(struct sensor_rgb));
-            if (ret < 0)
+
+            orb_copy(ORB_ID(reservation_command), fd_reservation, &res);
+            // printf("the timestamp data is %d %d", res.timestamp,time(NULL));
+
+            // Process only if it's a new command
+            if (memcmp(&res, &last_res, sizeof(res)) != 0)
             {
-              syslog(LOG_ERR, "ORB copy error, %d \n", ret);
-              return;
+                printf("Value of reservation command uORB has been updated\n");
+                printf("The reservation command is %02x %02x %02x\n", res.cmd[0], res.cmd[1], res.cmd[2]);
+
+                // Update the last processed command
+                last_res = res;
+
+                // if (res.latest_time == 0x00 && res.mcu_id != 0)
+                {
+                    struct file file_ptr;
+                    pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+
+                    int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_CREAT | O_WRONLY | O_APPEND);
+                    if (fd >= 0)
+                    {
+                        ssize_t file_size = file_seek(&file_ptr, 0, SEEK_END);
+                        ssize_t bytes_written = file_write(&file_ptr, &res, sizeof(res));
+                        if (bytes_written > 0)
+                        {
+                            printf("File size is %zd. Reservation table updated with %zd bytes\n", file_size, bytes_written);
+                        }
+                        // file_close(&file_ptr);
+                    }
+                    file_close(&file_ptr);
+                    pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+
+                }
             }
             else
             {
-              printf("Satellite Health ORB is getting data %d\n", satellite_health.rsv_cmd);
+                printf("Duplicate reservation command received. Skipping.\n");
             }
-          }
         }
 
-        satellite_health.accl_x = mag_data.acc_x;
-        satellite_health.accl_y = mag_data.acc_y;
-        satellite_health.accl_z = mag_data.acc_z;
+        if (count % 90 == 0)
+        {
+            count = 1;
+            orb_check(sub_fd, &updated);
+            if (updated)
+            {
+                orb_copy(ORB_ID(orb_mag_scaled), sub_fd, &mag_data);
 
-        satellite_health.gyro_x = mag_data.gyro_x;
-        satellite_health.gyro_y = mag_data.gyro_y;
-        satellite_health.gyro_z = mag_data.gyro_z;
+                if (poll(&fds2, 1, 3000) > 0)
+                {
+                    if (fds2.revents & POLLIN)
+                    {
+                        ret = orb_copy_multi(fd2, &satHealth, sizeof(struct sensor_rgb));
+                        if (ret < 0)
+                        {
+                            syslog(LOG_ERR, "ORB copy error, %d \n", ret);
+                            return;
+                        }
+                        else
+                        {
+                            printf("Satellite Health ORB is getting data %d\n", satellite_health.rsv_cmd);
+                        }
+                    }
+                }
 
-        satellite_health.mag_x = mag_data.mag_x;
-        satellite_health.mag_y = mag_data.mag_y;
-        satellite_health.mag_z = mag_data.mag_z;
+                satellite_health.accl_x = mag_data.acc_x;
+                satellite_health.accl_y = mag_data.acc_y;
+                satellite_health.accl_z = mag_data.acc_z;
 
-        store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
-        print_satellite_health_data(&satHealth);
-        maintain_data_consistency();
-      }
+                satellite_health.gyro_x = mag_data.gyro_x;
+                satellite_health.gyro_y = mag_data.gyro_y;
+                satellite_health.gyro_z = mag_data.gyro_z;
+
+                satellite_health.mag_x = mag_data.mag_x;
+                satellite_health.mag_y = mag_data.mag_y;
+                satellite_health.mag_z = mag_data.mag_z;
+
+                store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
+                print_satellite_health_data(&satHealth);
+                maintain_data_consistency();
+            }
+        }
+
+        sleep(1); // Sleep for 1 second
     }
 
-    sleep(1); // Sleep for 1 second
-  }
-
-  orb_unsubscribe(sub_fd);
-  orb_unsubscribe(fd_reservation);
-  orb_unsubscribe(fd2);
+    orb_unsubscribe(sub_fd);
+    orb_unsubscribe(fd_reservation);
+    orb_unsubscribe(fd2);
 }
 
 // void read_and_print_mag_data(void)
@@ -254,7 +382,7 @@ void read_and_print_mag_data(void)
 //     }
 //     // updated = false;
 //       // printf("the counter value is %d \n", count);
-    
+
 //     if (count % 90 == 0)
 //     {
 //       count = 1;
@@ -353,7 +481,7 @@ int main(int argc, FAR char *argv[])
     printf("[storage_manager] ERROR: Failed to start storage_manager_daemon: %d\n", errcode);
     return EXIT_FAILURE;
   }
-   ret = task_create("flash_operations", SCHED_PRIORITY_DEFAULT, 8078, flash_operations, NULL);
+  ret = task_create("flash_operations", SCHED_PRIORITY_DEFAULT, 8078, flash_operations, NULL);
 
   if (ret < 0)
   {
@@ -376,7 +504,7 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
   //   gpio_write(GPIO_SFM_MODE, false);
   // }
   // TODO: discuss and figure out if we need to set limit to size of file and truncate contents once the file size limit is reached ...
-  if (open_file_flash(&file_p, pathname, file_name_sat_health, O_CREAT |O_WRONLY | O_APPEND) >= 0)
+  if (open_file_flash(&file_p, pathname, file_name_sat_health, O_CREAT | O_WRONLY | O_APPEND) >= 0)
   {
     // uint8_t data_temp[];
     ssize_t bytes_written = file_write(&file_p, sat_health_data, sizeof(satellite_health_s));
@@ -481,7 +609,7 @@ void flash_operations()
           printf("***************************************************************\n");
           send_data_uorb(command_ops.path, command_ops.address, command_ops.num_of_packets, command_ops.pkt_type);
         }
-       }
+      }
       else
       {
         temp_command_ops.address = 1234567890;
@@ -498,6 +626,8 @@ void Setup()
 {
   int fd = 0;
   struct file flp1, flp2, flp3, flp4;
+  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+
   fd = open_file_flash(&flp1, MFM_MAIN_STRPATH, file_name_sat_health, O_CREAT);
   if (fd < 0)
   {
@@ -525,6 +655,8 @@ void Setup()
     syslog(LOG_ERR, "Could not create epdm.txt msn file\n");
   }
   file_close(&flp4);
+  pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+
 
   syslog(LOG_INFO, "Checking initial flag data...\n");
   check_flag_data();
@@ -562,24 +694,31 @@ void Setup()
 //   file_close(&fptr);
 // }
 
-void get_top_rsv(struct reservation_command *res)
+void get_top_rsv(struct reservation_command *res, uint32_t *timer)
 {
-    struct file fptr;
-    int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
-    uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+  struct file fptr;
+  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
-    if (file_size == 0 || file_size < sizeof(struct reservation_command))
-    {
-        memset(res, 0, sizeof(struct reservation_command));
-    }
-    else
-    {
-        file_seek(&fptr, 0, SEEK_SET);
-        file_read(&fptr, res, sizeof(struct reservation_command));
-        printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
-        res->latest_time = ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
-    }
-    file_close(&fptr);
+  int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+  uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+  printf("the file_size is %d\n", file_size);
+
+  if (file_size == 0 || file_size < sizeof(struct reservation_command))
+  {
+    memset(res, 0, sizeof(struct reservation_command));
+  }
+  else
+  {
+    file_seek(&fptr, 0, SEEK_SET);
+    file_read(&fptr, res, sizeof(struct reservation_command));
+    printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
+    res->latest_time = ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
+    timer =0;
+    // count =0;
+  }
+  file_close(&fptr);
+  pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+
 }
 
 // void sort_reservation_command(uint16_t file_size, bool reorder) {
@@ -770,68 +909,60 @@ void get_top_rsv(struct reservation_command *res)
 
 void sort_reservation_command(uint16_t file_size, bool reorder)
 {
-  //     struct file file_ptr;
-  //     uint16_t temp = 0;
+ struct file file_ptr;
+        uint16_t temp = 0;
 
-  //     int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_RDONLY);
-  //     struct reservation_command res_temp[16];
-  //     uint16_t t = 0x00;
+        int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+        struct reservation_command res_temp[16];
+         file_size = file_seek(&file_ptr, 0, SEEK_END);
 
-  //     file_size = file_seek(&file_ptr, 0, SEEK_END);
+        for (int i = 0; i < (file_size / sizeof(struct reservation_command)); i++)
+        {
+            file_seek(&file_ptr, temp, SEEK_SET);
+            temp += sizeof(struct reservation_command);
+            file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
+        }
+        file_close(&file_ptr);
 
-  //     // Read reservation commands
-  //     for (int i = 0; i < (file_size / 10); i++) {
-  //         file_seek(&file_ptr, temp, SEEK_SET);
-  //         temp += sizeof(struct reservation_command);
-  //         if (file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command)) > 0) {
-  //             // printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
-  //             // printf("_________________________________________\n");
-  //             // printf(" MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Cmd[4]:%02x Cmd[5]:%d\n",
-  //             //        res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], t);
-  //             // printf("_________________________________________\n");
-  //         }
-  //     }
-  //     file_close(&file_ptr);
+        int n = file_size / sizeof(struct reservation_command);
 
-  //     int n = file_size / 10;
+        for (int i = 1; i < n - 1; i++)
+        {
+            for (int j = 1; j < n - i; j++)
+            {
+                uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
+                uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
+                if (t1 > t2)
+                {
+                    struct reservation_command temp = res_temp[j];
+                    res_temp[j] = res_temp[j + 1];
+                    res_temp[j + 1] = temp;
+                }
+            }
+        }
 
-  //     if (reorder == true) {
-  //         // Bubble sort, starting from index 1
-  //         for (int i = 1; i < n - 1; i++) {
-  //             for (int j = 1; j < n - i; j++) {
-  //                 uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
-  //                 uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
-  //                 if (t1 > t2) {
-  //                     // Swap res_temp[j] and res_temp[j + 1]
-  //                     struct reservation_command temp = res_temp[j];
-  //                     res_temp[j] = res_temp[j + 1];
-  //                     res_temp[j + 1] = temp;
-  //                 }
-  //             }
-  //         }
+        for (int i = 1; i < n; i++)
+        {
+            printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
+            printf("_________________Sorted________________________\n");
+            printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
+                   res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed);
+            printf("__________________Sorted_______________________\n");
+        }
 
-  //         // Print sorted commands, starting from index 1
-  //         for (int i = 1; i < n; i++) {
-  //             printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
-  //             printf("_________________Sorted________________________\n");
-  //             printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
-  //                    res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed, t);
-  //             printf("__________________Sorted_______________________\n");
-  //         }
-
-  //         // Write sorted commands back to the file, starting from index 1
-  //         fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_WRONLY | O_APPEND);
-  //         if (fd >= 0) {
-  //             for (int i = 1; i < n; i++) {
-  //                 file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
-  //             }
-  //         }
-  //         if (file_close(&file_ptr) < 0) {
-  //             file_close(&file_ptr);
-  //         }
-  //     } else {
-  //         // publish_data(res_temp[1]);
-  //     }
+        if (n == 1)
+        {
+            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC);
+        }
+        else
+        {
+            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC | O_WRONLY | O_APPEND);
+            for (int i = 1; i < n; i++)
+            {
+                file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
+            }
+        }
+        file_close(&file_ptr);
 }
 
 void maintain_data_consistency()
@@ -842,6 +973,8 @@ void maintain_data_consistency()
   uint8_t temp[2000], count = 0;
 
   char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
+  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+  
   for (int i = 0; i < 4; i++)
   {
     mfm_fd = open_file_flash(&mfm_file_pointer, MFM_MAIN_STRPATH, filename[i], O_RDWR);
@@ -911,23 +1044,44 @@ void maintain_data_consistency()
     file_close(&mfm_file_pointer);
     file_close(&sfm_file_pointer);
   }
+  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 }
 
-void print_seek_pointer()
-{
-  struct file fp_seek;
-  struct SEEK_POINTER seek_pointer;
-  if (open_file_flash(&fp_seek, MFM_MAIN_STRPATH, "/seek_pointer.txt", O_RDONLY) >= 0)
-  {
-    int fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
-    if (fd_seek >= 0)
-    {
-      printf("\n----------------------------------------------------------\nSAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n----------------------------------------------------------\n",
-             seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
-             seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
+// void print_seek_pointer()
+// {
+//   struct file fp_seek;
+//   struct SEEK_POINTER seek_pointer;
+//   if (open_file_flash(&fp_seek, MFM_MAIN_STRPATH, "/seek_pointer.txt", O_RDONLY) >= 0)
+//   {
+//     int fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(struct SEEK_POINTER));
+//     if (fd_seek >= 0)
+//     {
+//       printf("\n----------------------------------------------------------\nSAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n----------------------------------------------------------\n",
+//              seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
+//              seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
+//     }
+//   }
+//   file_close(&fp_seek);
+// }
+
+void print_seek_pointer() {
+    struct SEEK_POINTER seek_pointer = {0};
+    struct file fp;
+
+    if (open_file_flash(&fp, MFM_MAIN_STRPATH, "/seek_pointer.txt", O_RDONLY) >= 0) {
+        if (file_read(&fp, &seek_pointer, sizeof(seek_pointer)) >= sizeof(seek_pointer)) {
+            printf("\n------------------- Seek Pointer -------------------\n");
+            printf("SAT_HEALTH: %d, SAT_LOG: %d, CAM_RGB: %d, CAM_NIR: %d, EPDM: %d, ADCS: %d\n",
+                   seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB, 
+                   seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
+            printf("---------------------------------------------------\n");
+        } else {
+            printf("Error: Failed to read seek pointer file\n");
+        }
+        file_close(&fp);
+    } else {
+        printf("Error: Failed to open seek pointer file\n");
     }
-  }
-  file_close(&fp_seek);
 }
 
 void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, uint8_t packet_type)
@@ -939,25 +1093,27 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
   // uint16_t test[8];
   struct SEEK_POINTER seek_pointer;
   struct file fp;
+  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+
   int fd = file_open(&fp, path, O_RDONLY);
-  int fd_seek = file_open(&fp_seek, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_RDWR | O_TRUNC);
-  if (file_seek(&fp_seek, 0, SEEK_END) == 0)
-  {
-    file_write(&fp_seek, &seek_pointer, sizeof(struct SEEK_POINTER));
-  }
-  if (fd_seek >= 0)
-  {
-    printf("The seek pointer file has opened\n");
-  }
-  // fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
+  // int fd_seek = file_open(&fp_seek, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_RDWR | O_TRUNC);
+  // if (file_seek(&fp_seek, 0, SEEK_END) == 0)
+  // {
+  //   file_write(&fp_seek, &seek_pointer, sizeof(struct SEEK_POINTER));
+  // }
   // if (fd_seek >= 0)
   // {
-  //   printf("SAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n",
-  //          seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
-  //          seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
+  //   printf("The seek pointer file has opened\n");
   // }
-  file_close(&fp_seek);
-  print_seek_pointer();
+  // // fd_seek = file_read(&fp_seek, &seek_pointer, sizeof(seek_pointer));
+  // // if (fd_seek >= 0)
+  // // {
+  // //   printf("SAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n",
+  // //          seek_pointer.SAT_HEALTH, seek_pointer.SAT_LOG, seek_pointer.CAM_RGB,
+  // //          seek_pointer.CAM_NIR, seek_pointer.EPDM, seek_pointer.ADCS);
+  // // }
+  // file_close(&fp_seek);
+  // print_seek_pointer();
   int raw_afd = orb_advertise_multi_queue_persist(ORB_ID(flash_operation), &flash,
                                                   &adc_instance, sizeof(struct flash_operation));
   uint32_t count = 0, pkt = 0;
@@ -983,6 +1139,10 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
         if (fd >= 0)
         {
           count = address;
+          if (num_of_packets == 0)
+          {
+            num_of_packets = 1;
+          }
           printf("the value of count seek pointer is %d %d\n", address);
           do
           {
@@ -1029,7 +1189,8 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
             sleep(1);
           } while (num_of_packets > 0);
         }
-        else{
+        else
+        {
           // flash.data[0] = 0x53;
           flash.packet_number = 0x01;
           flash.packet_type = packet_type;
@@ -1041,43 +1202,159 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
           flash.data[84] = 0x7e;
           flash.data[85] = 0x7e;
 
-
           if (OK != orb_publish(ORB_ID(flash_operation), raw_afd, &flash))
-              {
-                syslog(LOG_ERR, "Orb Publish failed\n");
-              }
-          
+          {
+            syslog(LOG_ERR, "Orb Publish failed\n");
+          }
         }
         file_close(&fp);
+                    pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+
         struct SEEK_POINTER temp;
-        fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_WRONLY);
+        pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+
+        fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_RDWR);
         if (fd >= 0)
         {
           if (file_read(&fp, &temp, sizeof(struct SEEK_POINTER)) >= 0)
           {
-            if (path == "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt")
-              temp.SAT_HEALTH += count;
-            else if (path == "/mnt/fs/mfm/mtd_mission/cam_rgb.txt")
-              temp.CAM_RGB += count;
-            else if (path == "/mnt/fs/mfm/mtd_mission/epdm.txt")
-              temp.EPDM += count;
-            else if (path == "/mnt/fs/mfm/mtd_mission/cam_nir.txt")
-              temp.CAM_NIR += count;
-            else if (path == "/mnt/fs/mfm/mtd_mission/adcs.txt")
-              temp.ADCS += count;
-            if (file_write(&fp, &temp, sizeof(struct SEEK_POINTER)) >= 0)
+            file_close(&fp);
+            // count = file_seek(&fp, 0, SEEK_CUR);
+            count = count + address;
+            if (strcmp(path, "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt") == 0)
+            {
+              temp.SAT_HEALTH = (uint32_t) count;
+            }
+            else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt") == 0)
+            {
+              temp.CAM_RGB = (uint32_t) count;
+            }
+            else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/epdm.txt") == 0)
+            {
+              temp.EPDM = (uint32_t) count;
+            }
+            else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/cam_nir.txt") == 0)
+            {
+              temp.CAM_NIR = (uint32_t) count;
+            }
+            else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/adcs.txt") == 0)
+            {
+              temp.ADCS = (uint32_t) count;
+            }
+            // ssize_t writeBytes = file_write(&fp, &temp, sizeof(struct SEEK_POINTER));
+            // printf()
+            // if (writeBytes >= 0)
             {
               printf("seek pointer updated\n");
-              print_seek_pointer();
+               printf("\n----------------------------------------------------------\nSAT_HEALTH:%d\n SAT_LOG:%d\n CAM_RGB:%d\n CAM_NIR:%d\n EPDM:%d\n ADCS:%d\n----------------------------------------------------------\n",
+              temp.SAT_HEALTH, temp.SAT_LOG, temp.CAM_RGB,
+              temp.CAM_NIR, temp.EPDM, temp.ADCS);
             }
+            // else{
+            //   printf("Seek operation updation failed\n");
+            // }
           }
         }
         close(fd);
-        file_close(&fp);
+        pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+
+        // file_close(&fp);
+        update_seek_pointer(path, address, count, temp);
+
+        print_seek_pointer();
+
       }
     }
   }
   // orb_unadvertise(raw_afd);
+}
+
+
+// // Function to update the seek pointer
+// void update_seek_pointer(const char *path, uint32_t address, uint32_t count) {
+//     struct SEEK_POINTER temp;
+//     struct file fp; // Assuming `struct file` is defined for file operations
+//     int fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_RDWR);
+
+//     if (fd >= 0) {
+//         // Read the current seek pointer values
+//         if (file_read(&fp, &temp, sizeof(struct SEEK_POINTER)) >= sizeof(struct SEEK_POINTER)) {
+//             // Update `count` based on address
+//             count += address;
+
+//             // Update the appropriate field in the SEEK_POINTER structure
+//             if (strcmp(path, "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt") == 0) {
+//                 temp.SAT_HEALTH = count;
+//             } else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt") == 0) {
+//                 temp.CAM_RGB = count;
+//             } else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/epdm.txt") == 0) {
+//                 temp.EPDM = count;
+//             } else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/cam_nir.txt") == 0) {
+//                 temp.CAM_NIR = count;
+//             } else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/adcs.txt") == 0) {
+//                 temp.ADCS = count;
+//             } else {
+//                 printf("Error: Unknown path\n");
+//                 file_close(&fp);
+//                 return; // Exit on unknown path
+//             }
+
+//             // Write the updated structure back to the file
+//             ssize_t writeBytes = file_write(&fp, &temp, sizeof(struct SEEK_POINTER));
+//             if (writeBytes >= sizeof(struct SEEK_POINTER)) {
+//                 printf("Seek pointer updated successfully\n");
+//                 printf("Updated values:\n");
+//                 printf("SAT_HEALTH=%d, SAT_LOG=%d, CAM_RGB=%d, CAM_NIR=%d, EPDM=%d, ADCS=%d\n",
+//                        temp.SAT_HEALTH, temp.SAT_LOG, temp.CAM_RGB, temp.CAM_NIR, temp.EPDM, temp.ADCS);
+//             } else {
+//                 printf("Error: Failed to write updated seek pointer\n");
+//             }
+//         } else {
+//             printf("Error: Failed to read seek pointer\n");
+//         }
+//         file_close(&fp);
+//     } else {
+//         printf("Error: Failed to open seek_pointer file\n");
+//     }
+// }
+void update_seek_pointer(const char *path, uint32_t address, uint32_t count, struct SEEK_POINTER seek_pointer) {
+    // struct SEEK_POINTER seek_pointer = {0};
+    struct file fp;
+
+    int fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_RDWR);
+    if (fd < 0) {
+        printf("Error: Failed to open seek pointer file\n");
+        return;
+    }
+
+    file_read(&fp, &seek_pointer, sizeof(seek_pointer));
+
+    count += address;
+    if (strcmp(path, "/mnt/fs/mfm/mtd_mainstorage/satHealth.txt") == 0) {
+        seek_pointer.SAT_HEALTH = count;
+    } else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt") == 0) {
+        seek_pointer.CAM_RGB = count;
+    } else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/epdm.txt") == 0) {
+        seek_pointer.EPDM = count;
+    } else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/cam_nir.txt") == 0) {
+        seek_pointer.CAM_NIR = count;
+    } else if (strcmp(path, "/mnt/fs/mfm/mtd_mission/adcs.txt") == 0) {
+        seek_pointer.ADCS = count;
+    } else {
+        printf("Error: Unknown path: %s\n", path);
+        file_close(&fp);
+        return;
+    }
+
+    file_seek(&fp, 0, SEEK_SET);
+    if (file_write(&fp, &seek_pointer, sizeof(seek_pointer)) < 0) {
+        printf("Error: Failed to update seek pointer\n");
+    } else {
+        printf("Seek pointer updated successfully\n");
+        print_seek_pointer();
+    }
+
+    file_close(&fp);
 }
 
 // void send_data_uorb(char path[200], uint32_t address, uint16_t num_of_packets, uint8_t packet_type)

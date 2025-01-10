@@ -198,9 +198,15 @@ void configure_rtc(void) {
 
 int stm32_bringup(void)
 {
-  stm32_wdg_setup();
+  
   configure_rtc();
-  configure_rtc();
+  // static bool gpio_state = true;
+  stm32_gpiowrite(GPIO_WD_WDI,true);
+
+  printf("Toggled wdog\n");
+  // stm32_wdg_setup();
+
+
 
   // stm32_gpiowrite(GPIO_MUX_EN, 1);
   // stm32_gpiowrite(GPIO_SFM_MODE, );
@@ -243,6 +249,9 @@ int stm32_bringup(void)
     syslog(LOG_INFO, "[BRINGUP] Registered ads7953.\n");
   }
 #endif // CONFIG_ADC_ADS7953
+  stm32_gpiowrite(GPIO_WD_WDI,false);
+  printf("Toggled wdog\n");
+  
 
 #ifdef CONFIG_STM32_SPI3
   /* Get the SPI port */
@@ -273,6 +282,9 @@ int stm32_bringup(void)
   cubus_mft_configure(board_get_manifest());
 
 #endif /* CONFIG_STM32_SPI3 */
+  stm32_gpiowrite(GPIO_WD_WDI,true);
+  printf("Toggled wdog\n");
+
 
 #ifdef CONFIG_STM32_SPI2
   spi2 = stm32_spibus_initialize(2);
@@ -320,6 +332,9 @@ int stm32_bringup(void)
     // SPI_SETBITS(spi2, 8);
     // SPI_SETMODE(spi2, SPIDEV_MODE0);
   }
+  stm32_gpiowrite(GPIO_WD_WDI,false);
+  printf("Toggled wdog\n");
+
 #ifdef CONFIG_SENSORS_LIS3MDL
 #ifdef CONFIG_UORB
   ret = lis3mdl_register(0, spi2, &mag0.dev); // since we're using uORB
@@ -336,6 +351,8 @@ int stm32_bringup(void)
   }
 #endif // CONFIG_SENSORS_LIS3MDL
 #endif // CONFIG_STM32_SPI2
+  stm32_gpiowrite(GPIO_WD_WDI,true);
+  printf("Toggled wdog\n");
 
 #ifdef CONFIG_ADC
   /* Initialize ADC and register the ADC device. */
@@ -360,6 +377,11 @@ int stm32_bringup(void)
   }
 #endif
   UNUSED(ret);
+  stm32_gpiowrite(GPIO_WD_WDI,false);
+  printf("Toggled wdog\n");
+
+
+
 
 #if defined(CONFIG_MTD) && defined(CONFIG_MTD_PROGMEM)
   mtd = progmem_initialize();
@@ -519,6 +541,7 @@ stm32_wwdginitialize("/dev/wwdg0");
 // stm32_serial_dma_setup();
 // stm32_serial_dma_initialize();
 // write();
+  // stm32_wdg_setup();
 
   return 0;
 }

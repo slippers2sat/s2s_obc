@@ -154,6 +154,7 @@ void stm32_boardinitialize(void)
   stm32_configgpio(GPIO_SFM_MODE);
 
 
+
 #ifdef HAVE_CCM_HEAP
   /* Initialize CCM allocator */
 
@@ -178,7 +179,7 @@ void stm32_boardinitialize(void)
 void board_late_initialize(void)
 {
   /* Perform board-specific initialization */
-
+ 
   stm32_bringup();
 }
 #endif
@@ -218,7 +219,7 @@ int board_app_initialize(uintptr_t arg)
 {
 
   printf("Initializing board applications.\n");
-  board_peripheral_reset(10);
+  board_peripheral_reset(1);
 
 #if defined(CONFIG_STM32_SPI1) || defined(CONFIG_STM32_SPI2) || \
     defined(CONFIG_STM32_SPI3) || defined(CONFIG_STM32_SPI4) || \
@@ -240,7 +241,7 @@ int board_app_initialize(uintptr_t arg)
   return OK;
 #else
   /* Perform board-specific initialization */
-
+  
   return stm32_bringup();
   
 #endif

@@ -70,6 +70,8 @@ int wdog_fd = -1;
 #define FLASH_DATA_LEN  0x52// flash packet length in hex
 
 float x[8], y[8];
+pthread_mutex_t uart_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 int ads7953_receiver(int argc, FAR char *argv[]);
 
@@ -80,7 +82,7 @@ void print_beacon_a();
 void print_beacon_b();
 void handle_reservation_command(int, struct reservation_command);
 void set_time(uint32_t);
-void get_top_rsv(struct reservation_command *res);
+void get_top_rsv(struct reservation_command *res, uint32_t *timer);
 void flash_operation_data(uint16_t loop);
 uint64_t get_time_data();
 struct sensor_rgb sensor_rgb_0;
@@ -234,7 +236,12 @@ enum SELECT_FILE
   EPDM_TXT,
   ADCS_TXT,
   CAMERA_NIR_TXT,
-  DIGIPEATER_TXT
+  DIGIPEATER_TXT,
+
+  SEEK_POINTER_TXT,
+  LOG_RGB_TXT,
+  LOG_NIR_TXT,
+  LOG_EPDM_TXT
 };
 /*
 @brief:
@@ -616,6 +623,8 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
   int i;
   int count = 0, ret;
   int wr1;
+  pthread_mutex_lock(&uart_mutex);
+
   fd = open_uart(COM_UART);
   if (fd < 0)
   {
@@ -668,6 +677,8 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
     // pet_counter = 0; // TODO rethink on this later internal wdog
   }
   close_uart(fd);
+  pthread_mutex_unlock(&uart_mutex);
+
   return wr1;
 }
 
@@ -921,9 +932,9 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 else
                   strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
               }
-              char filename[9][30] = {"/flags.txt", "/satHealth.txt", "/satHealth.txt", "/reservation_command.txt", "/cam_rgb.txt", "/epdm.txt", "/adcs.txt", "/cam_nir.txt", "/digipeater.txt"};
+              char filename[9][30] = {"/flags.txt\0", "/satHealth.txt\0", "/satHealth.txt\0", "/reservation_command.txt\0", "/cam_rgb.txt\0", "/epdm.txt\0", "/adcs.txt\0", "/cam_nir.txt\0", "/digipeater.txt\0"};
 
-              if ((cmds[2] == 0xF1))
+              if ((cmds[2] == 0xF1))//FLAG DATA DOWNLOAD
               {
                 __file_operations.select_file = FLAGS;
                 __file_operations.mcu_id = 0xad;
@@ -931,7 +942,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 strcat(__file_operations.filepath, "/flags.txt");
                 syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
               }
-              else if ((cmds[2] == 0xF2))
+              else if ((cmds[2] == 0xF2))//SATELLITE_HEALTH DATA DOWNLOAD
               {
                 __file_operations.mcu_id = 218;
                 __file_operations.select_file = SATELLITE_HEALTH;
@@ -939,104 +950,151 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
                 __file_operations.mcu_id = 0xda;
               }
-              else if ((cmds[2] == 0xF3))
+              else if ((cmds[2] == 0xF3))//SATELLITE_LOG DATA DOWNLOAD
               {
                 __file_operations.mcu_id = 0xda;
 
                 __file_operations.select_file = SATELLITE_LOG;
                 strcat(__file_operations.filepath, "/satHealth.txt");
               }
-              else if ((cmds[2] == 0xF4))
+              else if ((cmds[2] == 0xF4))//RESERVATION_TABLE DATA DOWNLOAD
               {
                 __file_operations.mcu_id = 0xad;
 
                 __file_operations.select_file = RESERVATION_TABLE;
-                strcat(__file_operations.filepath, "/reservation_table.txt");
+                strcat(__file_operations.filepath, "/reservation_command.txt");
               }
-              else if ((cmds[2] == 0xF5))
+              
+              else if ((cmds[2] == 0xF5))//SEEK_POINTER
+              {
+               
+                __file_operations.select_file = SEEK_POINTER_TXT;
+                __file_operations.mcu_id = 0x0a;
+                strcat(__file_operations.filepath, "/seek_pointer.txt");
+              }
+
+              else if ((cmds[2] == 0xF6))//CAM_RGB DATA DOWNLOAD
               {
                 strcat(__file_operations.filepath, "/cam_rgb.txt");
                 __file_operations.mcu_id = 0x0c;
 
                 __file_operations.select_file = CAMERA_TXT;
               }
-              else if ((cmds[2] == 0xF6))
+              else if ((cmds[2] == 0xF7))//EPDM DATA DOWNLOAD
               {
                 __file_operations.mcu_id = 0x0b;
 
                 __file_operations.select_file = EPDM_TXT;
                 strcat(__file_operations.filepath, "/epdm.txt");
               }
-              else if ((cmds[2] == 0xF7))
+              else if ((cmds[2] == 0xF8))//ADCS DATA DOWNLOAD
               {
                 __file_operations.select_file = ADCS_TXT;
                 __file_operations.mcu_id = 0x0d;
                 strcat(__file_operations.filepath, "/adcs.txt");
               }
-              else if ((cmds[2] == 0xF8))
+              else if ((cmds[2] == 0xF9))//CAM_NIR DATA DOWNLOAD
               {
                 __file_operations.select_file = CAMERA_NIR_TXT;
                 __file_operations.mcu_id = 0xca;
                 strcat(__file_operations.filepath, "/cam_nir.txt");
               }
-              else if ((cmds[2] == 0xF9))
+              else if ((cmds[2] == 0xFA))//DIGIPEATER DATA DOWNLOAD
               {
                 __file_operations.select_file = DIGIPEATER_TXT;
                 __file_operations.mcu_id = 0x0a;
                 strcat(__file_operations.filepath, "/digipeater.txt");
               }
-              else if ((cmds[2] == 0xFA))
+              else if ((cmds[2] == 0xFB))//sizeof each file missions
               {
                 struct file temp_fp;
-                uint32_t counter = 0;
+                // ssize_t counter = 0;
                 int fd = 0;
                 uint8_t beacon[BEACON_DATA_SIZE] = {'\0'};
 
                 // Initialize beacon header
-                beacon[0] = 0x53;
-                beacon[1] = 0x52;
-                beacon[2] = 0xED;
-                beacon[3] = 0x01;
 
-                for (int i = 1; i < 9; i++)
+                // memset(beacon, '\0', sizeof(beacon));
+                char temp_var[90] = {'\0'};
+                for (int i = 1; i <= 9; i++)
                 {
-                  memset(beacon, '\0', sizeof(beacon));
-
                   if (i < 4)
                   {
-                    fd = open_file_flash(&temp_fp, MFM_MAIN_STRPATH, filename[i], O_RDONLY);
+                  strcpy(temp_var, MFM_MAIN_STRPATH);
+                  strcat(temp_var, filename[i]);
                   }
                   else
                   {
-                    fd = open_file_flash(&temp_fp, MFM_MSN_STRPATH, filename[i], O_RDONLY);
+                    strcpy(temp_var, MFM_MSN_STRPATH);
+                    strcat(temp_var, filename[i]);
+                    // fd = file_open(&temp_fp, MFM_MSN_STRPATH, filename[i], O_RDWR);
                   }
-
+                  fd = file_open(&temp_fp, temp_var, O_RDWR);
                   if (fd >= 0)
                   {
-                    counter = file_seek(&temp_fp, 0, SEEK_END);
-                    close(fd); // Close the file to prevent resource leaks
+                    int counter = file_seek(&temp_fp, 0, SEEK_END);
+                    printf("%s %d\n",filename[i], counter);
+                    beacon[i * 4] = counter & 0xFF;
+                    beacon[i * 4 + 1] = (counter >> 8) & 0xFF;
+                    beacon[i * 4 + 2] = (counter >> 16) & 0xFF;
+                    beacon[i * 4 + 3] = (counter >> 24) & 0xFF;
+                    // close(fd); // Close the file to prevent resource leaks
                   }
                   else
                   {
-                    counter = 0; // Handle the error case
+                    // counter = 0; // Handle the error case
                   }
 
-                  beacon[i * 4] = counter & 0xFF;
-                  beacon[i * 4 + 1] = (counter >> 8) & 0xFF;
-                  beacon[i * 4 + 2] = (counter >> 16) & 0xFF;
-                  beacon[i * 4 + 3] = (counter >> 24) & 0xFF;
-                  file_close(&temp_fp);
+                  
+                  if(file_close(&temp_fp) >=0){
+                    // printf("File %s close successfully\n", temp_var);
+                    file_close(&temp_fp);
+                  }
                   close(fd);
                 }
+               beacon[0] = 0x53;
+                beacon[1] = 0xa;
+                beacon[2] = 0x52;
+                beacon[3] = 0x01;
 
                 beacon[BEACON_DATA_SIZE - 2] = 0x7E;
-                beacon[BEACON_DATA_SIZE - 1] = '\0';
+                beacon[BEACON_DATA_SIZE - 1] = 0x7e;
 
                 send_flash_data(beacon);
               }
 
+              else if ((cmds[2] == 0xFC))//LOG_RGB
+              {              
+                __file_operations.select_file = LOG_RGB_TXT;
+                __file_operations.mcu_id = 0x0a;
+                strcat(__file_operations.filepath, "/cam_rgb_logs.txt");
+              }
+
+              else if ((cmds[2] == 0xFD))//LOG_NIR
+              {
+              
+                __file_operations.select_file = LOG_NIR_TXT;
+                __file_operations.mcu_id = 0x0a;
+                strcat(__file_operations.filepath, "/cam_nir_logs.txt");
+              }
+
+              else if ((cmds[2] == 0xFE))//LOG_EPDM
+              {
+              
+                __file_operations.select_file = LOG_EPDM_TXT;
+                __file_operations.mcu_id = 0x0a;
+                strcat(__file_operations.filepath, "/epdm_logs.txt");
+              }
+               else if ((cmds[2] == 0xFF))//LOG_EPDM
+              {
+              
+                __file_operations.select_file = LOG_EPDM_TXT;
+                __file_operations.mcu_id = 0x0a;
+                strcat(__file_operations.filepath, "/adcs_logs.txt");
+              }
+
               // TODO check reservation table here
-              if (cmds[2] != 0xFA)
+              if (cmds[2] != 0xFB)
               {
                 __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
                 __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
@@ -1056,7 +1114,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                        __file_operations.address[3], __file_operations.address[2], __file_operations.address[1], __file_operations.address[0],
                        __file_operations.number_of_packets[0], __file_operations.number_of_packets[1]);
                 // sleep(1);
-                send_data_uart(COM_UART, ack, sizeof(ack));
+                // send_data_uart(COM_UART, ack, sizeof(ack));
 
                 // uorb
                 strcpy(command_uorb.path, __file_operations.filepath);
@@ -1152,7 +1210,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             if (cmds[0] == 0xDF && cmds[1] == 0xAB && cmds[2] == 0xD1)
             {
 
-              syslog(LOG_DEBUG, "-------- Digipeater mission turned ON---------\n");
+              syslog(LOG_DEBUG, "---------Digipeater mission turned ON---------\n");
             }
 
             // Command to DISABLE Digipeater misison
@@ -1278,9 +1336,10 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           break;
         }
       }
-      else
+      else //Reservation command received
       {
         struct reservation_command res;
+        // res.timestamp = orb_absolute_time();
         res.mcu_id = MCU_ID;
         for (int i = 0; i < 5; i++)
         {
@@ -1339,6 +1398,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
   }
 }
 
+
 static int COM_TASK(int argc, char *argv[])
 {
   int ret = -1;
@@ -1353,7 +1413,8 @@ static int COM_TASK(int argc, char *argv[])
 
   // usleep(2000000);
   sleep(2);
-  ret = handshake_COM(data); // tx rx data is flushed before closing the file
+  // ret = handshake_COM(data); // tx rx data is flushed before closing the file
+  ret = handshake_MSN(0,  &data);
   // ret = handshake_COM(data); // tx rx data is flushed before closing the file
 
   // usleep(PRINT_DELAY * 100);
@@ -1432,7 +1493,10 @@ static int COM_TASK(int argc, char *argv[])
         critic_flags.OPER_MODE = SAFE_MODE;
       }
       receive_telecommand_rx(rx_data);
-      get_top_rsv(&TO_EXECUTE);
+      get_top_rsv(&TO_EXECUTE, &timer);
+      if(TO_EXECUTE.mcu_id == 0 && TO_EXECUTE.cmds[0] != 0x00){
+          sort_reservation_command(1, true);
+      }
       // pet_counter =0;
       // res.latest_time =10;
       // get_top_rsv(&res);
@@ -1440,7 +1504,7 @@ static int COM_TASK(int argc, char *argv[])
       handle_reservation_command(1, TO_EXECUTE);
     }
     // usleep(1000);
-    sleep(10);
+    sleep(1);
   }
 }
 
@@ -1461,9 +1525,13 @@ void send_beacon(int argc, char *argv)
       //   // ads7953_receiver(argc, argv);
 
       make_satellite_health();
+
       send_beacon_data(); // TODO uncomment this
+      print_seek_pointer();
       // pet_counter = 0;    // TODO remove this after uncommenting above
       count_beacon = 0;
+      // gpio_write(GPIO_3V3_COM_EN, 0); // Disable COM systems
+      
     }
     count_beacon += 1;
     timer++;
@@ -1539,119 +1607,94 @@ int handshake_COM(uint8_t *ack)
   return 0;
 }
 
-int handshake_MSN_ADCS(uint8_t subsystem, uint8_t *ack)
-{
-  int fd;
-  char devpath[15];
-  uint8_t data1[7] = {'\0'};
-  int i;
-  ssize_t wr1, ret;
-  uint8_t counter = 0;
+// int handshake_MSN_ADCS(uint8_t subsystem, uint8_t *ack)
+// {
+//   int fd;
+//   char devpath[15];
+//   uint8_t data1[7] = {'\0'};
+//   int i;
+//   ssize_t wr1, ret;
+//   uint8_t counter = 0;
 
-  switch (subsystem)
-  {
-  case 1:
-    strcpy(devpath, ADCS_UART);
-    printf("Turned on power line for ADCS\n");
-    break;
-  case 2:
-    strcpy(devpath, CAM_UART);
-    printf("Turned on power line for CAM\n");
-    break;
-  case 3:
-    strcpy(devpath, EPDM_UART);
-    printf("Turned on power line for EPDM\n");
-    break;
-  default:
-    printf("Unknown MSN subsystem selected\n");
-    return -1;
-  }
+//   switch (subsystem)
+//   {
+//   case 1:
+//     strcpy(devpath, ADCS_UART);
+//     printf("Turned on power line for ADCS\n");
+//     break;
+//   case 2:
+//     strcpy(devpath, CAM_UART);
+//     printf("Turned on power line for CAM\n");
+//     break;
+//   case 3:
+//     strcpy(devpath, EPDM_UART);
+//     printf("Turned on power line for EPDM\n");
+//     break;
+//   default:
+//     printf("Unknown MSN subsystem selected\n");
+//     return -1;
+//   }
 
-  printf("Opening UART dev path: %s\n", devpath);
-  usleep(PRINT_DELAY);
-  fd = open(devpath, O_WRONLY); // Open in non-blocking mode
-  if (fd < 0)
-  {
-    printf("Error opening %s\n", devpath);
-    usleep(PRINT_DELAY);
-    return -1;
-  }
+//   printf("Opening UART dev path: %s\n", devpath);
+//   usleep(PRINT_DELAY);
+//   fd = open(devpath, O_WRONLY); // Open in non-blocking mode
+//   if (fd < 0)
+//   {
+//     printf("Error opening %s\n", devpath);
+//     usleep(PRINT_DELAY);
+//     return -1;
+//   }
 
-  // Writing handshake data
-  ret = write(fd, ack, 7);
-  close(fd);
-  // sleep(1);
-  fd = open(devpath, O_RDWR | O_NONBLOCK); // Open in non-blocking mode
+//   // Writing handshake data
+//   ret = write(fd, ack, 7);
+//   close(fd);
+//   // sleep(1);
+//   fd = open(devpath, O_RDWR | O_NONBLOCK); // Open in non-blocking mode
 
-  printf("6 bytes written\n");
-  // usleep(3000 * 1000); // 3 seconds delay
+//   printf("6 bytes written\n");
+//   int loop = 0;
+//   close(fd);
+//   fd = open(ADCS_UART, O_RDONLY);
+//   for (int i = 0; i < 7; i++)
+//   {
+//     ret = read(fd, &data1[i], 7);
+//   }
+//   printf("Data received from %s:\n", devpath);
+//   usleep(PRINT_DELAY);
+//   for (int j = 0; j < 7; j++)
+//   {
+//     printf(" %x ", data1[j]);
+//   }
+//   printf("\n");
+//   usleep(PRINT_DELAY);
 
-  // Reading data from UART
-  // for (i = 0; i < 6; i++)
-  // {
-  //   ret = read(fd, &data1[i], 1);
-  //   if (ret < 0)
-  //   {
-  //     if (errno == EAGAIN)
-  //     {
-  //       // printf("No data available for reading\n");
-  //       // usleep(500000);
-  //       usleep(500);
-  //       i--; // Retry reading the same index
-  //       continue;
-  //     }
-  //     printf("Error reading from %s\n", devpath);
-  //     close(fd);
-  //     return -1;
-  //   }
-  //   else{
-  //     break;
-  //   }
-  // }
-  // for (i = 0; i < 6; i++)
-  int loop = 0;
-  close(fd);
-  fd = open(ADCS_UART, O_RDONLY);
-  for (int i = 0; i < 7; i++)
-  {
-    ret = read(fd, &data1[i], 7);
-  }
-  printf("Data received from %s:\n", devpath);
-  usleep(PRINT_DELAY);
-  for (int j = 0; j < 7; j++)
-  {
-    printf(" %x ", data1[j]);
-  }
-  printf("\n");
-  usleep(PRINT_DELAY);
+//   if (data1[0] == ack[0] && data1[5] == ack[5])
+//   {
+//     printf("\n******Acknowledgement received******\n");
+//     usleep(PRINT_DELAY);
+//   }
+//   else
+//   {
+//     if (close(fd) < 0)
+//     {
+//       if (close(fd) < 0)
+//         printf("Failed to close COM uART: %s\n", strerror(errno));
+//     }
+//     return 1;
+//   }
 
-  if (data1[0] == ack[0] && data1[5] == ack[5])
-  {
-    printf("\n******Acknowledgement received******\n");
-    usleep(PRINT_DELAY);
-  }
-  else
-  {
-    if (close(fd) < 0)
-    {
-      if (close(fd) < 0)
-        printf("Failed to close COM uART: %s\n", strerror(errno));
-    }
-    return 1;
-  }
-
-  printf("Handshake complete\n");
-  usleep(PRINT_DELAY);
-  printf("\n");
-  ioctl(fd, TCFLSH, 2);
-  ioctl(fd, TCDRN, NULL);
-  printf("Flushed TX/RX buffer\n");
-  if (close(fd) < 0)
-  {
-    printf("Failed to close COM UART %s\n", strerror(errno));
-  }
-  return 0;
-}
+//   printf("Handshake complete\n");
+//   usleep(PRINT_DELAY);
+//   printf("\n");
+//   ioctl(fd, TCFLSH, 2);
+//   ioctl(fd, TCDRN, NULL);
+//   printf("Flushed TX/RX buffer\n");
+//   if (close(fd) < 0)
+//   {
+//     printf("Failed to close COM UART %s\n", strerror(errno));
+//   }
+//   return 0;
+// }
 
 #define HANDSHAKE_ATTEMPTS 3
 #define HANDSHAKE_INTERVAL 20 // seconds
@@ -1669,6 +1712,9 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
 
   switch (subsystem)
   {
+    
+  case 0 :strcpy(devpath, COM_UART);
+    break;
   case 1:
     strcpy(devpath, ADCS_UART);
     printf("Turned on power line for ADCS\n");
@@ -1767,138 +1813,10 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
   }
 
   printf("Handshake failed after %d attempts\n", HANDSHAKE_ATTEMPTS);
+  pet_counter = 0;
   return -1;
 }
 
-// int handshake_MSN(uint8_t subsystem, uint8_t *ack)
-// {
-//   int fd;
-//   char devpath[15];
-//   uint8_t data1[7] = {'\0'};
-//   int i;
-//   ssize_t wr1, ret;
-//   uint8_t counter = 0;
-
-//   switch (subsystem)
-//   {
-//   case 1:
-//     strcpy(devpath, ADCS_UART);
-//     printf("Turned on power line for ADCS\n");
-//     break;
-//   case 2:
-//     strcpy(devpath, CAM_UART);
-//     printf("Turned on power line for CAM\n");
-//     break;
-//   case 3:
-//     strcpy(devpath, EPDM_UART);
-//     printf("Turned on power line for EPDM\n");
-//     break;
-//   default:
-//     printf("Unknown MSN subsystem selected\n");
-//     return -1;
-//   }
-
-//   printf("Opening UART dev path: %s\n", devpath);
-//   usleep(PRINT_DELAY);
-//   fd = open(devpath, O_WRONLY); // Open in non-blocking mode
-//   if (fd < 0)
-//   {
-//     printf("Error opening %s\n", devpath);
-//     usleep(PRINT_DELAY);
-//     return -1;
-//   }
-
-//   // Writing handshake data
-//   ret = write(fd, ack, 7);
-//   close(fd);
-//   // sleep(1);
-//   fd = open(devpath, O_RDONLY); // Open in non-blocking mode
-
-//   printf("6 bytes written\n");
-//   usleep(3000 * 1000); // 3 seconds delay
-
-//   // Reading data from UART
-//   // for (i = 0; i < 6; i++)
-//   // {
-//   //   ret = read(fd, &data1[i], 1);
-//   //   if (ret < 0)
-//   //   {
-//   //     if (errno == EAGAIN)
-//   //     {
-//   //       // printf("No data available for reading\n");
-//   //       // usleep(500000);
-//   //       usleep(500);
-//   //       i--; // Retry reading the same index
-//   //       continue;
-//   //     }
-//   //     printf("Error reading from %s\n", devpath);
-//   //     close(fd);
-//   //     return -1;
-//   //   }
-//   //   else{
-//   //     break;
-//   //   }
-//   // }
-//   // for (i = 0; i < 6; i++)
-//   // int loop = 0;
-//   // while (1)
-//   // {
-//   //   ret = read(fd, &data1[i], 1);
-//   //   if (ret < 0)
-//   //   {
-//   //     if (errno == EAGAIN)
-//   //     {
-//   //       // Uncomment for debugging
-//   //       // printf("No data available for reading\n");
-//   //       usleep(50); // usleep(5000); // Increase the sleep time to 500 ms
-//   //       i--;        // Retry reading the same index
-//   //       continue;
-//   //     }
-//   //     printf("Error reading from %s\n", devpath);
-//   //     close(fd);
-//   //     return -1;
-//   //   }
-//   //   loop++;
-//   //   // If we successfully read a character, check if we have more data
-//   //   if (ret == 1)
-//   //   {
-//   //     // Optionally print the character read for debugging
-//   //     printf("Read character: %c\n", data1[i]);
-//   //     break; // Exit the loop if a character was successfully read
-//   //   }
-//   // }
-//   ret = read(fd, ack, sizeof(ack));
-//   printf("Data received from %s:\n", devpath);
-//   usleep(PRINT_DELAY);
-//   for (int j = 0; j < 7; j++)
-//   {
-//     printf("%02X ", data1[j]);
-//   }
-//   printf("\n");
-//   usleep(PRINT_DELAY);
-
-//   if (data1[0] == ack[0] && data1[5] == ack[5])
-//   {
-//     printf("\n******Acknowledgement received******\n");
-//     usleep(PRINT_DELAY);
-//   }
-//   else
-//   {
-//     close(fd);
-//     return 1;
-//   }
-
-//   printf("Handshake complete\n");
-//   usleep(PRINT_DELAY);
-//   printf("\n");
-//   ioctl(fd, TCFLSH, 2);
-//   ioctl(fd, TCDRN, NULL);
-//   printf("Flushed TX/RX buffer\n");
-//   close(fd);
-//   return 0;
-// }
-
-// static int COM_TASK(int argc, char *argv[]);
 
 /*
 list of commands for different task of OBC
@@ -1937,7 +1855,9 @@ int gpio_write(uint32_t pin, uint8_t mode)
 int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
 {
   int fd, ret;
-  fd = open_uart(COM_UART); // open(dev_path, O_RDONLY);
+  pthread_mutex_lock(&uart_mutex);
+
+  fd = open(COM_UART, O_RDWR);
   if (fd < 0)
   {
     printf("Unable to open %s\n", dev_path);
@@ -1982,7 +1902,8 @@ int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
   //     printf("Failed to close COM UART: %s\n", strerror(errno));
   //   }
   // }
-  close_uart(fd);
+  close(fd);
+  pthread_mutex_unlock(&uart_mutex);
   usleep(10000);
   return ret;
 }
@@ -2189,25 +2110,24 @@ void Make_Beacon_Data(uint8_t type)
   }
 }
 
-pthread_mutex_t uart_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int open_uart(const char *uart_dev)
 {
-  pthread_mutex_lock(&uart_mutex);
-  int fd = open(uart_dev, O_RDWR);
+  int fd = open(uart_dev, O_RDWR | O_NONBLOCK);
+  printf("OPeneing com uart\n");
   if (fd < 0)
   {
     syslog(LOG_ERR, "Failed to open UART %s: %d", uart_dev, errno);
   }
-  pthread_mutex_unlock(&uart_mutex);
+  // pthread_mutex_unlock(&uart_mutex);
   return fd;
 }
 
 void close_uart(int fd)
 {
-  pthread_mutex_lock(&uart_mutex);
+  // pthread_mutex_lock(&uart_mutex);
   close(fd);
-  pthread_mutex_unlock(&uart_mutex);
+  // pthread_mutex_unlock(&uart_mutex);
 }
 
 /*
@@ -2249,7 +2169,7 @@ void truncate_text_file(struct FILE_OPERATIONS *file_operations)
   }
   if (close(fd) < 0)
   {
-    printf("Failed to close COM UART: %s\n", strerror(errno));
+    printf("Failed to close file: %s\n", strerror(errno));
     close(fd);
   }
   // file_close(&truncate_ptr);
@@ -2317,7 +2237,7 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
   }
   else
   {
-    int8_t seek_pointer[16];
+    struct SEEK_POINTER seek_pointer;
     uint8_t flash_data[BEACON_DATA_SIZE];
     uint32_t address = file_operations->address[0] << 24 | file_operations->address[1] << 16 | file_operations->address[2] << 8 | file_operations->address[3] & 0xff;
     uint16_t number_of_packets = file_operations->number_of_packets[0] << 8 | file_operations->number_of_packets[1] & 0xff;
@@ -2345,7 +2265,7 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
       int fd2 = file_open(&fl1, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_RDWR);
       if (fd2 >= 0)
       {
-        readBytes2 = file_read(&fl1, seek_pointer, sizeof(seek_pointer));
+        readBytes2 = file_read(&fl1, &seek_pointer, sizeof(struct SEEK_POINTER));
         if (readBytes2 < 0)
         {
           syslog(LOG_SYSLOG, "Error while reading the seek_pointer.txt in mfm\n");
@@ -2427,7 +2347,7 @@ void download_file_from_flash(struct FILE_OPERATIONS *file_operations, uint8_t *
       file_operations->address[1] = (uint8_t)address >> 16 & 0xff;
       file_operations->address[2] = (uint8_t)address >> 8 & 0xff;
       file_operations->address[3] = (uint8_t)address & 0xff;
-      track_read_seek_pointer(file_operations, seek_pointer);
+      track_read_seek_pointer(file_operations, &seek_pointer);
     }
   }
   file_close(&file_ptr);
@@ -2662,6 +2582,26 @@ int main(int argc, FAR char *argv[])
         print_satellite_health_data(&read_pointer);
     }
   }
+  else if(strcmp(argv[1], "logs") == 0){
+    int32_t final_count = 56789123, temp;
+    uint8_t temp_var[4] = {0};
+
+    // Break final_count into bytes
+    temp_var[3] = final_count & 0xFF;
+    temp_var[2] = (final_count >> 8) & 0xFF;
+    temp_var[1] = (final_count >> 16) & 0xFF;
+    temp_var[0] = (final_count >> 24) & 0xFF;
+
+    // Recombine the bytes into temp
+    temp = ((int32_t)temp_var[0] << 24) |
+           ((int32_t)temp_var[1] << 16) |
+           ((int32_t)temp_var[2] << 8) |
+           ((int32_t)temp_var[3]);
+
+
+    // Print the recovered value
+    printf("Recovered value is %d\n", temp);
+  }
 
   /*TODO : REMOVE LATER Independent testing*/
   else
@@ -2847,6 +2787,8 @@ void send_flash_data(uint8_t *beacon_data)
   gpio_write(GPIO_DCDC_4V_EN, 1);
   printf("Turning on COM 4V line..\n");
   gpio_write(GPIO_COM_4V_EN, 1);
+  pthread_mutex_lock(&uart_mutex);
+
   int fd = open_uart(COM_UART); // open(COM_UART, O_RDWR);
   int ret2;
   if (fd < 0)
@@ -2918,6 +2860,8 @@ void send_flash_data(uint8_t *beacon_data)
   printf("\nTurning off COM 4V line..\n");
   gpio_write(GPIO_COM_4V_EN, 0);
   close_uart(fd);
+  pthread_mutex_unlock(&uart_mutex);
+
 }
 
 // COM
@@ -2984,7 +2928,7 @@ int send_beacon_data()
       // printf("Beacon Type %d sequence complete\n", beacon_type);
       // print_seek_pointer();
       beacon_type = !beacon_type;
-      print_satellite_health_data(&sat_health);
+      // print_satellite_health_data(&sat_health);
 
       // work_queue(HPWORK, &work_beacon, send_beacon_data, NULL, SEC2TICK(BEACON_DELAY));
     }
@@ -3163,7 +3107,7 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
 {
   int hand;
   int fd;
-  int64_t initial_count = 0, final_count = 0;
+  int32_t initial_count = 0, final_count = 0;
   struct file file_pointer, file_pointer2;
   bool other_mission_running = false;
   char file_name[100] = {'\0'}, file_full_path[100] = {'\0'};
@@ -3221,7 +3165,8 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
       sleep(1);
       hand = handshake_MSN(mission, handshake_data);
       uint8_t ret;
-
+      time_t start_time = time(NULL), stop_time;
+      
       int p = 0;
       uint8_t data3, data4;
       uint32_t counter1 = 0, rgb_count = 0;
@@ -3258,7 +3203,7 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                     int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, "/cam_nir_logs.txt", O_RDWR | O_APPEND);
                     if (fd_seek >= 0)
                     {
-                      file_write(&file_pointer2, final_count, sizeof(final_count));
+                      file_write(&file_pointer2, &final_count, sizeof(final_count));
                     }
                     file_close(&file_pointer2);
                   }
@@ -3269,9 +3214,11 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
             }
             if (data4 == 0xff && data3 == 0xd9)
             {
-              syslog(LOG_DEBUG, "Value of counter1 is %d\n", counter1);
+              stop_time = time(NULL);
+              int32_t t1= stop_time - start_time;
+              syslog(LOG_DEBUG, "\n-----------------\nValue of counter1 is %d %d\n", counter1, t1);
 
-              if ((mission == 3 && counter1 > 31000) | (mission == 1 && counter1 > 179))
+              if ((mission == 3 ) | (mission == 1 && counter1 > 179))
               {
                 fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, file_name, O_RDWR | O_APPEND);
                 if (fd >= 0)
@@ -3290,10 +3237,22 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                       strcpy(new_path, "/epdm");                      
                       strcat(new_path,"_logs.txt");
                       struct file msn_flag_pointer;
+                      final_count = final_count + write_bytes;
+                      uint8_t temp_var[4] = {0};
+
+                      // Break final_count into bytes
+                      temp_var[3] = final_count & 0xFF;
+                      temp_var[2] = (final_count >> 8) & 0xFF;
+                      temp_var[1] = (final_count >> 16) & 0xFF;
+                      temp_var[0] = (final_count >> 24) & 0xFF;
+
+
+                      printf("The seek pointer now is at %d %plocation\n",write_bytes, &final_count);
                       int fd_seek = open_file_flash(&msn_flag_pointer, MFM_MSN_STRPATH, new_path, O_CREAT | O_RDWR | O_APPEND);
                       if (fd_seek >= 0)
                       {
-                       file_write(&msn_flag_pointer, final_count + write_bytes, sizeof(final_count));
+                       file_write(&msn_flag_pointer, temp_var, sizeof(temp_var));
+                       printf("the data written is %d %d",final_count, sizeof(final_count));
 
                       }
                       file_close(&msn_flag_pointer);
@@ -3320,7 +3279,10 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                       int fd_seek = open_file_flash(&file_pointer2, MFM_MSN_STRPATH, "/cam_rgb_logs.txt", O_CREAT | O_RDWR | O_APPEND);
                       if (fd_seek >= 0)
                       {
-                        ssize_t write_bytes = file_write(&file_pointer2, final_count, sizeof(final_count));
+                        final_count+= counter1;
+                        ssize_t write_bytes = file_write(&file_pointer2, &final_count, sizeof(final_count));
+                        // final_count += write_bytes;
+
                       }
                       file_close(&file_pointer2);
                     }
@@ -3330,9 +3292,11 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                 counter1 = 0;
                 break;
               }
-              if (mission == 1 && counter1 > 180)
+              if (mission == 1 )
               {
-                break;
+                if(handshake_data[4]==0x01 && counter1 > 180){break;}
+                if (handshake_data[4]==0x02 && counter1 > 40) break;
+                // break;
               }
             }
           }
@@ -3376,42 +3340,6 @@ void watchdog_refresh_task(int fd)
  *
  ****************************************************************************/
 #ifdef CONFIG_CUSTOM_APPS_CUBUS_USE_INT_ADC1
-// void int_adc1_data_convert(float *temp_buff)
-// {
-//   // printf("\n----------------------------------------------------------\n");
-//   float int_adc1_v[15]={0.00}, int_adc1_c[15]={0.00};
-//   // float temp_buff[CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_NSAMPLES];
-//   float ADC_SUP = 1.2 * 4095 / averageRaw[11];//(int_adc1_sample[14].am_data);
-//   printf("ADC i=8 value is %d & ADC_SUP is %f\n", averageRaw[11], ADC_SUP);
-
-//   // raw adc value here test baki
-//   // printf("ADC_SUP is %f\n", ADC_SUP);
-//   for (int i = 0; i < CONFIG_CUSTOM_APPS_CUBUS_INT_ADC1_GROUPSIZE; i++)
-//   {
-//     int_adc1_v[i] = (int_adc1_sample[i].am_data * 3.3 / 4095); // right now, using 1.2 as vrefint channel data... converting all the data to their respective voltages
-//     if (i == 4)
-//     {
-//       temp_buff[i] = (int_adc1_v[i] * (1100 + 931)) / 931; // this is for battery monitor (voltage data, no need for conversion)
-//       printf("***********\nBatt volatge: temp_buff[%d] %f******\n",i, temp_buff[i]);
-//     }
-//     // else if (i == 0 || i == 9 - 1 || i == 11 - 1) // this one is for battery current, solar panel total current and raw current respectively
-//     else if (int_adc1_sample[i].am_channel == 0 | int_adc1_sample[i].am_channel == 9 | int_adc1_sample[i].am_channel == 12)
-//     {
-//       // printf("THe value of temp_buff[%d] is %f", i, temp_buff[i]);
-//       temp_buff[i] = ((int_adc1_v[i] - 1.65) / SENS_TMCS) * 1000 * 1000;
-//       // printf("THe value of temp_buff[%d] is %f", i, temp_buff[i]);
-//     }
-//     else
-//     {
-//       // all current sensors use lmp8640 current sensor ...
-//       temp_buff[i] = (int_adc1_v[i] / (2 * RES_LMP8640 * GAIN_LMP8640)) * 1000;
-//     }
-//     printf("Channel no:%d Temp_buf[%d] : %f  Volatege[%d] : %f\n", int_adc1_sample[i].am_channel,i, temp_buff[i],i, int_adc1_v[i]);
-
-//   }
-//   // printf("\n----------------------------------------------------------\n");
-// }
-
 void int_adc1_data_convert(float *temp_buff)
 {
   float int_adc1_v[15] = {0.00}; // Array to store the voltage values
@@ -3927,6 +3855,9 @@ void handle_reservation_command(int fd_reservation, struct reservation_command r
             sat_health.rsv_flag -= 1;
             sat_health.rsv_cmd = 0x00;
         }
+        if(TO_EXECUTE.mcu_id ==0){
+
+        }
     }
 
     if (RSV_CMD[16] != 0x00 && RSV_CMD[16] == TO_EXECUTE.mcu_id && RSV_CMD[17] != 0x00 && RSV_CMD[18] != 0x00 && timer > TO_EXECUTE.latest_time)
@@ -3935,61 +3866,8 @@ void handle_reservation_command(int fd_reservation, struct reservation_command r
         memset(&TO_EXECUTE, 0, sizeof(TO_EXECUTE));
         memset(RSV_CMD + 16, 0, 5);
         timer = 0;
-
-        struct file file_ptr;
-        uint16_t temp = 0;
-
-        int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
-        struct reservation_command res_temp[16];
-        uint16_t file_size = file_seek(&file_ptr, 0, SEEK_END);
-
-        for (int i = 0; i < (file_size / sizeof(struct reservation_command)); i++)
-        {
-            file_seek(&file_ptr, temp, SEEK_SET);
-            temp += sizeof(struct reservation_command);
-            file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
-        }
-        file_close(&file_ptr);
-
-        int n = file_size / sizeof(struct reservation_command);
-
-        for (int i = 1; i < n - 1; i++)
-        {
-            for (int j = 1; j < n - i; j++)
-            {
-                uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
-                uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
-                if (t1 > t2)
-                {
-                    struct reservation_command temp = res_temp[j];
-                    res_temp[j] = res_temp[j + 1];
-                    res_temp[j + 1] = temp;
-                }
-            }
-        }
-
-        for (int i = 1; i < n; i++)
-        {
-            printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
-            printf("_________________Sorted________________________\n");
-            printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
-                   res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed);
-            printf("__________________Sorted_______________________\n");
-        }
-
-        if (n == 1)
-        {
-            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC);
-        }
-        else
-        {
-            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC | O_WRONLY | O_APPEND);
-            for (int i = 1; i < n; i++)
-            {
-                file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
-            }
-        }
-        file_close(&file_ptr);
+        sort_reservation_command(1, true)
+        
     }
 }
 
