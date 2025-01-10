@@ -541,7 +541,7 @@ stm32_wwdginitialize("/dev/wwdg0");
 // stm32_serial_dma_setup();
 // stm32_serial_dma_initialize();
 // write();
-  // stm32_wdg_setup();
+  stm32_wdg_setup();
 
   return 0;
 }

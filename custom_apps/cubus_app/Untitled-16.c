@@ -70,6 +70,8 @@ int wdog_fd = -1;
 #define FLASH_DATA_LEN  0x52// flash packet length in hex
 
 float x[8], y[8];
+pthread_mutex_t uart_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 int ads7953_receiver(int argc, FAR char *argv[]);
 
@@ -80,7 +82,7 @@ void print_beacon_a();
 void print_beacon_b();
 void handle_reservation_command(int, struct reservation_command);
 void set_time(uint32_t);
-void get_top_rsv(struct reservation_command *res);
+void get_top_rsv(struct reservation_command *res, uint32_t *timer);
 void flash_operation_data(uint16_t loop);
 uint64_t get_time_data();
 struct sensor_rgb sensor_rgb_0;
@@ -621,6 +623,8 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
   int i;
   int count = 0, ret;
   int wr1;
+  pthread_mutex_lock(&uart_mutex);
+
   fd = open_uart(COM_UART);
   if (fd < 0)
   {
@@ -673,6 +677,8 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
     // pet_counter = 0; // TODO rethink on this later internal wdog
   }
   close_uart(fd);
+  pthread_mutex_unlock(&uart_mutex);
+
   return wr1;
 }
 
@@ -926,9 +932,9 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 else
                   strcpy(__file_operations.filepath, SFM_MSN_STRPATH);
               }
-              char filename[9][30] = {"/flags.txt", "/satHealth.txt", "/satHealth.txt", "/reservation_command.txt", "/cam_rgb.txt", "/epdm.txt", "/adcs.txt", "/cam_nir.txt", "/digipeater.txt"};
+              char filename[9][30] = {"/flags.txt\0", "/satHealth.txt\0", "/satHealth.txt\0", "/reservation_command.txt\0", "/cam_rgb.txt\0", "/epdm.txt\0", "/adcs.txt\0", "/cam_nir.txt\0", "/digipeater.txt\0"};
 
-              if ((cmds[2] == 0xF1))
+              if ((cmds[2] == 0xF1))//FLAG DATA DOWNLOAD
               {
                 __file_operations.select_file = FLAGS;
                 __file_operations.mcu_id = 0xad;
@@ -936,7 +942,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 strcat(__file_operations.filepath, "/flags.txt");
                 syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
               }
-              else if ((cmds[2] == 0xF2))
+              else if ((cmds[2] == 0xF2))//SATELLITE_HEALTH DATA DOWNLOAD
               {
                 __file_operations.mcu_id = 218;
                 __file_operations.select_file = SATELLITE_HEALTH;
@@ -944,107 +950,117 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 syslog(LOG_DEBUG, "Selected file is %s\n", __file_operations.select_file);
                 __file_operations.mcu_id = 0xda;
               }
-              else if ((cmds[2] == 0xF3))
+              else if ((cmds[2] == 0xF3))//SATELLITE_LOG DATA DOWNLOAD
               {
                 __file_operations.mcu_id = 0xda;
 
                 __file_operations.select_file = SATELLITE_LOG;
                 strcat(__file_operations.filepath, "/satHealth.txt");
               }
-              else if ((cmds[2] == 0xF4))
+              else if ((cmds[2] == 0xF4))//RESERVATION_TABLE DATA DOWNLOAD
               {
                 __file_operations.mcu_id = 0xad;
 
                 __file_operations.select_file = RESERVATION_TABLE;
-                strcat(__file_operations.filepath, "/reservation_table.txt");
+                strcat(__file_operations.filepath, "/reservation_command.txt");
               }
-              else if ((cmds[2] == 0xF5))
+              
+              else if ((cmds[2] == 0xF5))//SEEK_POINTER
+              {
+               
+                __file_operations.select_file = SEEK_POINTER_TXT;
+                __file_operations.mcu_id = 0x0a;
+                strcat(__file_operations.filepath, "/seek_pointer.txt");
+              }
+
+              else if ((cmds[2] == 0xF6))//CAM_RGB DATA DOWNLOAD
               {
                 strcat(__file_operations.filepath, "/cam_rgb.txt");
                 __file_operations.mcu_id = 0x0c;
 
                 __file_operations.select_file = CAMERA_TXT;
               }
-              else if ((cmds[2] == 0xF6))
+              else if ((cmds[2] == 0xF7))//EPDM DATA DOWNLOAD
               {
                 __file_operations.mcu_id = 0x0b;
 
                 __file_operations.select_file = EPDM_TXT;
                 strcat(__file_operations.filepath, "/epdm.txt");
               }
-              else if ((cmds[2] == 0xF7))
+              else if ((cmds[2] == 0xF8))//ADCS DATA DOWNLOAD
               {
                 __file_operations.select_file = ADCS_TXT;
                 __file_operations.mcu_id = 0x0d;
                 strcat(__file_operations.filepath, "/adcs.txt");
               }
-              else if ((cmds[2] == 0xF8))
+              else if ((cmds[2] == 0xF9))//CAM_NIR DATA DOWNLOAD
               {
                 __file_operations.select_file = CAMERA_NIR_TXT;
                 __file_operations.mcu_id = 0xca;
                 strcat(__file_operations.filepath, "/cam_nir.txt");
               }
-              else if ((cmds[2] == 0xF9))
+              else if ((cmds[2] == 0xFA))//DIGIPEATER DATA DOWNLOAD
               {
                 __file_operations.select_file = DIGIPEATER_TXT;
                 __file_operations.mcu_id = 0x0a;
                 strcat(__file_operations.filepath, "/digipeater.txt");
               }
-              else if ((cmds[2] == 0xFA))
+              else if ((cmds[2] == 0xFB))//sizeof each file missions
               {
                 struct file temp_fp;
-                uint32_t counter = 0;
+                // ssize_t counter = 0;
                 int fd = 0;
                 uint8_t beacon[BEACON_DATA_SIZE] = {'\0'};
 
                 // Initialize beacon header
-                beacon[0] = 0x53;
-                beacon[1] = 0x52;
-                beacon[2] = 0xED;
-                beacon[3] = 0x01;
 
-                for (int i = 1; i < 9; i++)
+                // memset(beacon, '\0', sizeof(beacon));
+                char temp_var[90] = {'\0'};
+                for (int i = 1; i <= 9; i++)
                 {
-                  memset(beacon, '\0', sizeof(beacon));
-
                   if (i < 4)
                   {
-                    fd = open_file_flash(&temp_fp, MFM_MAIN_STRPATH, filename[i], O_RDONLY);
+                  strcpy(temp_var, MFM_MAIN_STRPATH);
+                  strcat(temp_var, filename[i]);
                   }
                   else
                   {
-                    fd = open_file_flash(&temp_fp, MFM_MSN_STRPATH, filename[i], O_RDONLY);
+                    strcpy(temp_var, MFM_MSN_STRPATH);
+                    strcat(temp_var, filename[i]);
+                    // fd = file_open(&temp_fp, MFM_MSN_STRPATH, filename[i], O_RDWR);
                   }
-
+                  fd = file_open(&temp_fp, temp_var, O_RDWR);
                   if (fd >= 0)
                   {
-                    counter = file_seek(&temp_fp, 0, SEEK_END);
-                    close(fd); // Close the file to prevent resource leaks
+                    int counter = file_seek(&temp_fp, 0, SEEK_END);
+                    printf("%s %d\n",filename[i], counter);
+                    beacon[i * 4] = counter & 0xFF;
+                    beacon[i * 4 + 1] = (counter >> 8) & 0xFF;
+                    beacon[i * 4 + 2] = (counter >> 16) & 0xFF;
+                    beacon[i * 4 + 3] = (counter >> 24) & 0xFF;
+                    // close(fd); // Close the file to prevent resource leaks
                   }
                   else
                   {
-                    counter = 0; // Handle the error case
+                    // counter = 0; // Handle the error case
                   }
 
-                  beacon[i * 4] = counter & 0xFF;
-                  beacon[i * 4 + 1] = (counter >> 8) & 0xFF;
-                  beacon[i * 4 + 2] = (counter >> 16) & 0xFF;
-                  beacon[i * 4 + 3] = (counter >> 24) & 0xFF;
-                  file_close(&temp_fp);
+                  
+                  if(file_close(&temp_fp) >=0){
+                    // printf("File %s close successfully\n", temp_var);
+                    file_close(&temp_fp);
+                  }
                   close(fd);
                 }
+               beacon[0] = 0x53;
+                beacon[1] = 0xa;
+                beacon[2] = 0x52;
+                beacon[3] = 0x01;
 
                 beacon[BEACON_DATA_SIZE - 2] = 0x7E;
-                beacon[BEACON_DATA_SIZE - 1] = '\0';
+                beacon[BEACON_DATA_SIZE - 1] = 0x7e;
 
                 send_flash_data(beacon);
-              }
-              else if ((cmds[2] == 0xFB))//SEEK_POINTER
-              {
-               
-                __file_operations.select_file = SEEK_POINTER_TXT;
-                __file_operations.mcu_id = 0x0a;
-                strcat(__file_operations.filepath, "/seek_pointer.txt");
               }
 
               else if ((cmds[2] == 0xFC))//LOG_RGB
@@ -1069,9 +1085,16 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 __file_operations.mcu_id = 0x0a;
                 strcat(__file_operations.filepath, "/epdm_logs.txt");
               }
+               else if ((cmds[2] == 0xFF))//LOG_EPDM
+              {
+              
+                __file_operations.select_file = LOG_EPDM_TXT;
+                __file_operations.mcu_id = 0x0a;
+                strcat(__file_operations.filepath, "/adcs_logs.txt");
+              }
 
               // TODO check reservation table here
-              if (cmds[2] != 0xFA)
+              if (cmds[2] != 0xFB)
               {
                 __file_operations.rsv_table[0] = COM_RX_DATA[HEADER + 4];
                 __file_operations.rsv_table[1] = COM_RX_DATA[HEADER + 5];
@@ -1187,7 +1210,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             if (cmds[0] == 0xDF && cmds[1] == 0xAB && cmds[2] == 0xD1)
             {
 
-              syslog(LOG_DEBUG, "-------- Digipeater mission turned ON---------\n");
+              syslog(LOG_DEBUG, "---------Digipeater mission turned ON---------\n");
             }
 
             // Command to DISABLE Digipeater misison
@@ -1313,9 +1336,10 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           break;
         }
       }
-      else
+      else //Reservation command received
       {
         struct reservation_command res;
+        // res.timestamp = orb_absolute_time();
         res.mcu_id = MCU_ID;
         for (int i = 0; i < 5; i++)
         {
@@ -1389,7 +1413,8 @@ static int COM_TASK(int argc, char *argv[])
 
   // usleep(2000000);
   sleep(2);
-  ret = handshake_COM(data); // tx rx data is flushed before closing the file
+  // ret = handshake_COM(data); // tx rx data is flushed before closing the file
+  ret = handshake_MSN(0,  &data);
   // ret = handshake_COM(data); // tx rx data is flushed before closing the file
 
   // usleep(PRINT_DELAY * 100);
@@ -1468,15 +1493,18 @@ static int COM_TASK(int argc, char *argv[])
         critic_flags.OPER_MODE = SAFE_MODE;
       }
       receive_telecommand_rx(rx_data);
-      // get_top_rsv(&TO_EXECUTE);
+      get_top_rsv(&TO_EXECUTE, &timer);
+      if(TO_EXECUTE.mcu_id == 0 && TO_EXECUTE.cmd[0] != 0x00){
+          sort_reservation_command(1, true);
+      }
       // pet_counter =0;
       // res.latest_time =10;
       // get_top_rsv(&res);
 
-      // handle_reservation_command(1, TO_EXECUTE);
+      handle_reservation_command(1, TO_EXECUTE);
     }
     // usleep(1000);
-    sleep(3);
+    sleep(1);
   }
 }
 
@@ -1489,7 +1517,7 @@ void send_beacon(int argc, char *argv)
 
   for (;;)
   {
-    if (COM_HANDSHAKE_STATUS == 1 )//&& count_beacon % 19 == 0
+    if (COM_HANDSHAKE_STATUS == 1 && count_beacon % 89 == 0)
     {
       count_beacon = 0;
       read_int_adc1();
@@ -1499,6 +1527,7 @@ void send_beacon(int argc, char *argv)
       make_satellite_health();
 
       send_beacon_data(); // TODO uncomment this
+      print_seek_pointer();
       // pet_counter = 0;    // TODO remove this after uncommenting above
       count_beacon = 0;
       // gpio_write(GPIO_3V3_COM_EN, 0); // Disable COM systems
@@ -1506,8 +1535,12 @@ void send_beacon(int argc, char *argv)
     }
     count_beacon += 1;
     timer++;
-    sleep(30); // 90 // TODO make it 90 later
+    sleep(1); // 90 // TODO make it 90 later
+    // usleep(100000);
+  if(count_beacon %10 ==0){
+      // print_satellite_health_data(&sat_health);
 
+  }
   }
 
 }
@@ -1679,6 +1712,9 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
 
   switch (subsystem)
   {
+    
+  case 0 :strcpy(devpath, COM_UART);
+    break;
   case 1:
     strcpy(devpath, ADCS_UART);
     printf("Turned on power line for ADCS\n");
@@ -1777,6 +1813,7 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
   }
 
   printf("Handshake failed after %d attempts\n", HANDSHAKE_ATTEMPTS);
+  pet_counter = 0;
   return -1;
 }
 
@@ -1818,7 +1855,9 @@ int gpio_write(uint32_t pin, uint8_t mode)
 int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
 {
   int fd, ret;
-  fd = open_uart(COM_UART); // open(dev_path, O_RDONLY);
+  pthread_mutex_lock(&uart_mutex);
+
+  fd = open(COM_UART, O_RDWR);
   if (fd < 0)
   {
     printf("Unable to open %s\n", dev_path);
@@ -1863,7 +1902,8 @@ int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
   //     printf("Failed to close COM UART: %s\n", strerror(errno));
   //   }
   // }
-  close_uart(fd);
+  close(fd);
+  pthread_mutex_unlock(&uart_mutex);
   usleep(10000);
   return ret;
 }
@@ -2070,25 +2110,24 @@ void Make_Beacon_Data(uint8_t type)
   }
 }
 
-pthread_mutex_t uart_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int open_uart(const char *uart_dev)
 {
-  pthread_mutex_lock(&uart_mutex);
-  int fd = open(uart_dev, O_RDWR);
+  int fd = open(uart_dev, O_RDWR | O_NONBLOCK);
+  printf("OPeneing com uart\n");
   if (fd < 0)
   {
     syslog(LOG_ERR, "Failed to open UART %s: %d", uart_dev, errno);
   }
-  pthread_mutex_unlock(&uart_mutex);
+  // pthread_mutex_unlock(&uart_mutex);
   return fd;
 }
 
 void close_uart(int fd)
 {
-  pthread_mutex_lock(&uart_mutex);
+  // pthread_mutex_lock(&uart_mutex);
   close(fd);
-  pthread_mutex_unlock(&uart_mutex);
+  // pthread_mutex_unlock(&uart_mutex);
 }
 
 /*
@@ -2130,7 +2169,7 @@ void truncate_text_file(struct FILE_OPERATIONS *file_operations)
   }
   if (close(fd) < 0)
   {
-    printf("Failed to close COM UART: %s\n", strerror(errno));
+    printf("Failed to close file: %s\n", strerror(errno));
     close(fd);
   }
   // file_close(&truncate_ptr);
@@ -2748,6 +2787,8 @@ void send_flash_data(uint8_t *beacon_data)
   gpio_write(GPIO_DCDC_4V_EN, 1);
   printf("Turning on COM 4V line..\n");
   gpio_write(GPIO_COM_4V_EN, 1);
+  pthread_mutex_lock(&uart_mutex);
+
   int fd = open_uart(COM_UART); // open(COM_UART, O_RDWR);
   int ret2;
   if (fd < 0)
@@ -2819,6 +2860,8 @@ void send_flash_data(uint8_t *beacon_data)
   printf("\nTurning off COM 4V line..\n");
   gpio_write(GPIO_COM_4V_EN, 0);
   close_uart(fd);
+  pthread_mutex_unlock(&uart_mutex);
+
 }
 
 // COM
@@ -2885,7 +2928,7 @@ int send_beacon_data()
       // printf("Beacon Type %d sequence complete\n", beacon_type);
       // print_seek_pointer();
       beacon_type = !beacon_type;
-      print_satellite_health_data(&sat_health);
+      // print_satellite_health_data(&sat_health);
 
       // work_queue(HPWORK, &work_beacon, send_beacon_data, NULL, SEC2TICK(BEACON_DELAY));
     }
@@ -3249,9 +3292,11 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                 counter1 = 0;
                 break;
               }
-              if (mission == 1 && counter1 > 180)
+              if (mission == 1 )
               {
-                break;
+                if(handshake_data[4]==0x01 && counter1 > 180){break;}
+                if (handshake_data[4]==0x02 && counter1 > 40) break;
+                // break;
               }
             }
           }
@@ -3810,6 +3855,9 @@ void handle_reservation_command(int fd_reservation, struct reservation_command r
             sat_health.rsv_flag -= 1;
             sat_health.rsv_cmd = 0x00;
         }
+        if(TO_EXECUTE.mcu_id ==0){
+
+        }
     }
 
     if (RSV_CMD[16] != 0x00 && RSV_CMD[16] == TO_EXECUTE.mcu_id && RSV_CMD[17] != 0x00 && RSV_CMD[18] != 0x00 && timer > TO_EXECUTE.latest_time)
@@ -3818,61 +3866,8 @@ void handle_reservation_command(int fd_reservation, struct reservation_command r
         memset(&TO_EXECUTE, 0, sizeof(TO_EXECUTE));
         memset(RSV_CMD + 16, 0, 5);
         timer = 0;
-
-        struct file file_ptr;
-        uint16_t temp = 0;
-
-        int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
-        struct reservation_command res_temp[16];
-        uint16_t file_size = file_seek(&file_ptr, 0, SEEK_END);
-
-        for (int i = 0; i < (file_size / sizeof(struct reservation_command)); i++)
-        {
-            file_seek(&file_ptr, temp, SEEK_SET);
-            temp += sizeof(struct reservation_command);
-            file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
-        }
-        file_close(&file_ptr);
-
-        int n = file_size / sizeof(struct reservation_command);
-
-        for (int i = 1; i < n - 1; i++)
-        {
-            for (int j = 1; j < n - i; j++)
-            {
-                uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
-                uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
-                if (t1 > t2)
-                {
-                    struct reservation_command temp = res_temp[j];
-                    res_temp[j] = res_temp[j + 1];
-                    res_temp[j + 1] = temp;
-                }
-            }
-        }
-
-        for (int i = 1; i < n; i++)
-        {
-            printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
-            printf("_________________Sorted________________________\n");
-            printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
-                   res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed);
-            printf("__________________Sorted_______________________\n");
-        }
-
-        if (n == 1)
-        {
-            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC);
-        }
-        else
-        {
-            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC | O_WRONLY | O_APPEND);
-            for (int i = 1; i < n; i++)
-            {
-                file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
-            }
-        }
-        file_close(&file_ptr);
+        sort_reservation_command(1, true);
+        
     }
 }
 
