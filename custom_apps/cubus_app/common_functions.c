@@ -87,6 +87,7 @@ int store_flag_data(CRITICAL_FLAGS *flag_data)
     syslog(LOG_ERR, "Error opening internal flash to store new flag data ... \n");
     return -1;
   }
+  print_critical_flag_data(flag_data);
   pthread_mutex_unlock(&flash_mutex); // Lock the mutex
   
   int fd1 = open_file_flash(&fp, MFM_MAIN_STRPATH, file_name_flag, O_RDWR);
@@ -117,6 +118,7 @@ int check_flag_data(CRITICAL_FLAGS *flags)
   CRITICAL_FLAGS rd_flags_mfm = {0xff};
   ssize_t read_size_mfm = 0;
   struct file fp;
+  printf("*********Checking flag data**********\n");
   pthread_mutex_lock(&flash_mutex); // Lock the mutex
   
   int fd = open("/dev/intflash", O_RDWR);
@@ -141,7 +143,7 @@ int check_flag_data(CRITICAL_FLAGS *flags)
     read_size_mfm = file_read(&fp, &rd_flags_mfm, sizeof(CRITICAL_FLAGS));
     file_close(&fp);
   }
-
+  print_critical_flag_data(&rd_flags_mfm);
   if (rd_flags_int.ANT_DEP_STAT == 0xff)
   {
     if (read_size_mfm != sizeof(CRITICAL_FLAGS))
@@ -158,7 +160,7 @@ int check_flag_data(CRITICAL_FLAGS *flags)
     }
     else
     {
-      syslog(LOG_INFO, "Flag data available in Main Flash Memory\n");
+      syslog(LOG_INFO, "Flag data available in Main Flash Memory Only...Copying data from Main flash memory to internal flash memory\n");
 
       critic_flags = rd_flags_mfm;
       store_flag_data(&critic_flags);
@@ -182,12 +184,16 @@ int check_flag_data(CRITICAL_FLAGS *flags)
   }
 
   *flags = critic_flags;
+  printf("*********Checking flag data ended**********\n");
+
   return 0;
 }
 
 
 void save_critics_flags(const CRITICAL_FLAGS *flags)
 {
+  printf("*********Saving critical flags data to mfm**********\n");
+
   int fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_WRONLY | O_CREAT, 0666);
   if (fd < 0)
   {
@@ -198,33 +204,59 @@ void save_critics_flags(const CRITICAL_FLAGS *flags)
   {
     perror("Failed to write flags to flags.txt");
   }
-  close(fd);
-}
+  
 
+  close(fd);
+  print_critical_flag_data(flags);
+  printf("*********Saving critical flags data to mfm ended**********\n");
+
+}
 
 int load_critics_flags(CRITICAL_FLAGS *flags)
 {
-  memset(flags, 0, sizeof(CRITICAL_FLAGS));
-  pthread_mutex_lock(&flash_mutex); // Lock the mutex
+    printf("*********load_critics flags Loading critical flags data from int flash started**********\n");
 
-  int fd = open("/dev/intflash", O_RDONLY);
-  if (fd < 0)
-  {
-    perror("Failed to open /dev/intflash for reading");
-    return -1;
-  }
-  ssize_t bytesRead = read(fd, flags, sizeof(CRITICAL_FLAGS));
-  close(fd);
-  pthread_mutex_unlock(&flash_mutex); // Lock the mutex
+    memset(flags, 0, sizeof(CRITICAL_FLAGS));
+    pthread_mutex_lock(&flash_mutex); // Lock the mutex
 
-  if (bytesRead != sizeof(CRITICAL_FLAGS))
-  {
-    perror("Failed to read complete flags data");
-    return -1;
-  }
-  return 0;
+    int fd = open("/dev/intflash", O_RDONLY);
+    if (fd < 0)
+    {
+        perror("Failed to open /dev/intflash for reading");
+        return -1;
+    }
+    ssize_t bytesRead = read(fd, flags, sizeof(CRITICAL_FLAGS));
+    close(fd);
+    pthread_mutex_unlock(&flash_mutex); // Unlock the mutex
+
+    if (bytesRead != sizeof(CRITICAL_FLAGS))
+    {
+        perror("Failed to read complete flags data");
+        return -1;
+    }
+
+    printf("*********Loading critical flags data from int flash ended, Started reading mfm**********\n");
+
+    // Process temp if needed
+    CRITICAL_FLAGS temp;
+    memset(&temp, 0, sizeof(CRITICAL_FLAGS)); // Clear temp structure
+
+    fd = open("/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_RDONLY);
+    if (fd < 0)
+    {
+        perror("Failed to open /mnt/fs/mfm/mtd_mainstorage/flags.txt for reading");
+        return -1;
+    }
+    bytesRead = read(fd, &temp, sizeof(CRITICAL_FLAGS));
+    close(fd);
+
+    // Handle data from temp if necessary
+    if (bytesRead == sizeof(CRITICAL_FLAGS)) {
+        // Process the read data
+    }
+
+    return 0;
 }
-
 
 
 // void Setup()
@@ -286,7 +318,7 @@ void print_critical_flag_data(CRITICAL_FLAGS *flags)
   printf(" |   Operation Mode            \t %d \t|\r\n", flags->OPER_MODE);
   printf(" |   Reservation Table Flag    \t %d \t|\r\n", flags->RSV_FLAG);
   printf(" |   Command uplink status     \t %d \t|\r\n", flags->UL_STATE);
-  printf(" |   Reset counter     \t %d \t|\r\n", flags->RST_COUNT);
+  printf(" |   Reset counter             \t %d \t|\r\n", flags->RST_COUNT);
 
   printf(" ********************************************\r\n");
 

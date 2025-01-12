@@ -199,12 +199,12 @@ void read_and_print_mag_data(void)
     fd2 = orb_subscribe_multi(ORB_ID(sensor_rgb), 0);
     fds2.fd = fd2;
     fds2.events = POLLIN;
-
+   
     sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
     if (sub_fd < 0)
     {
         syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
-        return;
+        // return;
     }
 
     while (1)
@@ -213,7 +213,10 @@ void read_and_print_mag_data(void)
         // {
         //     sort_reservation_command(1, false);
         // }
-        count++;
+        count+=10;
+        printf(
+          "read and print amg))))))))))))))))))))))))))))))))))))))\n"
+        );
 
         orb_check(fd_reservation, &updated);
         // printf("The value of updated is %d\n",updated);
@@ -224,18 +227,18 @@ void read_and_print_mag_data(void)
             // printf("the timestamp data is %d %d", res.timestamp,time(NULL));
 
             // Process only if it's a new command
-            if (memcmp(&res, &last_res, sizeof(res)) != 0)
+            if (memcmp(&res, &last_res, sizeof(res)) != 0 )//res.mcu_id>=3 && res.mcu_id <=5
             {
                 printf("Value of reservation command uORB has been updated\n");
                 printf("The reservation command is %02x %02x %02x\n", res.cmd[0], res.cmd[1], res.cmd[2]);
 
                 // Update the last processed command
                 last_res = res;
-
+        
                 // if (res.latest_time == 0x00 && res.mcu_id != 0)
                 {
                     struct file file_ptr;
-                    pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+                    // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
                     int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_CREAT | O_WRONLY | O_APPEND);
                     if (fd >= 0)
@@ -249,7 +252,7 @@ void read_and_print_mag_data(void)
                         // file_close(&file_ptr);
                     }
                     file_close(&file_ptr);
-                    pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+                    // pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
 
                 }
             }
@@ -302,7 +305,7 @@ void read_and_print_mag_data(void)
             }
         }
 
-        sleep(1); // Sleep for 1 second
+        sleep(10); // Sleep for 1 second
     }
 
     orb_unsubscribe(sub_fd);
@@ -626,7 +629,7 @@ void Setup()
 {
   int fd = 0;
   struct file flp1, flp2, flp3, flp4;
-  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+  // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
   fd = open_file_flash(&flp1, MFM_MAIN_STRPATH, file_name_sat_health, O_CREAT);
   if (fd < 0)
@@ -655,7 +658,7 @@ void Setup()
     syslog(LOG_ERR, "Could not create epdm.txt msn file\n");
   }
   file_close(&flp4);
-  pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+  // pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
 
 
   syslog(LOG_INFO, "Checking initial flag data...\n");
@@ -694,32 +697,68 @@ void Setup()
 //   file_close(&fptr);
 // }
 
-void get_top_rsv(struct reservation_command *res, uint32_t *timer)
+// void get_top_rsv(struct reservation_command *res, uint32_t *timer)
+// {
+//   struct file fptr;
+//   pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+
+//   int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+//   uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+//   printf("the file_size is %d\n", file_size);
+
+//   if (file_size == 0 || file_size < sizeof(struct reservation_command))
+//   {
+//     memset(res, 0, sizeof(struct reservation_command));
+//   }
+//   else
+//   {
+//     file_seek(&fptr, 0, SEEK_SET);
+//     file_read(&fptr, res, sizeof(struct reservation_command));
+//     printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
+//     res->latest_time = ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
+//     timer =0;
+//     // count =0;
+//   }
+//   file_close(&fptr);
+//   pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+
+// }//today
+
+
+void get_top_rsv(struct reservation_command *res, uint32_t *timer) 
 {
-  struct file fptr;
-  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+    struct file fptr;
 
-  int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
-  uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
-  printf("the file_size is %d\n", file_size);
+    // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
-  if (file_size == 0 || file_size < sizeof(struct reservation_command))
-  {
-    memset(res, 0, sizeof(struct reservation_command));
-  }
-  else
-  {
-    file_seek(&fptr, 0, SEEK_SET);
-    file_read(&fptr, res, sizeof(struct reservation_command));
-    printf("read the data as :\n %02x %02x %02x %02x %02x %02x\n", res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4]);
-    res->latest_time = ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
-    timer =0;
-    // count =0;
-  }
-  file_close(&fptr);
-  pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+    int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+    if (fd < 0) {
+        printf("Error: Failed to open reservation command file\n");
+        memset(res, 0, sizeof(struct reservation_command));
+        // *timer = 0;
+        // pthread_mutex_unlock(&main_flash_mutex);
+        return;
+    }
 
+    uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+    printf("The file_size is %d\n", file_size);
+
+    if (file_size == 0 || file_size < sizeof(struct reservation_command)) {
+        memset(res, 0, sizeof(struct reservation_command));
+        // *timer = 0;
+    } else {
+        file_seek(&fptr, 0, SEEK_SET);
+        file_read(&fptr, res, sizeof(struct reservation_command));
+        res->latest_time = timer + ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
+        printf("Read the data as: MCU ID: %02x, CMD: %02x %02x %02x %02x %02x %02x\n",
+               res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4], res->latest_time);
+        // *timer = 0; // Reset the timer
+    }
+
+    file_close(&fptr);
+    // pthread_mutex_unlock(&main_flash_mutex); // Unlock the mutex
 }
+
 
 // void sort_reservation_command(uint16_t file_size, bool reorder) {
 //     struct file file_ptr;
@@ -973,7 +1012,7 @@ void maintain_data_consistency()
   uint8_t temp[2000], count = 0;
 
   char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
-  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+  // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
   
   for (int i = 0; i < 4; i++)
   {
@@ -1044,7 +1083,7 @@ void maintain_data_consistency()
     file_close(&mfm_file_pointer);
     file_close(&sfm_file_pointer);
   }
-  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+  // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 }
 
 // void print_seek_pointer()
@@ -1086,14 +1125,14 @@ void print_seek_pointer() {
 
 void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, uint8_t packet_type)
 {
-  int adc_instance = 10;
-
+  int adc_instance  = 10;
+  int16_t temp_packets = num_of_packets;
   struct flash_operation flash = {'\0'};
   struct file fp_seek;
   // uint16_t test[8];
   struct SEEK_POINTER seek_pointer;
   struct file fp;
-  pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+  // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
   int fd = file_open(&fp, path, O_RDONLY);
   // int fd_seek = file_open(&fp_seek, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_RDWR | O_TRUNC);
@@ -1208,12 +1247,12 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
           }
         }
         file_close(&fp);
-                    pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+                    // pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
 
         struct SEEK_POINTER temp;
-        pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
-
-        fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_RDWR);
+        // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+        if(temp_packets !=0)
+       { fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_RDWR);
         if (fd >= 0)
         {
           if (file_read(&fp, &temp, sizeof(struct SEEK_POINTER)) >= 0)
@@ -1255,8 +1294,8 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
             // }
           }
         }
-        close(fd);
-        pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+        close(fd);}
+        // pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
 
         // file_close(&fp);
         update_seek_pointer(path, address, count, temp);

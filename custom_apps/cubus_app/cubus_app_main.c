@@ -63,6 +63,8 @@
 // wdog include
 #include "watchdog.h"
 int wdog_fd = -1;
+pthread_mutex_t uart_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 // wdog
 #define ANT_DEPLOY_TIME 2//60 * 30                  // 60 *30 seconds = 30minutes
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
@@ -80,7 +82,9 @@ void print_beacon_a();
 void print_beacon_b();
 void handle_reservation_command(int, struct reservation_command);
 void set_time(uint32_t);
-void get_top_rsv(struct reservation_command *res);
+// void get_top_rsv(struct reservation_command *res);
+void get_top_rsv(struct reservation_command *res, uint32_t *timer);
+
 void flash_operation_data(uint16_t loop);
 uint64_t get_time_data();
 struct sensor_rgb sensor_rgb_0;
@@ -621,7 +625,9 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
   int i;
   int count = 0, ret;
   int wr1;
-  fd = open_uart(COM_UART);
+  //pthread_mutex_lock(&uart_mutex);
+
+  fd = open(COM_UART, O_RDWR);
   if (fd < 0)
   {
     printf("error opening %s\n", dev_path);
@@ -653,7 +659,7 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
         printf("%02x ", data[i]);
       }
     }
-    sleep(2);
+    sleep(1);
     printf("\nTurning off  4v DCDC line..\n");
     int x = 0;
     while (x < 200000)
@@ -672,7 +678,10 @@ int send_data_uart(char *dev_path, uint8_t *data, uint16_t size)
     printf("\n%d bytes written\nwdog refreshed\n", wr1);
     // pet_counter = 0; // TODO rethink on this later internal wdog
   }
-  close_uart(fd);
+  close(fd);
+  //pthread_mutex_lock(&uart_mutex);
+
+
   return wr1;
 }
 
@@ -710,7 +719,7 @@ int receive_telecommand_rx(uint8_t *COM_RX_DATA)
       uint8_t commands[COM_DATA_SIZE] = {11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 0x01, 0x01, 0xca, 0xd1, 0xf3, 0, 0, 0, 0, 0, 0, 00, 0, 0};
       printf("\n-------------parse command starting-------------\n");
     }
-
+    
     return 0; // todo remove this part
   }
   syslog(LOG_DEBUG, "Value of digipeating is %d %d\n", digipeating, COM_RX_DATA[HEADER]);
@@ -956,7 +965,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
                 __file_operations.mcu_id = 0xad;
 
                 __file_operations.select_file = RESERVATION_TABLE;
-                strcat(__file_operations.filepath, "/reservation_table.txt");
+                strcat(__file_operations.filepath, "/reservation_command.txt");
               }
               else if ((cmds[2] == 0xF5))
               {
@@ -1167,12 +1176,12 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               gpio_write(GPIO_KILL_SW1_POS, false);
               gpio_write(GPIO_KILL_SW_EN, true);
 
-              critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
               syslog(LOG_DEBUG, "---------kill switch command received\n");
 
               if (0 == receive_command(&kill_sw))
               // store_flag_data(1,&critic_flags);
               {
+                critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
                 syslog(LOG_DEBUG, "---------kill switch activated\n");
               }
             }
@@ -1332,6 +1341,11 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
         t = (uint16_t)cmds[3] << 8 | cmds[4];
         printf("Reservation command received with time:%d minutes", t);
         printf("The command is %02x %02x %02x\n", cmds[0], cmds[1], cmds[2]);
+        if(res.mcu_id>=3 && res.mcu_id <=5){
+            sat_health.rsv_flag += 1;
+            critic_flags.RSV_FLAG += 1;
+            save_critics_flags(&critic_flags);
+        }
         int raw_afd = orb_advertise_multi_queue_persist(ORB_ID(reservation_command), &res,
                                                         &adc_instance, sizeof(struct reservation_command));
 
@@ -1349,9 +1363,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           {
             syslog(LOG_DEBUG, "Reservation Command Orb Published\n");
             // sat_health.rsv_cmd+=1;
-            sat_health.rsv_flag += 1;
-            critic_flags.RSV_FLAG += 1;
-            save_critics_flags(&critic_flags);
+
             // sort_reservation_command(1, false);
 
             // FIRST_RSV_CMD = true;
@@ -1468,12 +1480,12 @@ static int COM_TASK(int argc, char *argv[])
         critic_flags.OPER_MODE = SAFE_MODE;
       }
       receive_telecommand_rx(rx_data);
-      // get_top_rsv(&TO_EXECUTE);
+      get_top_rsv(&TO_EXECUTE,&timer);
       // pet_counter =0;
       // res.latest_time =10;
       // get_top_rsv(&res);
 
-      // handle_reservation_command(1, TO_EXECUTE);
+      handle_reservation_command(1, TO_EXECUTE);
     }
     // usleep(1000);
     sleep(3);
@@ -1489,7 +1501,7 @@ void send_beacon(int argc, char *argv)
 
   for (;;)
   {
-    if (COM_HANDSHAKE_STATUS == 1 )//&& count_beacon % 19 == 0
+    if (COM_HANDSHAKE_STATUS == 1)// && count_beacon % 90 == 0)//
     {
       count_beacon = 0;
       read_int_adc1();
@@ -1504,9 +1516,9 @@ void send_beacon(int argc, char *argv)
       // gpio_write(GPIO_3V3_COM_EN, 0); // Disable COM systems
       
     }
-    count_beacon += 1;
-    timer++;
-    sleep(30); // 90 // TODO make it 90 later
+    count_beacon += 90;
+    timer+=90;
+    sleep(90); // 90 // TODO make it 90 later
 
   }
 
@@ -1841,7 +1853,10 @@ int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
     if (data[0] == 0x42 && data[1] == 0xac && data[2] == 0x04 && data[3] == 0x02 && data[4] == 0x4d)
     {
       pet_counter = 0;
-      printf("\nACK received from COM(Data received by COM)\n");
+      printf("\n________________________________________________________________________\n");
+      printf("ACK received from COM(Data received by COM)\n");
+      printf("\n________________________________________________________________________\n");
+
     }
     else
     {
@@ -2070,25 +2085,24 @@ void Make_Beacon_Data(uint8_t type)
   }
 }
 
-pthread_mutex_t uart_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int open_uart(const char *uart_dev)
 {
-  pthread_mutex_lock(&uart_mutex);
+  //pthread_mutex_lock(&uart_mutex);
   int fd = open(uart_dev, O_RDWR);
   if (fd < 0)
   {
     syslog(LOG_ERR, "Failed to open UART %s: %d", uart_dev, errno);
   }
-  pthread_mutex_unlock(&uart_mutex);
+  //pthread_mutex_unlock(&uart_mutex);
   return fd;
 }
 
 void close_uart(int fd)
 {
-  pthread_mutex_lock(&uart_mutex);
+  //pthread_mutex_lock(&uart_mutex);
   close(fd);
-  pthread_mutex_unlock(&uart_mutex);
+  //pthread_mutex_unlock(&uart_mutex);
 }
 
 /*
@@ -2130,7 +2144,7 @@ void truncate_text_file(struct FILE_OPERATIONS *file_operations)
   }
   if (close(fd) < 0)
   {
-    printf("Failed to close COM UART: %s\n", strerror(errno));
+    printf("Failed to close UART: %s\n", strerror(errno));
     close(fd);
   }
   // file_close(&truncate_ptr);
@@ -2543,6 +2557,9 @@ int main(int argc, FAR char *argv[])
         print_satellite_health_data(&read_pointer);
     }
   }
+  else if( strcmp(argv[1], "clear")  ==0){
+    clear_int_flag();
+  }
   else if(strcmp(argv[1], "logs") == 0){
     int32_t final_count = 56789123, temp;
     uint8_t temp_var[4] = {0};
@@ -2583,7 +2600,7 @@ int main(int argc, FAR char *argv[])
     printf("************************************************\n");
     printf("***********S2S commander app************\n");
 
-    printf("********ANtenna deployement starting************\n");
+    // printf("********ANtenna deployement starting************\n");
 
     Antenna_Deployment(argc, argv);
     print_critical_flag_data(&critic_flags);
@@ -2748,7 +2765,9 @@ void send_flash_data(uint8_t *beacon_data)
   gpio_write(GPIO_DCDC_4V_EN, 1);
   printf("Turning on COM 4V line..\n");
   gpio_write(GPIO_COM_4V_EN, 1);
-  int fd = open_uart(COM_UART); // open(COM_UART, O_RDWR);
+  //pthread_mutex_lock(&uart_mutex);
+
+  int fd = open(COM_UART, O_RDWR);
   int ret2;
   if (fd < 0)
   {
@@ -2818,7 +2837,9 @@ void send_flash_data(uint8_t *beacon_data)
   gpio_write(GPIO_DCDC_4V_EN, 0);
   printf("\nTurning off COM 4V line..\n");
   gpio_write(GPIO_COM_4V_EN, 0);
-  close_uart(fd);
+  close(fd);
+  //pthread_mutex_unlock(&uart_mutex);
+
 }
 
 // COM
@@ -2886,6 +2907,7 @@ int send_beacon_data()
       // print_seek_pointer();
       beacon_type = !beacon_type;
       print_satellite_health_data(&sat_health);
+      store_flag_data(&critic_flags);
 
       // work_queue(HPWORK, &work_beacon, send_beacon_data, NULL, SEC2TICK(BEACON_DELAY));
     }
@@ -2940,19 +2962,27 @@ void Antenna_Deployment(int argc, char *argv[])
     // critic_flags.UL_STATE = UL_RX;
     rd_flags_int.ANT_DEP_STAT = DEPLOYED;
     rd_flags_int.UL_STATE = UL_RX;
+
+      critic_flags.ANT_DEP_STAT = DEPLOYED;
+      critic_flags.KILL_SWITCH_STAT = KILL_SW_OFF;
+      critic_flags.OPER_MODE = NRML_MODE;
+      critic_flags.RSV_FLAG = RSV_NOT_RUNNING;
+      critic_flags.UL_STATE = UL_RX;
+      critic_flags.RST_COUNT = 0;
+
     sat_health.ant_dep_stat = critic_flags.ANT_DEP_STAT;
     sat_health.ul_state = critic_flags.UL_STATE;
-
     printf("Updated flag data...\n");
   }
 
   rd_flags_int.RST_COUNT += 1;
+  critic_flags.RST_COUNT += 1;
   // save_critics_flags(&rd_flags_int);
   store_flag_data(&rd_flags_int);
 
   rd_flags_int.ANT_DEP_STAT = 0x00;
   load_critics_flags(&rd_flags_int);
-  print_critical_flag_data(&rd_flags_int);
+  // print_critical_flag_data(&rd_flags_int);
 }
 
 void adcs_operation(uint8_t mode)
@@ -3775,75 +3805,70 @@ void print_beacon_b()
   printf("------------------------\n");
 }
 
-void handle_reservation_command(int fd_reservation, struct reservation_command res)
-{
-    if (critic_flags.OPER_MODE == NRML_MODE)
-    {
-        if (res.time[0] == 0 && res.time[1] == 0)
-        {
+void handle_reservation_command(int fd_reservation, struct reservation_command res) {
+    // uint32_t timer = 0;
+
+    // Process the reservation command
+    if (critic_flags.OPER_MODE == NRML_MODE) {
+        if (res.time[0] == 0 && res.time[1] == 0) {
             // Reset command
             memset(&res, 0, sizeof(res));
-        }
-        else
-        {
-            if (memcmp(res.cmd, TO_EXECUTE.cmd, sizeof(res.cmd)) != 0 || res.time[0] != TO_EXECUTE.time[0])
-            {
+        } else {
+            if (memcmp(res.cmd, TO_EXECUTE.cmd, sizeof(res.cmd)) != 0 || res.time[0] != TO_EXECUTE.time[0]) {
                 TO_EXECUTE = res;
             }
         }
 
         TO_EXECUTE.latest_time = ((uint32_t)TO_EXECUTE.cmd[3] << 8 | TO_EXECUTE.cmd[4]) * 60;
-
-        if (TO_EXECUTE.mcu_id != 0 && TO_EXECUTE.mcu_id < 10)
-        {
+        TO_EXECUTE.latest_time +=timer;
+        if (TO_EXECUTE.mcu_id != 0 && TO_EXECUTE.mcu_id < 10) {
             RSV_CMD[16] = TO_EXECUTE.mcu_id;
             memcpy(&RSV_CMD[17], TO_EXECUTE.cmd, 3);
 
-            printf("---------------------------------------------\n");
-            printf("-_________________________________________________________________________\n");
-            printf("Here we have reservation command as %s and time remaining is %d %d\n", RSV_CMD, timer, TO_EXECUTE.latest_time);
-            printf("_________________________________________________________________________-\n");
-            printf("---------------------------------------------\n");
+            printf("Reservation command: %s\n", RSV_CMD);
+            printf("Time remaining: %d out of %u seconds\n", timer, TO_EXECUTE.latest_time);
+            // if(timer )
 
             memset(&res, 0, sizeof(res));
-
-            sat_health.rsv_flag -= 1;
+            // sat_health.rsv_flag -= 1;
             sat_health.rsv_cmd = 0x00;
         }
     }
 
-    if (RSV_CMD[16] != 0x00 && RSV_CMD[16] == TO_EXECUTE.mcu_id && RSV_CMD[17] != 0x00 && RSV_CMD[18] != 0x00 && timer > TO_EXECUTE.latest_time)
-    {
+    if (RSV_CMD[16] != 0x00 && RSV_CMD[16] == TO_EXECUTE.mcu_id &&
+        RSV_CMD[17] != 0x00 && RSV_CMD[18] != 0x00 &&
+        timer >= TO_EXECUTE.latest_time) {
+
         parse_command(&RSV_CMD);
         memset(&TO_EXECUTE, 0, sizeof(TO_EXECUTE));
         memset(RSV_CMD + 16, 0, 5);
-        timer = 0;
+        // timer = 0;
 
         struct file file_ptr;
         uint16_t temp = 0;
 
         int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+        if (fd < 0) {
+            printf("Error: Failed to open reservation command file\n");
+            return;
+        }
+
         struct reservation_command res_temp[16];
         uint16_t file_size = file_seek(&file_ptr, 0, SEEK_END);
+        int n = file_size / sizeof(struct reservation_command);
 
-        for (int i = 0; i < (file_size / sizeof(struct reservation_command)); i++)
-        {
-            file_seek(&file_ptr, temp, SEEK_SET);
-            temp += sizeof(struct reservation_command);
+        for (int i = 0; i < n; i++) {
+            file_seek(&file_ptr, i * sizeof(struct reservation_command), SEEK_SET);
             file_read(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
         }
         file_close(&file_ptr);
 
-        int n = file_size / sizeof(struct reservation_command);
-
-        for (int i = 1; i < n - 1; i++)
-        {
-            for (int j = 1; j < n - i; j++)
-            {
+        // Sort the reservation commands
+        for (int i = 0; i < n - 1; i++) {
+            for (int j = 0; j < n - i - 1; j++) {
                 uint16_t t1 = (uint16_t)res_temp[j].cmd[3] << 8 | res_temp[j].cmd[4];
                 uint16_t t2 = (uint16_t)res_temp[j + 1].cmd[3] << 8 | res_temp[j + 1].cmd[4];
-                if (t1 > t2)
-                {
+                if (t1 > t2) {
                     struct reservation_command temp = res_temp[j];
                     res_temp[j] = res_temp[j + 1];
                     res_temp[j + 1] = temp;
@@ -3851,28 +3876,21 @@ void handle_reservation_command(int fd_reservation, struct reservation_command r
             }
         }
 
-        for (int i = 1; i < n; i++)
-        {
-            printf("Number of res command read is %d and temp is %d\n", i + 1, temp);
-            printf("_________________Sorted________________________\n");
-            printf("MCU id : %02x Cmd[0] :%02x , Cmd[1]:%02x ,Cmd[2]:%02x, Cmd[3]:%02x Time[0]:%02x Time[1]:%d executed:%d\n",
-                   res_temp[i].mcu_id, res_temp[i].cmd[0], res_temp[i].cmd[1], res_temp[i].cmd[2], res_temp[i].cmd[3], res_temp[i].cmd[4], res_temp[i].cmd[5], res_temp[i].executed);
-            printf("__________________Sorted_______________________\n");
-        }
-
-        if (n == 1)
-        {
-            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC);
-        }
-        else
-        {
-            fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC | O_WRONLY | O_APPEND);
-            for (int i = 1; i < n; i++)
-            {
+        fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_TRUNC | O_WRONLY);
+        if (fd >= 0) {
+            for (int i = 1; i < n; i++) {
                 file_write(&file_ptr, &res_temp[i], sizeof(struct reservation_command));
             }
+            file_close(&file_ptr);
+        } else {
+            printf("Error: Failed to open file for writing\n");
         }
-        file_close(&file_ptr);
+
+         critic_flags.RSV_FLAG -= 1;
+          sat_health.rsv_flag = critic_flags.RSV_FLAG;
+        save_critics_flags(&critic_flags);
+        // timer = 0;
+
     }
 }
 
@@ -3967,6 +3985,7 @@ void flash_read_operation_uorb()
   }
   ret = orb_unadvertise(raw_afd);
 }
+
 void flash_operation_data(uint16_t loop)
 {
   struct flash_operation flash;
@@ -4023,6 +4042,7 @@ void flash_operation_data(uint16_t loop)
 
   orb_unsubscribe(flash_fd);
 }
+
 
 void operation_log(char data[10])
 {

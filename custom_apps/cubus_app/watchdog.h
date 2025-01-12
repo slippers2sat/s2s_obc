@@ -79,7 +79,7 @@ static int watchdog_task(int argc, char *argv[])
         }
         else
         {
-          if(pet_counter % 5 == 0)
+          if(pet_counter % 50 == 0)
             printf("Watchdog petted! %d\n", pet_counter);
           pet_counter += 1;
           sleep(1);

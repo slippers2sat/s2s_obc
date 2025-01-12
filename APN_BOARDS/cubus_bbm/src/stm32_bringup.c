@@ -194,6 +194,7 @@ int stm32_bringup(void)
 
 // TODO:REMOVE later
 // stm32_gpiowrite(GPIO_3V3_COM_EN,true);
+  stm32_wdg_setup();  
   stm32_gpiowrite(GPIO_MUX_EN,  false);
   stm32_gpiowrite(GPIO_SFM_MODE, false);
   stm32_gpiowrite(GPIO_3V3_COM_EN,true);
@@ -370,31 +371,31 @@ int stm32_bringup(void)
   }
 #endif
 
-// #ifdef CONFIG_STM32_TIM6
+#ifdef CONFIG_STM32_TIM6
 
-//   ret = stm32_timer_initialize("/dev/timer6", 6);
-//   if (ret < 0)
-//   {
-//     printf("failed to initialize /dev/timer6 : %d\n", ret);
-//   }
-//   else
-//   {
-//     printf("Timer 6 has been initialized successfully\n");
-//   }
-// #endif
+  ret = stm32_timer_initialize("/dev/timer6", 6);
+  if (ret < 0)
+  {
+    printf("failed to initialize /dev/timer6 : %d\n", ret);
+  }
+  else
+  {
+    printf("Timer 6 has been initialized successfully\n");
+  }
+#endif
 
-// #ifdef CONFIG_STM32_TIM7
-//   ret = stm32_timer_initialize("/dev/timer7", 7);
-//   if (ret < 0)
-//   {
-//     printf("failed to initialize /dev/timer7 : %d\n", ret);
-//   }
-//   else
-//   {
-//     printf("Timer 77 has been initialized successfully\n");
-//   }
+#ifdef CONFIG_STM32_TIM7
+  ret = stm32_timer_initialize("/dev/timer7", 7);
+  if (ret < 0)
+  {
+    printf("failed to initialize /dev/timer7 : %d\n", ret);
+  }
+  else
+  {
+    printf("Timer 77 has been initialized successfully\n");
+  }
 
-// #endif
+#endif
 
 // #ifdef CONFIG_STM32_TIM8
 //   ret = stm32_timer_initialize("/dev/timer8", 8);

@@ -18,7 +18,7 @@
 #
 # ##############################################################################
 
-set(SRCS stm32_boot.c stm32_bringup.c stm32_spi.c)
+set(SRCS stm32_boot.c stm32_bringup.c stm32_spi.c stm32_wdg.c)
 
 
 if(CONFIG_BOARDCTL)
