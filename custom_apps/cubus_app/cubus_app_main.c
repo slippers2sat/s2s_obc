@@ -3816,11 +3816,12 @@ void handle_reservation_command(int fd_reservation, struct reservation_command r
         } else {
             if (memcmp(res.cmd, TO_EXECUTE.cmd, sizeof(res.cmd)) != 0 || res.time[0] != TO_EXECUTE.time[0]) {
                 TO_EXECUTE = res;
+                TO_EXECUTE.latest_time = timer + TO_EXECUTE.latest_time;
             }
         }
 
         TO_EXECUTE.latest_time = ((uint32_t)TO_EXECUTE.cmd[3] << 8 | TO_EXECUTE.cmd[4]) * 60;
-        TO_EXECUTE.latest_time +=timer;
+        // TO_EXECUTE.latest_time +=timer;
         if (TO_EXECUTE.mcu_id != 0 && TO_EXECUTE.mcu_id < 10) {
             RSV_CMD[16] = TO_EXECUTE.mcu_id;
             memcpy(&RSV_CMD[17], TO_EXECUTE.cmd, 3);

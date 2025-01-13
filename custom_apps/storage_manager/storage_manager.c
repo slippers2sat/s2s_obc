@@ -46,6 +46,7 @@ void Setup();
 
 #define NB_LOWERHALFS 1
 #define FLASH_DATA_SIZE 80
+int32_t time_counter = 0;
 
 struct SEEK_POINTER
 {
@@ -230,10 +231,13 @@ void read_and_print_mag_data(void)
             if (memcmp(&res, &last_res, sizeof(res)) != 0 )//res.mcu_id>=3 && res.mcu_id <=5
             {
                 printf("Value of reservation command uORB has been updated\n");
-                printf("The reservation command is %02x %02x %02x\n", res.cmd[0], res.cmd[1], res.cmd[2]);
 
                 // Update the last processed command
+                res.latest_time += time_counter;
                 last_res = res;
+                printf("The reservation command is %02x %02x %02x %d\n", res.cmd[0], res.cmd[1], res.cmd[2], res.latest_time);
+
+                
         
                 // if (res.latest_time == 0x00 && res.mcu_id != 0)
                 {
@@ -248,6 +252,7 @@ void read_and_print_mag_data(void)
                         if (bytes_written > 0)
                         {
                             printf("File size is %zd. Reservation table updated with %zd bytes\n", file_size, bytes_written);
+                            res.latest_time -= time_counter;
                         }
                         // file_close(&file_ptr);
                     }
@@ -304,6 +309,7 @@ void read_and_print_mag_data(void)
                 maintain_data_consistency();
             }
         }
+        time_counter+=10;
 
         sleep(10); // Sleep for 1 second
     }
@@ -750,7 +756,7 @@ void get_top_rsv(struct reservation_command *res, uint32_t *timer)
         file_seek(&fptr, 0, SEEK_SET);
         file_read(&fptr, res, sizeof(struct reservation_command));
         res->latest_time = timer + ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
-        printf("Read the data as: MCU ID: %02x, CMD: %02x %02x %02x %02x %02x %02x\n",
+        printf("Read the data as: MCU ID: %02x, CMD: %02x %02x %02x %02x %02x %d\n",
                res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4], res->latest_time);
         // *timer = 0; // Reset the timer
     }
