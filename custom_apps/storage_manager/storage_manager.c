@@ -215,9 +215,9 @@ void read_and_print_mag_data(void)
         //     sort_reservation_command(1, false);
         // }
         count+=10;
-        printf(
-          "read and print amg))))))))))))))))))))))))))))))))))))))\n"
-        );
+        // printf(
+        //   "read and print amg))))))))))))))))))))))))))))))))))))))\n"
+        // );
 
         orb_check(fd_reservation, &updated);
         // printf("The value of updated is %d\n",updated);

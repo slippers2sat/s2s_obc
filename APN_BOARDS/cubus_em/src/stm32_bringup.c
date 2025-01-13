@@ -434,6 +434,7 @@ int stm32_bringup(void)
   }
 
 #endif
+  stm32_gpiowrite(GPIO_WD_WDI,true);
 
 // #ifdef CONFIG_STM32_TIM8
 //   ret = stm32_timer_initialize("/dev/timer8", 8);

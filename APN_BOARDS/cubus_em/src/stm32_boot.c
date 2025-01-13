@@ -219,6 +219,8 @@ int board_app_initialize(uintptr_t arg)
 {
 
   printf("Initializing board applications.\n");
+  stm32_gpiowrite(GPIO_WD_WDI,false);
+
   board_peripheral_reset(1);
 
 #if defined(CONFIG_STM32_SPI1) || defined(CONFIG_STM32_SPI2) || \
