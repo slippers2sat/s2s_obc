@@ -233,7 +233,7 @@ void read_and_print_mag_data(void)
                 printf("Value of reservation command uORB has been updated\n");
 
                 // Update the last processed command
-                res.latest_time += time_counter;
+                // res.latest_time += time_counter;
                 last_res = res;
                 printf("The reservation command is %02x %02x %02x %d\n", res.cmd[0], res.cmd[1], res.cmd[2], res.latest_time);
 
@@ -252,7 +252,7 @@ void read_and_print_mag_data(void)
                         if (bytes_written > 0)
                         {
                             printf("File size is %zd. Reservation table updated with %zd bytes\n", file_size, bytes_written);
-                            res.latest_time -= time_counter;
+                            // res.latest_time -= time_counter;
                         }
                         // file_close(&file_ptr);
                     }
@@ -730,40 +730,42 @@ void Setup()
 
 // }//today
 
+///this is edited one
+// void get_top_rsv(struct reservation_command *res, uint32_t *timer) 
+// {
+//     struct file fptr;
 
-void get_top_rsv(struct reservation_command *res, uint32_t *timer) 
-{
-    struct file fptr;
+//     // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
-    // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+//     int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+//     if (fd < 0) {
+//         printf("Error: Failed to open reservation command file\n");
+//         memset(res, 0, sizeof(struct reservation_command));
+//         // *timer = 0;
+//         // pthread_mutex_unlock(&main_flash_mutex);
+//         return;
+//     }
+//     uint32_t temp_time =0;
 
-    int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
-    if (fd < 0) {
-        printf("Error: Failed to open reservation command file\n");
-        memset(res, 0, sizeof(struct reservation_command));
-        // *timer = 0;
-        // pthread_mutex_unlock(&main_flash_mutex);
-        return;
-    }
+//     uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+//     printf("The file_size is %d\n", file_size);
 
-    uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
-    printf("The file_size is %d\n", file_size);
+//     if (file_size == 0 || file_size < sizeof(struct reservation_command)) {
+//         memset(res, 0, sizeof(struct reservation_command));
+//         // *timer = 0;
+//     } else {
+//         file_seek(&fptr, 0, SEEK_SET);
+//         file_read(&fptr, res, sizeof(struct reservation_command));
+//         res->latest_time = timer + ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
+//         // if(timer_status == false)
+//         printf("Read the data as: MCU ID: %02x, CMD: %02x %02x %02x %02x %02x %d\n",
+//                res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4], res->latest_time);
+//         // *timer = 0; // Reset the timer
+//     }
 
-    if (file_size == 0 || file_size < sizeof(struct reservation_command)) {
-        memset(res, 0, sizeof(struct reservation_command));
-        // *timer = 0;
-    } else {
-        file_seek(&fptr, 0, SEEK_SET);
-        file_read(&fptr, res, sizeof(struct reservation_command));
-        res->latest_time = timer + ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
-        printf("Read the data as: MCU ID: %02x, CMD: %02x %02x %02x %02x %02x %d\n",
-               res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4], res->latest_time);
-        // *timer = 0; // Reset the timer
-    }
-
-    file_close(&fptr);
-    // pthread_mutex_unlock(&main_flash_mutex); // Unlock the mutex
-}
+//     file_close(&fptr);
+//     // pthread_mutex_unlock(&main_flash_mutex); // Unlock the mutex
+// }
 
 
 // void sort_reservation_command(uint16_t file_size, bool reorder) {

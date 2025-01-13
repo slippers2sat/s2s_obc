@@ -70,7 +70,7 @@ pthread_mutex_t uart_mutex = PTHREAD_MUTEX_INITIALIZER;
 #define VOLT_DIV_RATIO ((1100 + 931) / 931) // ratio of voltage divider used
 #define GBL_RESET_TIME 500 //seconds in a day
 #define FLASH_DATA_LEN  0x52// flash packet length in hex
-
+bool timer_status = false;uint64_t timer_counter =0;
 float x[8], y[8];
 
 int ads7953_receiver(int argc, FAR char *argv[]);
@@ -1467,6 +1467,8 @@ static int COM_TASK(int argc, char *argv[])
   uint32_t t2;
 
   time_t current_time;
+  uint32_t temp_timer=0;
+  // bool co
   for (;;)
   {
     if (COM_HANDSHAKE_STATUS == 1)
@@ -1480,12 +1482,14 @@ static int COM_TASK(int argc, char *argv[])
         critic_flags.OPER_MODE = SAFE_MODE;
       }
       receive_telecommand_rx(rx_data);
-      get_top_rsv(&TO_EXECUTE,&timer);
+      // if(TO_EXECUTE.mcu_id >= 0x03 && TO_EXECUTE.mcu_id <= 0x05)
+      {get_top_rsv(&TO_EXECUTE,&timer);
       // pet_counter =0;
       // res.latest_time =10;
       // get_top_rsv(&res);
+      // if(TO_EXECUTE.mcu_id >= 0x03 && TO_EXECUTE.mcu_id <= 0x05)
 
-      handle_reservation_command(1, TO_EXECUTE);
+      handle_reservation_command(1, TO_EXECUTE);}
     }
     // usleep(1000);
     sleep(3);
@@ -3830,19 +3834,24 @@ void handle_reservation_command(int fd_reservation, struct reservation_command r
             printf("Time remaining: %d out of %u seconds\n", timer, TO_EXECUTE.latest_time);
             // if(timer )
 
-            memset(&res, 0, sizeof(res));
+            // memset(&res, 0, sizeof(res));
             // sat_health.rsv_flag -= 1;
-            sat_health.rsv_cmd = 0x00;
+            // sat_health.rsv_cmd = 0x00;
         }
     }
 
     if (RSV_CMD[16] != 0x00 && RSV_CMD[16] == TO_EXECUTE.mcu_id &&
         RSV_CMD[17] != 0x00 && RSV_CMD[18] != 0x00 &&
-        timer >= TO_EXECUTE.latest_time) {
+        timer >= TO_EXECUTE.latest_time + timer_counter) {
+          printf("----------------------------------------------------\n");
+          printf("Time elapsed %d time remaining %d\n",timer, TO_EXECUTE.latest_time + timer_counter);
+          printf("----------------------------------------------------\n");
 
         parse_command(&RSV_CMD);
         memset(&TO_EXECUTE, 0, sizeof(TO_EXECUTE));
         memset(RSV_CMD + 16, 0, 5);
+        timer_status = false;
+        timer_counter =0;
         // timer = 0;
 
         struct file file_ptr;
@@ -4052,4 +4061,47 @@ void operation_log(char data[10])
   if (file_write(&fp, data, strlen(data)) > 0)
   {
   }
+}
+
+
+
+void get_top_rsv(struct reservation_command *res, uint32_t *timer1) 
+{
+    struct file fptr;
+
+    // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+  // if(TO_EXECUTE.mcu_id >=3 && TO_EXECUTE.mcu_id <= 5)
+  {  int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
+    if (fd < 0) {
+        printf("Error: Failed to open reservation command file\n");
+        memset(res, 0, sizeof(struct reservation_command));
+        // *timer = 0;
+        // pthread_mutex_unlock(&main_flash_mutex);
+        return;
+    }
+    uint32_t temp_time =0;
+     if(timer_status == false){
+       timer_counter = timer;
+       timer_status = true;
+    }
+
+    uint32_t file_size = file_seek(&fptr, 0, SEEK_END);
+    printf("The file_size is %d\n", file_size);
+
+    if (file_size == 0 || file_size < sizeof(struct reservation_command)) {
+        memset(res, 0, sizeof(struct reservation_command));
+        // *timer = 0;
+    } else {
+        file_seek(&fptr, 0, SEEK_SET);
+        file_read(&fptr, res, sizeof(struct reservation_command));
+        res->latest_time =  ((uint32_t)res->cmd[3] << 8 | res->cmd[4]) * 60;
+        // if(timer_status == false)
+        printf("Read the data as: MCU ID: %02x, CMD: %02x %02x %02x %02x %02x %d\n",
+               res->mcu_id, res->cmd[0], res->cmd[1], res->cmd[2], res->cmd[3], res->cmd[4], res->latest_time);
+        // *timer = 0; // Reset the timer
+    }
+
+    file_close(&fptr);}
+   
+    // pthread_mutex_unlock(&main_flash_mutex); // Unlock the mutex
 }
