@@ -65,12 +65,12 @@ void wdt_toggle_task(void *arg)
         // Toggle GPIO state every 500ms
         gpio_state = !gpio_state;
         stm32_gpiowrite(GPIO_WD_WDI,gpio_state);
-        if(count > random_number){
-          while(1){
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\nRandom number was %d\nExternal watchdog will be triggered soon!\n\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",random_number);
-            sleep(2);
-          }
-        }
+        // if(count > random_number){
+        //   while(1){
+        //     printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\nRandom number was %d\nExternal watchdog will be triggered soon!\n\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",random_number);
+        //     sleep(2);
+        //   }
+        // }
         
 
         // printf("GPIO state: %d\n", gpio_state);  // Optional: print the GPIO state

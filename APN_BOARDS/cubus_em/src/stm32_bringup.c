@@ -198,6 +198,8 @@ void configure_rtc(void) {
 
 int stm32_bringup(void)
 {
+  stm32_wdg_setup();
+
   
   configure_rtc();
   // static bool gpio_state = true;
@@ -542,7 +544,7 @@ stm32_wwdginitialize("/dev/wwdg0");
 // stm32_serial_dma_setup();
 // stm32_serial_dma_initialize();
 // write();
-  stm32_wdg_setup();
+  // stm32_wdg_setup();
 
   return 0;
 }

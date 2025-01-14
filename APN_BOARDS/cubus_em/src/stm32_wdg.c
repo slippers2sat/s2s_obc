@@ -70,7 +70,7 @@ void wdt_toggle_task(void *arg)
         //   }
         // }
         
-
+        // if(count<10)
         // printf("GPIO state: %d\n", gpio_state);  // Optional: print the GPIO state
 
         // Wait for 500ms before toggling again
@@ -88,7 +88,7 @@ void wdt_toggle_task(void *arg)
 
 int stm32_wdg_setup(void)
 {
-  pid_t pid = task_create("[WDT_toggle_task]", 100, 804, wdt_toggle_task, NULL);
+  pid_t pid = task_create("[WDT_toggle_task]", 95, 804, wdt_toggle_task, NULL);
     if (pid < 0)
     {
         printf("ERROR: Failed to create wdt_toggle_task\n");
