@@ -42,60 +42,63 @@
 #define file_name_cam_msn           "/cam_rgb.txt"
 #define file_name_test_msn          "/test_msn.txt"
 
+
 typedef struct  {
 	// uint64_t timestamp;
-	int16_t accl_x;
-	int16_t accl_y;
-	int16_t accl_z;
-	int16_t gyro_x;
-	int16_t gyro_y;
-	int16_t gyro_z;
-	int16_t mag_x;
-	int16_t mag_y;
-	int16_t mag_z;
-	int16_t temp_x;
-	int16_t temp_x1;
-	int16_t temp_y;
-	int16_t temp_y1;
-	int16_t temp_z;
-	int16_t temp_z1;
-	int16_t temp_bpb;
-	int16_t temp_obc;
-	int16_t temp_com;
-	int16_t temp_batt;
-	int16_t batt_volt;
-	int16_t sol_p1_v;
-	int16_t sol_p2_v;
-	int16_t sol_p3_v;
-	int16_t sol_p4_v;
-	int16_t sol_p5_v;
-	int16_t sol_t_v;
-	int16_t raw_v;
-	int16_t sol_p1_c;
-	int16_t sol_p2_c;
-	int16_t sol_p3_c;
-	int16_t sol_p4_c;
-	int16_t sol_p5_c;
-	int16_t sol_t_c;
-	int16_t rst_3v3_c;
-	int16_t raw_c;
-	int16_t v3_main_c;
-	int16_t v3_com_c;
-	int16_t v3_2_c;
-	int16_t v5_c;
-	int16_t unreg_c;
-	int16_t v4_c;
-	int16_t batt_c;
-	int8_t rsv_cmd;
+	int16_t accl_x; //2
+	int16_t accl_y; //2
+	int16_t accl_z; //2
+	int16_t gyro_x; //2
+	int16_t gyro_y; //2 
+	int16_t gyro_z; //2
+	int16_t mag_x; //2 
+	int16_t mag_y; //2
+	int16_t mag_z; //2
+	int16_t temp_x; //2
+	int16_t temp_x1; //2
+	int16_t temp_y; //2
+	int16_t temp_y1; //2
+	int16_t temp_z; //2
+	int16_t temp_z1; //2
+	int16_t temp_bpb; //2
+	int16_t temp_obc; //2
+	int16_t temp_com; //2
+	int16_t temp_batt; //2
+	int16_t batt_volt; //2
+	int16_t sol_p1_v; //2
+	int16_t sol_p2_v; //2
+	int16_t sol_p3_v; //2
+	int16_t sol_p4_v; //2
+	int16_t sol_p5_v; //2
+	int16_t sol_t_v; //2
+	int16_t raw_v; //2
+	int16_t sol_p1_c; //2
+	int16_t sol_p2_c; //2
+	int16_t sol_p3_c; //2
+	int16_t sol_p4_c; //2
+	int16_t sol_p5_c; //2
+	int16_t sol_t_c; //2
+	int16_t rst_3v3_c; //2
+	int16_t raw_c; //2
+	int16_t v3_main_c; //2
+	int16_t v3_com_c; //2
+	int16_t v3_2_c; //2
+	int16_t v5_c; //2
+	int16_t unreg_c; //2
+	int16_t v4_c; //2
+	int16_t batt_c; //2
+	int8_t rsv_cmd; //1
 
-	int8_t ant_dep_stat;
-	int8_t ul_state;
-	int8_t oper_mode;
-	int8_t msn_flag;
-	int8_t rsv_flag;
-	int8_t kill_switch;
+	int8_t ant_dep_stat; //1
+	int8_t ul_state; //1
+	int8_t oper_mode; //1
+	int8_t msn_flag; //1
+	int8_t rsv_flag; //1
+	int8_t kill_switch; //1
+	int8_t rst_counter; //1
 
-    int16_t ant_temp_out;
+    int16_t ant_temp_out; //2
+	int8_t SAT_MODE; //1
 }satellite_health_s;
 
 typedef struct __attribute__ ((__packed__))  _BEACON_A{
@@ -181,7 +184,7 @@ typedef struct {
 	uint8_t UL_STATE;			//uplink success
 	uint8_t OPER_MODE;			//operation modes
 	uint8_t KILL_SWITCH_STAT;	//kill switch status
-	uint8_t FILLER;				//to make sure data is stored in internal flash 
+	uint16_t RST_COUNT;		
 }CRITICAL_FLAGS;
 
 typedef enum _OPERA_MODES {

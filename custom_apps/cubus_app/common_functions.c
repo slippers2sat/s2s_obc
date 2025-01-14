@@ -66,6 +66,7 @@ int clear_int_flag(){
   pthread_mutex_unlock(&flash_mutex); // Lock the mutex
 
 }
+
 int store_flag_data(CRITICAL_FLAGS *flag_data)
 {
   struct file fp;

@@ -69,119 +69,50 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname);
 void sort_reservation_command(uint16_t file_size, bool reorder);
 int open_file_flash(struct file *file_pointer, char *flash_strpath, char *filename, int open_mode);
 
-// void read_and_print_mag_data(void)
+
+// int store_critical_flag_data(CRITICAL_FLAGS *flag_data)
 // {
-//   int sub_fd;
-//   struct reservation_command res;
-//   int fd_reservation;
-//   fd_reservation = orb_subscribe(ORB_ID(reservation_command));
-//   struct orb_mag_scaled_s mag_data;
-//   satellite_health_s satellite_health;
-//   bool updated;
+//   struct file fp;
+//   int bwr;
 
-//   struct pollfd fds2;
-//   struct sensor_rgb satHealth;
-//   int fd2, ret;
-//   fd2 = orb_subscribe_multi(ORB_ID(sensor_rgb), 0);
-//   fds2.fd = fd2;
-//   fds2.events = POLLIN;
-
-//   sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
-//   if (sub_fd < 0)
+//   printf("\n**************SToring flag data*********\n");
+//   print_critical_flag_data(flag_data);
+//   pthread_mutex_lock(&flash_mutex); // Lock the mutex
+  
+//   int fd = open("/dev/intflash", O_RDWR);
+//   if (fd >= 0)
 //   {
-//     syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
-//     return;
+//     up_progmem_eraseblock(22);
+//     up_progmem_write(FLAG_DATA_INT_ADDR, flag_data, sizeof(CRITICAL_FLAGS));
+//     close(fd);
 //   }
-
-//   while (1)
+//   else
 //   {
-//     if (count % 10 == 0)
-//     {
-//       sort_reservation_command(1, false);
-//       // flash_operations();
-//     }
-//     count++;
-
-//     orb_check(fd_reservation, &updated);
-//     if (updated)
-//     {
-//       struct file file_ptr;
-//       orb_copy(ORB_ID(reservation_command), fd_reservation, &res);
-//       printf("Value of reservation command uorb has been updated\n");
-//       printf("The reservation command is %02x %02x %02x\n", res.cmd[0], res.cmd[1], res.cmd[2]);
-
-//       if (res.latest_time == 0x00 && res.mcu_id != 0)
-//       {
-//         int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_CREAT | O_WRONLY | O_APPEND);
-//         ssize_t file_size = file_seek(&file_ptr, 0, SEEK_END);
-//         ssize_t bytes_written = file_write(&file_ptr, &res, sizeof(res));
-//         if (bytes_written > 0)
-//         {
-//           printf("File size is %zd.\nReservation table with data size %zd has been updated\n", file_size, bytes_written);
-//         }
-//         if ((ret = file_syncfs(&file_ptr)) < 0)
-//         {
-//           syslog(LOG_DEBUG, "some issue while synfs closing: %d\n", ret);
-//           file_syncfs(&file_ptr);
-//         }
-//         if (file_close(&file_ptr) < 0)
-//         {
-//           syslog(LOG_DEBUG, "some issue while synfs closing\n");
-//           file_close(&file_ptr);
-//         }
-//       }
-//       sleep(1);
-//     }
-
-//     if (count % 90 == 0)
-//     {
-//       count = 1;
-//       orb_check(sub_fd, &updated);
-//       if (updated)
-//       {
-//         orb_copy(ORB_ID(orb_mag_scaled), sub_fd, &mag_data);
-
-//         if (poll(&fds2, 1, 3000) > 0)
-//         {
-//           if (fds2.revents & POLLIN)
-//           {
-//             ret = orb_copy_multi(fd2, &satHealth, sizeof(struct sensor_rgb));
-//             if (ret < 0)
-//             {
-//               syslog(LOG_ERR, "ORB copy error, %d \n", ret);
-//               return;
-//             }
-//             else
-//             {
-//               printf("Satellite Health ORB is getting data %d\n", satellite_health.rsv_cmd);
-//             }
-//           }
-//         }
-
-//         satellite_health.accl_x = mag_data.acc_x;
-//         satellite_health.accl_y = mag_data.acc_y;
-//         satellite_health.accl_z = mag_data.acc_z;
-
-//         satellite_health.gyro_x = mag_data.gyro_x;
-//         satellite_health.gyro_y = mag_data.gyro_y;
-//         satellite_health.gyro_z = mag_data.gyro_z;
-
-//         satellite_health.mag_x = mag_data.mag_x;
-//         satellite_health.mag_y = mag_data.mag_y;
-//         satellite_health.mag_z = mag_data.mag_z;
-
-//         store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
-//         print_satellite_health_data(&satHealth);
-//         maintain_data_consistency();
-//       }
-//     }
-
-//     sleep(1); // Sleep for 1 second
+//     syslog(LOG_ERR, "Error opening internal flash to store new flag data ... \n");
+//     return -1;
 //   }
-
-//   orb_unsubscribe(sub_fd);
-//   orb_unsubscribe(fd_reservation);
-//   orb_unsubscribe(fd2);
+//   print_critical_flag_data(flag_data);
+//   pthread_mutex_unlock(&flash_mutex); // Lock the mutex
+  
+//   int fd1 = open_file_flash(&fp, MFM_MAIN_STRPATH, file_name_flag, O_RDWR);
+//   if (fd1 >= 0)
+//   {
+//     file_truncate(&fp, sizeof(CRITICAL_FLAGS));
+//     bwr = file_write(&fp, flag_data, sizeof(CRITICAL_FLAGS));
+//     if (bwr != sizeof(CRITICAL_FLAGS))
+//     {
+//       syslog(LOG_ERR, "Error in writing flag data to MFM\n");
+//     }
+//     file_close(&fp);
+//   }
+//   else
+//   {
+//     syslog(LOG_ERR, "Unable to open %s%s for writing critical flash data\n", MFM_MAIN_STRPATH, file_name_flag);
+//     return -1;
+//   }
+  
+//   syslog(LOG_DEBUG, "\n-----Storing data to flash-----\n");
+//   return 0;
 // }
 
 void read_and_print_mag_data(void)
@@ -201,12 +132,7 @@ void read_and_print_mag_data(void)
     fds2.fd = fd2;
     fds2.events = POLLIN;
    
-    sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
-    if (sub_fd < 0)
-    {
-        syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
-        // return;
-    }
+   
 
     while (1)
     {
@@ -215,6 +141,12 @@ void read_and_print_mag_data(void)
         //     sort_reservation_command(1, false);
         // }
         count+=10;
+         sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
+        if (sub_fd < 0)
+        {
+            syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
+            // return;
+        }
         // printf(
         //   "read and print amg))))))))))))))))))))))))))))))))))))))\n"
         // );
@@ -242,7 +174,7 @@ void read_and_print_mag_data(void)
                 // if (res.latest_time == 0x00 && res.mcu_id != 0)
                 {
                     struct file file_ptr;
-                    // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+                pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
                     int fd = open_file_flash(&file_ptr, MFM_MAIN_STRPATH, RESERVATION_CMD, O_CREAT | O_WRONLY | O_APPEND);
                     if (fd >= 0)
@@ -257,7 +189,7 @@ void read_and_print_mag_data(void)
                         // file_close(&file_ptr);
                     }
                     file_close(&file_ptr);
-                    // pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+                pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
 
                 }
             }
@@ -267,9 +199,9 @@ void read_and_print_mag_data(void)
             }
         }
 
-        if (count % 90 == 0)
+        if (count % 90 == 0 | count >= 90)
         {
-            count = 1;
+            count = 0;
             orb_check(sub_fd, &updated);
             if (updated)
             {
@@ -309,7 +241,7 @@ void read_and_print_mag_data(void)
                 maintain_data_consistency();
             }
         }
-        time_counter+=10;
+        time_counter += 10;
 
         sleep(10); // Sleep for 1 second
     }
@@ -482,7 +414,7 @@ int main(int argc, FAR char *argv[])
   }
 
   // ret = task_create("storage_manager_daemon", SCHED_PRIORITY_DEFAULT, CONFIG_CUSTOM_APPS_STORAGE_MANAGER_STACKSIZE, storage_manager_daemon, NULL);
-  ret = task_create("storage_manager_daemon", SCHED_PRIORITY_DEFAULT, 8078, storage_manager_daemon, NULL);
+  ret = task_create("storage_manager_daemon", 90, 8078, storage_manager_daemon, NULL);
 
   if (ret < 0)
   {
@@ -512,6 +444,7 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
 
   //   gpio_write(GPIO_SFM_MODE, false);
   // }
+  pthread_mutex_lock(&main_flash_mutex);
   // TODO: discuss and figure out if we need to set limit to size of file and truncate contents once the file size limit is reached ...
   if (open_file_flash(&file_p, pathname, file_name_sat_health, O_CREAT | O_WRONLY | O_APPEND) >= 0)
   {
@@ -545,6 +478,38 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
     // syslog(LOG_ERR, "Error opening file to write satellite health data..\n");
   }
   file_close(&file_p);
+  pthread_mutex_unlock(&main_flash_mutex);
+  CRITICAL_FLAGS critic_flags;
+  critic_flags.ANT_DEP_STAT = sat_health_data->ant_dep_stat;
+  critic_flags.KILL_SWITCH_STAT= sat_health_data->kill_switch;
+  critic_flags.OPER_MODE= sat_health_data->oper_mode;
+  critic_flags.RSV_FLAG= sat_health_data->rsv_flag;
+  critic_flags.UL_STATE= sat_health_data->ul_state;
+  critic_flags.RST_COUNT = sat_health_data->rst_counter;
+
+  pthread_mutex_lock(&main_flash_mutex);
+
+  int fd1 = open_file_flash(&file_p, MFM_MAIN_STRPATH, file_name_flag, O_RDWR);
+  if (fd1 >= 0)
+  {
+    file_truncate(&file_p, sizeof(CRITICAL_FLAGS));
+    ssize_t bwr = file_write(&file_p, &critic_flags, sizeof(CRITICAL_FLAGS));
+    if (bwr != sizeof(CRITICAL_FLAGS))
+    {
+      syslog(LOG_ERR, "Error in writing flag data to MFM\n");
+    }
+    file_close(&file_p);
+    pthread_mutex_unlock(&main_flash_mutex);
+
+  }
+  else
+  {
+    syslog(LOG_ERR, "Unable to open %s%s for writing critical flash data\n", MFM_MAIN_STRPATH, file_name_flag);
+    pthread_mutex_unlock(&main_flash_mutex);
+  }
+  
+  syslog(LOG_DEBUG, "\n-----Storing data to flash-----\n");  
+
 
   // if(strcmp(pathname, SFM_MAIN_STRPATH) == 1){
 
@@ -587,19 +552,8 @@ void flash_operations()
     if (updated)
     {
       updated = false;
-      // temp_command_ops = command_ops;
       orb_copy_multi(flash_fd, &command_ops, sizeof(struct command));
-      // printf("Comparing  command_ops.path : %d, command_ops.address : %d, command_ops.num_of_packets : %d\n", command_ops.path, command_ops.address, command_ops.num_of_packets);
-      // printf("Comparing strcmp(temp_command_ops.path)temp_command_ops.path : %d, temp_command_ops.address : %d, temp_command_ops.num_of_packets : %d\n", strcmp(temp_command_ops.path, command_ops.path), temp_command_ops.path, temp_command_ops.address, temp_command_ops.num_of_packets);
-
-      // printf("----Received mcu id : %d \n",command_ops.mcu_id);
-      // printf("\nData received :\nTimestamp : %d \nPath: %s \nAddress:%d \nCommand:%d \nNumber of packets:%d\n",
-      //        command_ops.timestamp,
-      //        command_ops.path,
-      //        command_ops.address,
-      //        command_ops.command,
-      //        // command_ops.packet_number,
-      //        command_ops.num_of_packets);
+   
       if (temp_command_ops.address != command_ops.address && temp_command_ops.num_of_packets != command_ops.num_of_packets)
       {
         switch (command_ops.command)
@@ -635,7 +589,7 @@ void Setup()
 {
   int fd = 0;
   struct file flp1, flp2, flp3, flp4;
-  // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
   fd = open_file_flash(&flp1, MFM_MAIN_STRPATH, file_name_sat_health, O_CREAT);
   if (fd < 0)
@@ -664,7 +618,7 @@ void Setup()
     syslog(LOG_ERR, "Could not create epdm.txt msn file\n");
   }
   file_close(&flp4);
-  // pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
 
 
   syslog(LOG_INFO, "Checking initial flag data...\n");
@@ -735,14 +689,14 @@ void Setup()
 // {
 //     struct file fptr;
 
-//     // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+//     pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
 //     int fd = open_file_flash(&fptr, MFM_MAIN_STRPATH, "/reservation_command.txt", O_RDONLY);
 //     if (fd < 0) {
 //         printf("Error: Failed to open reservation command file\n");
 //         memset(res, 0, sizeof(struct reservation_command));
 //         // *timer = 0;
-//         // pthread_mutex_unlock(&main_flash_mutex);
+//         pthread_mutex_unlock(&main_flash_mutex);
 //         return;
 //     }
 //     uint32_t temp_time =0;
@@ -764,7 +718,7 @@ void Setup()
 //     }
 
 //     file_close(&fptr);
-//     // pthread_mutex_unlock(&main_flash_mutex); // Unlock the mutex
+//     pthread_mutex_unlock(&main_flash_mutex); // Unlock the mutex
 // }
 
 
@@ -1020,7 +974,7 @@ void maintain_data_consistency()
   uint8_t temp[2000], count = 0;
 
   char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
-  // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
   
   for (int i = 0; i < 4; i++)
   {
@@ -1091,7 +1045,7 @@ void maintain_data_consistency()
     file_close(&mfm_file_pointer);
     file_close(&sfm_file_pointer);
   }
-  // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
 }
 
 // void print_seek_pointer()
@@ -1140,7 +1094,7 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
   // uint16_t test[8];
   struct SEEK_POINTER seek_pointer;
   struct file fp;
-  // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
 
   int fd = file_open(&fp, path, O_RDONLY);
   // int fd_seek = file_open(&fp_seek, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_RDWR | O_TRUNC);
@@ -1255,10 +1209,10 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
           }
         }
         file_close(&fp);
-                    // pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+    pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
 
         struct SEEK_POINTER temp;
-        // pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
+    pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
         if(temp_packets !=0)
        { fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/seek_pointer.txt", O_CREAT | O_RDWR);
         if (fd >= 0)
@@ -1303,7 +1257,7 @@ void send_data_uorb(char path[200], uint32_t address, int16_t num_of_packets, ui
           }
         }
         close(fd);}
-        // pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
+    pthread_mutex_unlock(&main_flash_mutex); // Lock the mutex
 
         // file_close(&fp);
         update_seek_pointer(path, address, count, temp);

@@ -1157,6 +1157,8 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               critic_flags.KILL_SWITCH_STAT = KILL_SW_OFF;
               store_flag_data(&critic_flags);
               gpio_write(GPIO_KILL_SW_EN, 0);
+              gpio_write(GPIO_KILL_SW_EN, false);
+
               // gpio_write(GPIO_)
 
               syslog(LOG_DEBUG, "--------- kill switch deactivated\n");
@@ -1169,13 +1171,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             {
               sleep(1);
               send_data_uart(COM_UART, ack, sizeof(ack));
-              gpio_write(GPIO_KILL_SW1_NEG, true);
-              gpio_write(GPIO_KILL_SW1_POS, false);
-              gpio_write(GPIO_KILL_SW_EN, true);
-
-              gpio_write(GPIO_KILL_SW1_NEG, true);
-              gpio_write(GPIO_KILL_SW1_POS, false);
-              gpio_write(GPIO_KILL_SW_EN, true);
+             
 
               syslog(LOG_DEBUG, "---------kill switch command received\n");
 
@@ -1183,6 +1179,13 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               // store_flag_data(1,&critic_flags);
               {
                 critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
+                  gpio_write(GPIO_KILL_SW1_NEG, true);
+                  gpio_write(GPIO_KILL_SW1_POS, false);
+                  gpio_write(GPIO_KILL_SW_EN, true);
+
+                  gpio_write(GPIO_KILL_SW1_NEG, true);
+                  gpio_write(GPIO_KILL_SW1_POS, false);
+                  gpio_write(GPIO_KILL_SW_EN, true);
                 syslog(LOG_DEBUG, "---------kill switch activated\n");
               }
             }
@@ -1469,6 +1472,15 @@ static int COM_TASK(int argc, char *argv[])
 
   time_t current_time;
   uint32_t temp_timer = 0;
+  if(critic_flags.KILL_SWITCH_STAT == KILL_SW_ON){
+        gpio_write(GPIO_KILL_SW1_NEG, true);
+        gpio_write(GPIO_KILL_SW1_POS, false);
+        gpio_write(GPIO_KILL_SW_EN, true);
+
+        gpio_write(GPIO_KILL_SW1_NEG, true);
+        gpio_write(GPIO_KILL_SW1_POS, false);
+        gpio_write(GPIO_KILL_SW_EN, true);
+    }
   // bool co
   for (;;)
   {
@@ -1482,6 +1494,7 @@ static int COM_TASK(int argc, char *argv[])
       {
         critic_flags.OPER_MODE = SAFE_MODE;
       }
+     
       receive_telecommand_rx(rx_data);
       // if(TO_EXECUTE.mcu_id >= 0x03 && TO_EXECUTE.mcu_id <= 0x05)
       {
@@ -2906,7 +2919,7 @@ int send_beacon_data()
       // printf("Beacon Type %d sequence complete\n", beacon_type);
       // print_seek_pointer();
       beacon_type = !beacon_type;
-      print_satellite_health_data(&sat_health);
+      // print_satellite_health_data(&sat_health);
       store_flag_data(&critic_flags);
 
       // work_queue(HPWORK, &work_beacon, send_beacon_data, NULL, SEC2TICK(BEACON_DELAY));
@@ -3449,6 +3462,11 @@ void make_satellite_health()
   sat_health.rst_counter = critic_flags.RST_COUNT;
   sat_health.rsv_flag = critic_flags.RSV_FLAG;
   sat_health.ul_state = critic_flags.UL_STATE;
+  // if(critic_flags.RST_COUNT <2000 ) 
+  // critic_flags.RST_COUNT = critic_flags.RST_COUNT +2000;
+  // else 
+  sat_health.rst_counter = critic_flags.RST_COUNT;
+
 }
 
 void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel)
