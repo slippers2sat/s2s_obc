@@ -131,7 +131,12 @@ void read_and_print_mag_data(void)
     fd2 = orb_subscribe_multi(ORB_ID(sensor_rgb), 0);
     fds2.fd = fd2;
     fds2.events = POLLIN;
-   
+      sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
+        if (sub_fd < 0)
+        {
+            syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
+            // return;
+        }
    
 
     while (1)
@@ -141,12 +146,7 @@ void read_and_print_mag_data(void)
         //     sort_reservation_command(1, false);
         // }
         count+=10;
-         sub_fd = orb_subscribe(ORB_ID(orb_mag_scaled));
-        if (sub_fd < 0)
-        {
-            syslog(LOG_ERR, "Failed to subscribe to orb_mag_scaled topic\n");
-            // return;
-        }
+      
         // printf(
         //   "read and print amg))))))))))))))))))))))))))))))))))))))\n"
         // );

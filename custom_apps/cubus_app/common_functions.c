@@ -51,7 +51,7 @@ void mission_data(char *filename, uint8_t *data, uint16_t size1)
 
 
 int clear_int_flag(){
-  CRITICAL_FLAGS c={'\0'};
+  CRITICAL_FLAGS c={255};
   struct file fp;
   int fd;
   pthread_mutex_lock(&flash_mutex); // Lock the mutex

@@ -1178,7 +1178,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               if (0 == receive_command(&kill_sw))
               // store_flag_data(1,&critic_flags);
               {
-                critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
+                  critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
                   gpio_write(GPIO_KILL_SW1_NEG, true);
                   gpio_write(GPIO_KILL_SW1_POS, false);
                   gpio_write(GPIO_KILL_SW_EN, true);
@@ -1414,7 +1414,18 @@ static int COM_TASK(int argc, char *argv[])
   {
     syslog(LOG_DEBUG, "Successful handshake with COM\n");
     COM_HANDSHAKE_STATUS = 1;
-    uint64_t time1 = get_time_data();
+    uint64_t time1;
+    if(time(NULL) <= 1736913451)//TODO check out this functionality
+    {
+      time1 = get_time_data();
+      if(time1 <= 1736913451){
+        struct timespec ts;
+        ts.tv_sec = 1736913451;
+        ts.tv_nsec = 0; // Set nanoseconds to zero
+        int ret = clock_settime(CLOCK_REALTIME, &ts);
+      }
+    }
+    // else time1 = 
     printf("\nThe received timestamp is : %d\n", time1);
     set_time(time1);
     // wdog_fd = open(DEVNAME, O_RDONLY);
@@ -1494,6 +1505,15 @@ static int COM_TASK(int argc, char *argv[])
       {
         critic_flags.OPER_MODE = SAFE_MODE;
       }
+      if(critic_flags.KILL_SWITCH_STAT == KILL_SW_ON){
+      gpio_write(GPIO_KILL_SW1_NEG, true);
+      gpio_write(GPIO_KILL_SW1_POS, false);
+      gpio_write(GPIO_KILL_SW_EN, true);
+
+      gpio_write(GPIO_KILL_SW1_NEG, true);
+      gpio_write(GPIO_KILL_SW1_POS, false);
+      gpio_write(GPIO_KILL_SW_EN, true);
+      }
      
       receive_telecommand_rx(rx_data);
       // if(TO_EXECUTE.mcu_id >= 0x03 && TO_EXECUTE.mcu_id <= 0x05)
@@ -1503,7 +1523,7 @@ static int COM_TASK(int argc, char *argv[])
         // res.latest_time =10;
         // get_top_rsv(&res);
         // if(TO_EXECUTE.mcu_id >= 0x03 && TO_EXECUTE.mcu_id <= 0x05)
-        printf("Time remaining: %d %d %d\n", timer, TO_EXECUTE.latest_time, timer_counter);
+        printf("Time remaining: %d %d %d\n", timer, TO_EXECUTE.latest_time, TO_EXECUTE.latest_time + timer_counter);
         handle_reservation_command(1, TO_EXECUTE);
       }
     }
@@ -2491,9 +2511,8 @@ void global_reset()
   // for (;;)
   {
     // sleep(300);
-    // sleep(75400);
-    // rtc_alarm_func(GBL_RESET_TIME);
-    sleep(60);
+    sleep(86400);
+    gpio_write(GPIO_GBL_RST, 1);
   }
 }
 
