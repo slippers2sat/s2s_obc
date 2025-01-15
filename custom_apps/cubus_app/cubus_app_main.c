@@ -1433,7 +1433,8 @@ static int COM_TASK(int argc, char *argv[])
   if (ret != 0)
   {
     syslog(LOG_DEBUG, "Unable to handshake with COM\n");
-    ret = handshake_COM(data);
+    // ret = handshake_COM(data);
+    ret = handshake_MSN(0, data);
     if (ret == 0)
     {
       COM_HANDSHAKE_STATUS = 1;
@@ -1728,6 +1729,9 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
 
   switch (subsystem)
   {
+  case 0 : strcpy(devpath, COM_UART);
+            printf("Handshake operation for COM started");
+            break;
   case 1:
     strcpy(devpath, ADCS_UART);
     printf("Turned on power line for ADCS\n");
@@ -1772,7 +1776,7 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
     // for(int i=0;i<6;i++){
     //   printf("%02x ",ack[i]);
     // }
-    usleep(3000 * 1000); // 3 seconds delay
+    usleep(500 * 1000); // 50 milli seconds delay
 
     printf("\n");
     // Reading data from UART
@@ -1889,7 +1893,7 @@ int receive_data_uart(char *dev_path, uint8_t *data, uint16_t size)
     if (data[0] == 0x42 && data[1] == 0xac && data[2] == 0x04 && data[3] == 0x02 && data[4] == 0x4d)
     {
       pet_counter = 0;
-      printf("\n________________________________________________________________________\n");
+      printf("\n\n\n________________________________________________________________________\n");
       printf("ACK received from COM(Data received by COM)\n");
       printf("\n________________________________________________________________________\n");
     }
@@ -3017,110 +3021,110 @@ void Antenna_Deployment(int argc, char *argv[])
   // print_critical_flag_data(&rd_flags_int);
 }
 
-void adcs_operation(uint8_t mode)
-{
-  if (MISSION_STATUS.ADCS_MISSION == false && MISSION_STATUS.EPDM_MISSION == false && MISSION_STATUS.CAM_MISSION == false)
-  {
-    MISSION_STATUS.FLASH_OPERATION == false;
-    MISSION_STATUS.ADCS_MISSION = true;
-    sat_health.msn_flag = 0x21;
-    struct file file_pointer, file_pointer2;
+// void adcs_operation(uint8_t mode)
+// {
+//   if (MISSION_STATUS.ADCS_MISSION == false && MISSION_STATUS.EPDM_MISSION == false && MISSION_STATUS.CAM_MISSION == false)
+//   {
+//     MISSION_STATUS.FLASH_OPERATION == false;
+//     MISSION_STATUS.ADCS_MISSION = true;
+//     sat_health.msn_flag = 0x21;
+//     struct file file_pointer, file_pointer2;
 
-    int fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/adcs.txt", O_RDONLY);
-    uint32_t initial_count;
-    if (fd >= 0)
-      initial_count = file_seek(&file_pointer, 0, SEEK_END);
-    file_close(&file_pointer);
+//     int fd = file_open(&file_pointer, "/mnt/fs/sfm/mtd_mainstorage/adcs.txt", O_RDONLY);
+//     uint32_t initial_count;
+//     if (fd >= 0)
+//       initial_count = file_seek(&file_pointer, 0, SEEK_END);
+//     file_close(&file_pointer);
 
-    int hand;
-    // turn_msn_on_off(1, 0);
-    sleep(1);
-    turn_msn_on_off(1, 1);
-    sleep(1);
-    uint8_t data2[7] = {0x53, 0x0a, 0x0d, 0x0c, 0x01, 0x7e};
-    data2[4] = mode;
-    pet_counter = 0;
+//     int hand;
+//     // turn_msn_on_off(1, 0);
+//     sleep(1);
+//     turn_msn_on_off(1, 1);
+//     sleep(1);
+//     uint8_t data2[7] = {0x53, 0x0a, 0x0d, 0x0c, 0x01, 0x7e};
+//     data2[4] = mode;
+//     pet_counter = 0;
 
-    // do
-    // {
-    //   hand = handshake_MSN_ADCS(1, data);
-    //   // hand = handshake_MSN(2, data);
+//     // do
+//     // {
+//     //   hand = handshake_MSN_ADCS(1, data);
+//     //   // hand = handshake_MSN(2, data);
 
-    // } while (hand < 0);
-    hand = 0;
-    uint8_t ret;
-    pet_counter = 0;
+//     // } while (hand < 0);
+//     hand = 0;
+//     uint8_t ret;
+//     pet_counter = 0;
 
-    sleep(1);
+//     sleep(1);
 
-    do
-    {
-      hand = handshake_MSN_ADCS(1, data2);
-    } while (hand < 0);
-    // sleep(2);
-    int p = 0;
-    uint8_t data3, data4;
-    uint32_t counter1 = 0;
-    uint8_t cam[1200] = {'\0'};
-    // memset(cam,'\0',sizeof(cam));
-    printf("**************Starting data receive*************\n");
-    int fd2 = open(ADCS_UART, O_RDONLY);
-    int t;
+//     do
+//     {
+//       hand = handshake_MSN_ADCS(1, data2);
+//     } while (hand < 0);
+//     // sleep(2);
+//     int p = 0;
+//     uint8_t data3, data4;
+//     uint32_t counter1 = 0;
+//     uint8_t cam[1200] = {'\0'};
+//     // memset(cam,'\0',sizeof(cam));
+//     printf("**************Starting data receive*************\n");
+//     int fd2 = open(ADCS_UART, O_RDONLY);
+//     int t;
 
-    while (1)
-    {
-      data4 = data3;
-      ret = read(fd2, &data3, 1);
-      printf("%02x ", data3);
-      if (counter1 % 180 == 0)
-      {
-        printf("\n");
-        pet_counter = 0;
-      }
-      cam[counter1] = data3;
-      if (data4 == 0xff && data3 == 0xd9)
-      {
-        printf("%02x ", data3);
+//     while (1)
+//     {
+//       data4 = data3;
+//       ret = read(fd2, &data3, 1);
+//       printf("%02x ", data3);
+//       if (counter1 % 180 == 0)
+//       {
+//         printf("\n");
+//         pet_counter = 0;
+//       }
+//       cam[counter1] = data3;
+//       if (data4 == 0xff && data3 == 0xd9)
+//       {
+//         printf("%02x ", data3);
 
-        pet_counter = 0;
-        break;
-      }
-      // if (counter1 > t*6)
-      //   break;
-      // if(data4== 0xff);
-      counter1++;
-      // break;
-    }
-    // cam[counter1]='\0';
-    close(fd2);
-    pet_counter = 0;
-    sleep(1);
-    turn_msn_on_off(1, 0);
-    MISSION_STATUS.ADCS_MISSION = false;
-    MISSION_STATUS.FLASH_OPERATION = false;
-    sat_health.msn_flag = 0x11;
-    usleep(10000);
-    syslog(LOG_DEBUG, "T0tal data received %d\n ADCS operation success\n", counter1);
-    sleep(1);
-    cam[counter1++] = 0xff;
-    cam[counter1++] = 0xd9;
-    cam[counter1++] = '\0';
-    sleep(1);
-    mission_data("/mtd_mainstorage/adcs.txt", &cam, counter1);
-    mission_data("/mtd_mission/adcs.txt", &cam, counter1);
-    // fd = file_open(&file_pointer, "/mnt/fs/mfm/mtd_mainstorage/adcs.txt", O_CREAT | O_RDWR | O_APPEND);
-    // file_write(&file_pointer, cam, strlen(cam));
-    // file_close(&file_pointer);
-    // close(fd);
-    // fd = file_open(&file_pointer, "/mnt/fs/mfm/mtd_mission/adcs.txt", O_CREAT | O_RDWR | O_APPEND);
-    // file_write(&file_pointer, cam, strlen(cam));
-    // file_close(&file_pointer);
-    // close(fd);
-    uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
-    sleep(1);
-    send_data_uart(COM_UART, ack, sizeof(ack));
-  }
-}
+//         pet_counter = 0;
+//         break;
+//       }
+//       // if (counter1 > t*6)
+//       //   break;
+//       // if(data4== 0xff);
+//       counter1++;
+//       // break;
+//     }
+//     // cam[counter1]='\0';
+//     close(fd2);
+//     pet_counter = 0;
+//     sleep(1);
+//     turn_msn_on_off(1, 0);
+//     MISSION_STATUS.ADCS_MISSION = false;
+//     MISSION_STATUS.FLASH_OPERATION = false;
+//     sat_health.msn_flag = 0x11;
+//     usleep(10000);
+//     syslog(LOG_DEBUG, "T0tal data received %d\n ADCS operation success\n", counter1);
+//     sleep(1);
+//     cam[counter1++] = 0xff;
+//     cam[counter1++] = 0xd9;
+//     cam[counter1++] = '\0';
+//     sleep(1);
+//     mission_data("/mtd_mainstorage/adcs.txt", &cam, counter1);
+//     mission_data("/mtd_mission/adcs.txt", &cam, counter1);
+//     // fd = file_open(&file_pointer, "/mnt/fs/mfm/mtd_mainstorage/adcs.txt", O_CREAT | O_RDWR | O_APPEND);
+//     // file_write(&file_pointer, cam, strlen(cam));
+//     // file_close(&file_pointer);
+//     // close(fd);
+//     // fd = file_open(&file_pointer, "/mnt/fs/mfm/mtd_mission/adcs.txt", O_CREAT | O_RDWR | O_APPEND);
+//     // file_write(&file_pointer, cam, strlen(cam));
+//     // file_close(&file_pointer);
+//     // close(fd);
+//     uint8_t ack[85] = {0x53, 0xac, 0x04, 0x01, 0x05, 0x05, 0x7e, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 0x71, 0x72, 0x1e, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x7e};
+//     sleep(1);
+//     send_data_uart(COM_UART, ack, sizeof(ack));
+//   }
+// }
 
 void mission_operation(uint8_t mission, uint8_t handshake_data[7])
 {
@@ -3318,6 +3322,7 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
         close(fd2);
       }
       turn_msn_on_off(mission, 0);
+      
       sat_health.msn_flag = 0x21;
     }
   }
@@ -3945,7 +3950,7 @@ void handle_reservation_command(int fd_reservation, struct reservation_command r
       critic_flags.RSV_FLAG -= 1;
       sat_health.rsv_flag = critic_flags.RSV_FLAG;
     }
-    save_critics_flags(&critic_flags);
+    // save_critics_flags(&critic_flags);
     // timer = 0;
   }
 }
