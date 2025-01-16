@@ -972,14 +972,15 @@ void maintain_data_consistency()
   int mfm_fd, sfm_fd;
   uint32_t mfm_read, sfm_read, sfm_seek_pointer_status = 0, mfm_seek_pointer_status = 0;
   uint8_t temp[2000], count = 0;
+  char filename[9][30] = {"/flags.txt", "/satHealth.txt", "/satHealth.txt", "/reservation_command.txt", "/cam_rgb.txt", "/epdm.txt", "/adcs.txt", "/cam_nir.txt", "/digipeater.txt","/adcs_logs.txt","/epdm.txt","/cam_rgb_logs.txt","/cam_nir_logs.txt"};
 
-  char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
+  // char filename[4][30] = {"/flags.txt", "/satHealth.txt", "/satellite_Logs.txt", "/reservation_table.txt"}; // "/cam_nir.txt", "/epdm.txt", "/adcs.txt"};
 pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
   
   for (int i = 0; i < 4; i++)
   {
     mfm_fd = open_file_flash(&mfm_file_pointer, MFM_MAIN_STRPATH, filename[i], O_RDWR);
-    sfm_fd = open_file_flash(&mfm_file_pointer, SFM_MAIN_STRPATH, filename[i], O_RDWR);
+    sfm_fd = open_file_flash(&sfm_file_pointer, SFM_MAIN_STRPATH, filename[i], O_RDWR);
     if (mfm_fd >= 0)
     {
       mfm_read = file_seek(&mfm_file_pointer, 0, SEEK_END);
@@ -991,7 +992,7 @@ pthread_mutex_lock(&main_flash_mutex); // Lock the mutex
     }
     if (mfm_fd >= 0 & sfm_fd >= 0)
     {
-      if (mfm_read != sfm_read)
+      if (mfm_read != sfm_read )
       {
         if (mfm_read < sfm_read)
         {

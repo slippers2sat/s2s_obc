@@ -1484,7 +1484,7 @@ static int COM_TASK(int argc, char *argv[])
 
   time_t current_time;
   uint32_t temp_timer = 0;
-  if(critic_flags.KILL_SWITCH_STAT == KILL_SW_ON){
+  if(critic_flags.KILL_SWITCH_STAT == KILL_SW_ON ){
         gpio_write(GPIO_KILL_SW1_NEG, true);
         gpio_write(GPIO_KILL_SW1_POS, false);
         gpio_write(GPIO_KILL_SW_EN, true);
@@ -1507,6 +1507,7 @@ static int COM_TASK(int argc, char *argv[])
         critic_flags.OPER_MODE = SAFE_MODE;
       }
       if(critic_flags.KILL_SWITCH_STAT == KILL_SW_ON){
+        
       gpio_write(GPIO_KILL_SW1_NEG, true);
       gpio_write(GPIO_KILL_SW1_POS, false);
       gpio_write(GPIO_KILL_SW_EN, true);
@@ -3322,7 +3323,7 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
         close(fd2);
       }
       turn_msn_on_off(mission, 0);
-      
+
       sat_health.msn_flag = 0x21;
     }
   }
@@ -4070,7 +4071,7 @@ void flash_operation_data(uint16_t loop)
       }
       for (int i = 0; i < 80; i++)
       {
-        printf("%02x ", flash.data[i]);
+        // printf("%02x ", flash.data[i]);
         beacon_data[i + 4] = flash.data[i];
       }
       beacon_data[0] = 83;
