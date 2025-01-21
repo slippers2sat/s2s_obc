@@ -32,7 +32,7 @@
 #include <nuttx/spi/spi.h>
 #include <stm32_spi.h>
 
-#include <stdio.h>
+// #include <stdio.h>
 #include <string.h>
 #include <syslog.h>
 
@@ -344,11 +344,13 @@ int board_app_initialize(uintptr_t arg)
 {
   stm32_configgpio(GPIO_WD_WDI);
 
-  stm32_wdg_setup();
   // syslog(LOG_DEBUG,"Initializing board applications.\n");
+ toggle_wdg();
   
 
-  board_peripheral_reset(0);
+  board_peripheral_reset(10);
+  stm32_wdg_setup();
+
   
 
 #if defined(CONFIG_STM32_SPI1) || defined(CONFIG_STM32_SPI2) || \

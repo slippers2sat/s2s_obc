@@ -96,7 +96,8 @@ int mt25ql_attach(mtd_instance_s *instance)
 	syslog(LOG_INFO,"Starting MTD, MT25QL driver\n");
 
 	/* start the MT25QL driver, attempt 10 times */
-
+ stm32_wdg_setup();
+    
 	int spi_speed_mhz = 21;
 
 	for (int i = 0; i < 21; i++) {
@@ -110,13 +111,21 @@ int mt25ql_attach(mtd_instance_s *instance)
 
 		/* this resets the spi bus, set correct bus speed again */
 		SPI_LOCK(spi, true);
+ stm32_wdg_setup();
+
 		SPI_SETFREQUENCY(spi, spi_speed_mhz * 1000 * 1000);
 		SPI_SETBITS(spi, 8);
+ stm32_wdg_setup();
+
 		SPI_SETMODE(spi, SPIDEV_MODE0);
 		SPI_SELECT(spi, instance->devid, false);
+ stm32_wdg_setup();
+
 		SPI_LOCK(spi, false);
+ stm32_wdg_setup();
 
 		instance->mtd_dev = mt25ql_initialize(spi);
+ stm32_wdg_setup();
 
 		if (instance->mtd_dev) {
 			/* abort on first valid result */

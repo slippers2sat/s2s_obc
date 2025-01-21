@@ -64,25 +64,39 @@ struct spi_dev_s *g_spidev5 = NULL;
 void weak_function stm32_spidev_initialize(void)
 {
   #ifdef CONFIG_MT25QL
+  toggle_wdg();
   printf("Configure GPIO for MT25QL flash memory.\n");
   stm32_configgpio(GPIO_MFM_CS);
   stm32_configgpio(GPIO_SFM_CS);
+  toggle_wdg();
+
   stm32_configgpio(GPIO_MUX_EN);
   stm32_configgpio(GPIO_SFM_MODE);
+  toggle_wdg();
 
   stm32_gpiowrite(GPIO_MFM_CS, true);
   stm32_gpiowrite(GPIO_SFM_CS, true);
+  toggle_wdg();
+
   stm32_gpiowrite(GPIO_SFM_MODE, true);
   stm32_gpiowrite(GPIO_MUX_EN, true);
+  toggle_wdg();
+
   #endif
 
   #  ifdef CONFIG_SENSORS_LIS3MDL
   /* Configure the SPI-based LIS3MDL MAG chip select GPIO */
   printf("Configure GPIO for Lis3mdl SPI5 CS\n");
   stm32_configgpio(GPIO_LIS3MDL_CS);
+  toggle_wdg();
+
   stm32_gpiowrite(GPIO_LIS3MDL_CS, true);
   stm32_configgpio(GPIO_LIS3MDL_DRDY);
+  toggle_wdg();
+
   stm32_configgpio(GPIO_LIS3MDL_INT);
+  toggle_wdg();
+
   #  endif
 
 }

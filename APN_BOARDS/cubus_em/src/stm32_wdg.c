@@ -24,11 +24,11 @@
 
 #include <nuttx/config.h>
 
-#include <sys/types.h>
-#include <errno.h>
-#include <debug.h>
+// #include <sys/types.h>
+// #include <errno.h>
+// #include <debug.h>
 #include <nuttx/board.h>
-#include <syslog.h>
+// #include <syslog.h>
 #include <nuttx/kthread.h> 
 
 #include "stm32f427a.h"
@@ -59,8 +59,8 @@ void wdt_toggle_task(void *arg)
     stm32_gpiowrite(GPIO_WD_WDI, gpio_state);
     syslog(LOG_DEBUG,"\nGPio toggle state is %d\n", gpio_state);
     gpio_state = !gpio_state;
-
-    usleep(1500); // 500ms delay
+up_mdelay(200);
+    // usleep(4500); // 500ms delay
   }
 }
 /****************************************************************************
@@ -70,24 +70,31 @@ void wdt_toggle_task(void *arg)
  *   Initialize PWM and register the PWM device.
  *
  ****************************************************************************/
+int toggle_wdg(){
+    stm32_gpiowrite(GPIO_WD_WDI, true);
+  usleep(10);
+  stm32_gpiowrite(GPIO_WD_WDI, false);
+  syslog(LOG_DEBUG, "TOggled wdg");
+}
 
 int stm32_wdg_setup(void)
 {
   stm32_gpiowrite(GPIO_WD_WDI, true);
+  usleep(10);
   stm32_gpiowrite(GPIO_WD_WDI, false);
-    //printf("\nGPio toggled in setup\n");
+  // syslog(LOG_DEBUG,"GPio setup");
 
 
   if (wdog_task_started == false)
   {
-    // pid_t pid = task_create("[WDT_toggle_task]", 1, 904, wdt_toggle_task, NULL);
-    pid_t pid = kthread_create(
-    "WDT TOggle thread",      // Thread name
-    1,  // Highest priority
-    905,                  // Stack size
-    wdt_toggle_task,     // Entry function
-    NULL                 // Argument
-);
+    pid_t pid = task_create("[WDT_toggle_task]", 1, 904, wdt_toggle_task, NULL);
+    // pid_t pid = kthread_create(
+    // "WDT TOggle thread",      // Thread name
+    // 1,  // Highest priority
+    // 905,                  // Stack size
+    // wdt_toggle_task,     // Entry function
+    // NULL                 // Argument
+// );
 
     if (pid < 0)
     {
@@ -105,7 +112,7 @@ int stm32_wdg_setup(void)
   }
   else
   {
-    //printf("[WDT_Toggle_Task]WDT toggle task already created\n");
+    // printf("[WDT_Toggle_Task]WDT toggle task already created\n");
   }
   return OK;
 }

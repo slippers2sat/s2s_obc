@@ -29,7 +29,7 @@
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/progmem.h>
 #include <fcntl.h>
-#include <stdio.h>
+// #include <stdio.h>
 #include <nuttx/irq.h>
 #include <stdio.h>
 #include <nuttx/wqueue.h>
@@ -2501,6 +2501,10 @@ int create_task(const char *name, int priority, int stack_size, main_t entry)
 int main(int argc, FAR char *argv[])
 {
   int hand = 5;
+  cubus_mft_configure(board_mfm_get_manifest(), 0);// TODO remove this
+
+  toggle_wdg();
+
   bool g_mpu_task_started = false;
   if (strcmp(argv[1], "clear") == 0)
     clear_int_flag();
@@ -2591,6 +2595,8 @@ int main(int argc, FAR char *argv[])
     // {
     //   printf("antenna already deployed\n");
     // }
+  toggle_wdg();
+
     printf("************************************************\n");
     printf("***********S2S commander app************\n");
 
@@ -2604,6 +2610,8 @@ int main(int argc, FAR char *argv[])
     }
     else
     {
+  toggle_wdg();
+
       int retval = create_task("RESET_TASK_APP", 100, 1000, global_reset);
       if (retval >= 0)
       {
@@ -2615,7 +2623,11 @@ int main(int argc, FAR char *argv[])
         printf("Unable to create RESET_TASK_APP task\n");
       }
     }
+  toggle_wdg();
+
     Antenna_Deployment(argc, argv);
+  toggle_wdg();
+
     print_critical_flag_data(&critic_flags);
     // sleep(10);
     if (critic_flags.ANT_DEP_STAT != DEPLOYED && critic_flags.UL_STATE != UL_RX)
