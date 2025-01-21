@@ -9,7 +9,7 @@
 #include <string.h>
 
 #include <nuttx/spi/spi.h>
-#include <stm32_spi.h>
+// #include <stm32_spi.h>
 #include <nuttx/board.h>
 #include <nuttx/fs/fs.h>
 #include <fcntl.h>
@@ -147,7 +147,7 @@ mtd_instance_s **cubus_mtd_get_instances(unsigned int *count);
  *   non zero if error
  *
  ************************************************************************************/
-int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd);
+int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number);
 
 /************************************************************************************
  * Name: cubus_mtd_query
@@ -187,6 +187,6 @@ int cubus_mtd_query(const char *type, const char *val, const char **get);
  *
  ************************************************************************************/
 
-int cubus_mft_configure(const cubus_mft_s *mft);
+int cubus_mft_configure(const cubus_mft_s *mft, int block_number);
 
 #endif  // __APN_BOARDS_CUBUS_BBM_SRC_MTD_H

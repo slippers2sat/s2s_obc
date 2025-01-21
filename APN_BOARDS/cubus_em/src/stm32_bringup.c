@@ -25,7 +25,7 @@
 #include <nuttx/config.h>
 
 #include <stdbool.h>
-#include <stdio.h>
+// #include <stdio.h>
 #include <debug.h>
 #include <errno.h>
 #include <string.h>
@@ -198,8 +198,9 @@ void configure_rtc(void) {
 
 int stm32_bringup(void)
 {
-  stm32_wdg_setup();
-
+  // stm32_wdg_setup();
+  
+  stm32_gpiowrite(GPIO_SFM_MODE, true);
   
   configure_rtc();
   // static bool gpio_state = true;
@@ -228,28 +229,28 @@ int stm32_bringup(void)
 
   /* Init SPI Bus again */
 
-  spi5 = stm32_spibus_initialize(5);
-  if (!spi5)
-  {
-    syslog(LOG_ERR, "[BRINGUP] Failed to initialize SPI Port 5.\n");
-  }
-  else
-  {
-    syslog(LOG_INFO, "[BRINGUP] Successfully Initalized SPI Port 5.\n");
-    adc0.dev.spi = spi5;
-    SPI_SETFREQUENCY(spi5, 1000000);
-    SPI_SETBITS(spi5, 8);
-    SPI_SETMODE(spi5, SPIDEV_MODE0);
-  }
-  ret = ads7953_register(EXT_ADC_PATH, adc0.dev.spi, adc0.dev.spi_devid);
-  if (ret < 0)
-  {
-    syslog(LOG_ERR, "[BRINGUP] ads7953 register failed.\n");
-  }
-  else
-  {
-    syslog(LOG_INFO, "[BRINGUP] Registered ads7953.\n");
-  }
+  // spi5 = stm32_spibus_initialize(5);
+  // if (!spi5)
+  // {
+  //   syslog(LOG_ERR, "[BRINGUP] Failed to initialize SPI Port 5.\n");
+  // }
+  // else
+  // {
+  //   syslog(LOG_INFO, "[BRINGUP] Successfully Initalized SPI Port 5.\n");
+  //   adc0.dev.spi = spi5;
+  //   SPI_SETFREQUENCY(spi5, 1000000);
+  //   SPI_SETBITS(spi5, 8);
+  //   SPI_SETMODE(spi5, SPIDEV_MODE0);
+  // }
+  // ret = ads7953_register(EXT_ADC_PATH, adc0.dev.spi, adc0.dev.spi_devid);
+  // if (ret < 0)
+  // {
+  //   syslog(LOG_ERR, "[BRINGUP] ads7953 register failed.\n");
+  // }
+  // else
+  // {
+  //   syslog(LOG_INFO, "[BRINGUP] Registered ads7953.\n");
+  // }
 #endif // CONFIG_ADC_ADS7953
   stm32_gpiowrite(GPIO_WD_WDI,false);
   printf("Toggled wdog\n");
@@ -258,30 +259,30 @@ int stm32_bringup(void)
 #ifdef CONFIG_STM32_SPI3
   /* Get the SPI port */
 
-  syslog(LOG_INFO, "Initializing SPI port 3\n");
-  spi3 = stm32_spibus_initialize(3);
-  if (!spi3)
-  {
-    syslog(LOG_ERR, "ERROR: Failed to initialize SPI port 3\n");
-  }
-  else
-  {
-    syslog(LOG_INFO, "Successfully initialized SPI port 3\n");
-  }
-  #ifdef CONFIG_STM32_SPI4
-    syslog(LOG_INFO, "Initializing SPI port 4\n");
-    spi4 = stm32_spibus_initialize(4);
-    if (!spi4)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to initialize SPI port 4\n");
-    }
-    else
-    {
-      syslog(LOG_INFO, "Successfully initialized SPI port 4\n");
-    }
-  #endif
+  // syslog(LOG_INFO, "Initializing SPI port 3\n");
+  // spi3 = stm32_spibus_initialize(3);
+  // if (!spi3)
+  // {
+  //   syslog(LOG_ERR, "ERROR: Failed to initialize SPI port 3\n");
+  // }
+  // else
+  // {
+  //   syslog(LOG_INFO, "Successfully initialized SPI port 3\n");
+  // }
+  // #ifdef CONFIG_STM32_SPI4
+  //   syslog(LOG_INFO, "Initializing SPI port 4\n");
+  //   spi4 = stm32_spibus_initialize(4);
+  //   if (!spi4)
+  //   {
+  //     syslog(LOG_ERR, "ERROR: Failed to initialize SPI port 4\n");
+  //   }
+  //   else
+  //   {
+  //     syslog(LOG_INFO, "Successfully initialized SPI port 4\n");
+  //   }
+  // #endif
 
-  cubus_mft_configure(board_get_manifest());
+  // cubus_mft_configure(board_mfm_get_manifest(), 0);
 
 #endif /* CONFIG_STM32_SPI3 */
   stm32_gpiowrite(GPIO_WD_WDI,true);
@@ -289,69 +290,69 @@ int stm32_bringup(void)
 
 
 #ifdef CONFIG_STM32_SPI2
-  spi2 = stm32_spibus_initialize(2);
-  if (!spi2)
-  {
-    syslog(LOG_ERR, "[BRING_UP] ERROR: Failed to Initialize SPI 2 bus.\n");
-  }
-  else
-  {
-    syslog(LOG_INFO, "[BRING_UP] Initialized bus on SPI port 2.\n");
-    SPI_SETFREQUENCY(spi2, 1000000);
-    SPI_SETBITS(spi2, 8);
-    SPI_SETMODE(spi2, SPIDEV_MODE0);
+//   spi2 = stm32_spibus_initialize(2);
+//   if (!spi2)
+//   {
+//     syslog(LOG_ERR, "[BRING_UP] ERROR: Failed to Initialize SPI 2 bus.\n");
+//   }
+//   else
+//   {
+//     syslog(LOG_INFO, "[BRING_UP] Initialized bus on SPI port 2.\n");
+//     SPI_SETFREQUENCY(spi2, 1000000);
+//     SPI_SETBITS(spi2, 8);
+//     SPI_SETMODE(spi2, SPIDEV_MODE0);
 
-#ifdef CONFIG_SENSORS_MPU60X0
-    struct mpu_config_s *mpu_config = NULL;
-    //  SPI_SETFREQUENCY(spi2, 1000000);
-    //   SPI_SETBITS(spi2, 8);
-    //   SPI_SETMODE(spi2, SPIDEV_MODE0);
-    printf("got here in config_sensoors_mpu6200");
-    mpu_config = kmm_zalloc(sizeof(struct mpu_config_s));
-    printf("the size of mpu_config is %d", sizeof(mpu_config));
-    if (mpu_config == NULL)
-    {
-      printf("ERROR: Failed to allocate mpu60x0 driver\n");
-    }
-    else
-    {
-      printf("INside else\n");
-      mpu_config->spi = spi2;
-      mpu_config->spi_devid = SPIDEV_IMU(0);
-      ret = mpu60x0_register("/dev/mpu6500", mpu_config);
-      printf("the value of ret is : %d\n", ret);
-      if (ret < 0)
-      {
-        printf("[bring up] failed to initialize driver of mppu 6500");
-      }
-      else
-      {
-        printf("[bringup ] successfully initialized driver of mpu 6200");
-      }
-    }
-#endif // mpu configuration
-    // SPI_SETFREQUENCY(spi2, 1000000);
-    // SPI_SETBITS(spi2, 8);
-    // SPI_SETMODE(spi2, SPIDEV_MODE0);
-  }
-  stm32_gpiowrite(GPIO_WD_WDI,false);
-  printf("Toggled wdog\n");
+// #ifdef CONFIG_SENSORS_MPU60X0
+//     struct mpu_config_s *mpu_config = NULL;
+//     //  SPI_SETFREQUENCY(spi2, 1000000);
+//     //   SPI_SETBITS(spi2, 8);
+//     //   SPI_SETMODE(spi2, SPIDEV_MODE0);
+//     printf("got here in config_sensoors_mpu6200");
+//     mpu_config = kmm_zalloc(sizeof(struct mpu_config_s));
+//     printf("the size of mpu_config is %d", sizeof(mpu_config));
+//     if (mpu_config == NULL)
+//     {
+//       printf("ERROR: Failed to allocate mpu60x0 driver\n");
+//     }
+//     else
+//     {
+//       printf("INside else\n");
+//       mpu_config->spi = spi2;
+//       mpu_config->spi_devid = SPIDEV_IMU(0);
+//       ret = mpu60x0_register("/dev/mpu6500", mpu_config);
+//       printf("the value of ret is : %d\n", ret);
+//       if (ret < 0)
+//       {
+//         printf("[bring up] failed to initialize driver of mppu 6500");
+//       }
+//       else
+//       {
+//         printf("[bringup ] successfully initialized driver of mpu 6200");
+//       }
+//     }
+// #endif // mpu configuration
+//     // SPI_SETFREQUENCY(spi2, 1000000);
+//     // SPI_SETBITS(spi2, 8);
+//     // SPI_SETMODE(spi2, SPIDEV_MODE0);
+//   }
+//   stm32_gpiowrite(GPIO_WD_WDI,false);
+//   printf("Toggled wdog\n");
 
-#ifdef CONFIG_SENSORS_LIS3MDL
-#ifdef CONFIG_UORB
-  ret = lis3mdl_register(0, spi2, &mag0.dev); // since we're using uORB
-#else
-  ret = lis3mdl_register("dev/mag0", spi2, &mag0.dev);
-#endif  //CONFIG_UORB
-  if (ret < 0)
-  {
-    syslog(LOG_INFO, "[BRING_UP] Error: Failed to register LIS3MDL driver.\n");
-  }
-  else
-  {
-    syslog(LOG_INFO, "[BRING_UP] LIS3MDL registered on SPI 2.\n");
-  }
-#endif // CONFIG_SENSORS_LIS3MDL
+// #ifdef CONFIG_SENSORS_LIS3MDL
+// #ifdef CONFIG_UORB
+//   ret = lis3mdl_register(0, spi2, &mag0.dev); // since we're using uORB
+// #else
+//   ret = lis3mdl_register("dev/mag0", spi2, &mag0.dev);
+// #endif  //CONFIG_UORB
+//   if (ret < 0)
+//   {
+//     syslog(LOG_INFO, "[BRING_UP] Error: Failed to register LIS3MDL driver.\n");
+//   }
+//   else
+//   {
+//     syslog(LOG_INFO, "[BRING_UP] LIS3MDL registered on SPI 2.\n");
+//   }
+// #endif // CONFIG_SENSORS_LIS3fMDL
 #endif // CONFIG_STM32_SPI2
   stm32_gpiowrite(GPIO_WD_WDI,true);
   printf("Toggled wdog\n");
@@ -411,31 +412,31 @@ int stm32_bringup(void)
   }
 #endif
 
-#ifdef CONFIG_STM32_TIM6
+// #ifdef CONFIG_STM32_TIM6
 
-  ret = stm32_timer_initialize("/dev/timer6", 6);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer6 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 6 has been initialized successfully\n");
-  }
-#endif
+//   ret = stm32_timer_initialize("/dev/timer6", 6);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer6 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 6 has been initialized successfully\n");
+//   }
+// #endif
 
-#ifdef CONFIG_STM32_TIM7
-  ret = stm32_timer_initialize("/dev/timer7", 7);
-  if (ret < 0)
-  {
-    printf("failed to initialize /dev/timer7 : %d\n", ret);
-  }
-  else
-  {
-    printf("Timer 77 has been initialized successfully\n");
-  }
+// #ifdef CONFIG_STM32_TIM7
+//   ret = stm32_timer_initialize("/dev/timer7", 7);
+//   if (ret < 0)
+//   {
+//     printf("failed to initialize /dev/timer7 : %d\n", ret);
+//   }
+//   else
+//   {
+//     printf("Timer 77 has been initialized successfully\n");
+//   }
 
-#endif
+// #endif
   stm32_gpiowrite(GPIO_WD_WDI,true);
 
 // #ifdef CONFIG_STM32_TIM8

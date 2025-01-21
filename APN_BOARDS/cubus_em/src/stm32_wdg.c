@@ -28,11 +28,14 @@
 #include <errno.h>
 #include <debug.h>
 #include <nuttx/board.h>
+#include <syslog.h>
+#include <nuttx/kthread.h> 
 
 #include "stm32f427a.h"
 #include "stm32.h"
 
 #include <arch/board/board.h>
+bool wdog_task_started = false;
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -40,43 +43,25 @@
 
 /* Configuration ************************************************************/
 
-
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 void wdt_toggle_task(void *arg)
 {
-    static bool gpio_state = true;
+  static bool gpio_state = true;
+  stm32_gpiowrite(GPIO_WD_WDI, gpio_state);
+  stm32_gpiowrite(GPIO_WD_WDI, !gpio_state);
 
-    // Initialize GPIO pin
-    // gpio_pin_configure(GPIO_PIN, GPIO_DIRECTION_OUT);
-    // stm32_gpioconfig(GPIO_WD_WDI);
-    // stm32_gpiowrite(GPIO_WD_WDI,gpio_state?true:false);
-    srand(time(NULL));
-    uint16_t random_number = (rand() % (81 - 10 +1)) + 10, count =0;
-    printf("THe random number is %d\n",random_number);
+  while (1)
+  {
+    // Toggle GPIO state every 500ms
+    stm32_gpiowrite(GPIO_WD_WDI, gpio_state);
+    syslog(LOG_DEBUG,"\nGPio toggle state is %d\n", gpio_state);
+    gpio_state = !gpio_state;
 
-    while (1)
-    {
-        // Toggle GPIO state every 500ms
-        gpio_state = !gpio_state;
-        stm32_gpiowrite(GPIO_WD_WDI,gpio_state);
-        // if(count > random_number){
-        //   while(1){
-        //     printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\nRandom number was %d\nExternal watchdog will be triggered soon!\n\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",random_number);
-        //     sleep(2);
-        //   }
-        // }
-        
-        // if(count<10)
-        // printf("GPIO state: %d\n", gpio_state);  // Optional: print the GPIO state
-
-        // Wait for 500ms before toggling again
-        count++;
-        usleep(500000);  // 500ms delay
-    }
+    usleep(1500); // 500ms delay
+  }
 }
 /****************************************************************************
  * Name: stm32_pwm_setup
@@ -88,15 +73,39 @@ void wdt_toggle_task(void *arg)
 
 int stm32_wdg_setup(void)
 {
-  pid_t pid = task_create("[WDT_toggle_task]", 95, 804, wdt_toggle_task, NULL);
+  stm32_gpiowrite(GPIO_WD_WDI, true);
+  stm32_gpiowrite(GPIO_WD_WDI, false);
+    //printf("\nGPio toggled in setup\n");
+
+
+  if (wdog_task_started == false)
+  {
+    // pid_t pid = task_create("[WDT_toggle_task]", 1, 904, wdt_toggle_task, NULL);
+    pid_t pid = kthread_create(
+    "WDT TOggle thread",      // Thread name
+    1,  // Highest priority
+    905,                  // Stack size
+    wdt_toggle_task,     // Entry function
+    NULL                 // Argument
+);
+
     if (pid < 0)
     {
-        printf("ERROR: Failed to create wdt_toggle_task\n");
-        // return -1;
-        pid = task_create("[WDT_toggle_task]", 90, 1804, wdt_toggle_task, NULL);
+      //printf("ERROR: Failed to create wdt_toggle_task\n");
+      // return -1;
+      pid = task_create("[WDT_toggle_task]", 1, 1204, wdt_toggle_task, NULL);
     }
-
-    printf("[WDT_Toggle_Task]WDT toggle task created successfully\n");
-
+    else
+    {
+      wdog_task_started = true;
+      // syslog(LOG_DEBUG,"[WDT_Toggle_Task]WDT toggle task created successfully\n");
+      stm32_gpiowrite(GPIO_WD_WDI, true);
+      stm32_gpiowrite(GPIO_WD_WDI, false);
+    }
+  }
+  else
+  {
+    //printf("[WDT_Toggle_Task]WDT toggle task already created\n");
+  }
   return OK;
 }

@@ -237,8 +237,9 @@ void read_and_print_mag_data(void)
                 satellite_health.mag_z = mag_data.mag_z;
 
                 store_sat_health_data(&satHealth, MFM_MAIN_STRPATH);
+                store_sat_health_data(&satHealth, SFM_MAIN_STRPATH);
                 print_satellite_health_data(&satHealth);
-                maintain_data_consistency();
+                // maintain_data_consistency();
             }
         }
         time_counter += 10;
@@ -475,9 +476,9 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
   }
   else
   {
-    // syslog(LOG_ERR, "Error opening file to write satellite health data..\n");
+    file_close(&file_p);
+    syslog(LOG_ERR, "Error opening file path %s to write satellite health data..\n", pathname);
   }
-  file_close(&file_p);
   pthread_mutex_unlock(&main_flash_mutex);
   CRITICAL_FLAGS critic_flags;
   critic_flags.ANT_DEP_STAT = sat_health_data->ant_dep_stat;
@@ -488,26 +489,29 @@ void store_sat_health_data(satellite_health_s *sat_health_data, char *pathname)
   critic_flags.RST_COUNT = sat_health_data->rst_counter;
 
   pthread_mutex_lock(&main_flash_mutex);
+    // if(strcpy(pathname, MFM_MAIN_STRPATH) == 0)
+    { 
+      printf("the full path is :%s\n",pathname);
+      int fd1 = open_file_flash(&file_p, pathname, file_name_flag, O_RDWR);
+      if (fd1 >= 0)
+      {
+        // file_truncate(&file_p, sizeof(CRITICAL_FLAGS));
+        ssize_t bwr = file_write(&file_p, &critic_flags, sizeof(CRITICAL_FLAGS));
+        if (bwr != sizeof(CRITICAL_FLAGS))
+        {
+          syslog(LOG_ERR, "Error in writing flag data to MFM\n");
+        }
+        // file_sync(&file_p);
+        file_close(&file_p);
+        pthread_mutex_unlock(&main_flash_mutex);
 
-  int fd1 = open_file_flash(&file_p, MFM_MAIN_STRPATH, file_name_flag, O_RDWR);
-  if (fd1 >= 0)
-  {
-    file_truncate(&file_p, sizeof(CRITICAL_FLAGS));
-    ssize_t bwr = file_write(&file_p, &critic_flags, sizeof(CRITICAL_FLAGS));
-    if (bwr != sizeof(CRITICAL_FLAGS))
-    {
-      syslog(LOG_ERR, "Error in writing flag data to MFM\n");
+      }
+      else
+      {
+        syslog(LOG_ERR, "Unable to open %s%s for writing critical flash data\n", pathname, file_name_flag);
+        pthread_mutex_unlock(&main_flash_mutex);
+      }
     }
-    file_close(&file_p);
-    pthread_mutex_unlock(&main_flash_mutex);
-
-  }
-  else
-  {
-    syslog(LOG_ERR, "Unable to open %s%s for writing critical flash data\n", MFM_MAIN_STRPATH, file_name_flag);
-    pthread_mutex_unlock(&main_flash_mutex);
-  }
-  
   syslog(LOG_DEBUG, "\n-----Storing data to flash-----\n");  
 
 

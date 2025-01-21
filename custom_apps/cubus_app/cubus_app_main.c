@@ -810,24 +810,27 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
     uint8_t digipeater_data[86] = {'\0'};
     struct file file_ptr;
     int fd = file_open(&file_ptr, "/mnt/fs/mfm/mtd_mission/digipeater.txt", O_CREAT | O_WRONLY | O_APPEND);
-    ssize_t write_bytes = file_write(&file_ptr, COM_RX_DATA, COM_RX_DATA[2]);
-    file_write(&file_ptr, 0x7e, 1);
-    file_close(&file_ptr);
-    digipeater_data[0] = 0x53; // TODO: save data with callsign to FM
-    // int fd = open(COM_UART, O_WRONLY);
-    for (int i = 1; i < BEACON_DATA_SIZE; i++)
+    if (fd >= 0)
     {
-      if (i <= 43)
-        digipeater_data[i] = COM_RX_DATA[i];
-      // write(fd, digipeater_data[i],1);
-    }
-    // send_data_uart(COM_UART, &digipeater_data,86);
-    digipeater_data[BEACON_DATA_SIZE - 1] = 0x7e;
-    digipeater_data[BEACON_DATA_SIZE - 2] = 0x7e;
+      ssize_t write_bytes = file_write(&file_ptr, COM_RX_DATA, COM_RX_DATA[2]);
+      file_write(&file_ptr, 0x7e, 1);
+      file_close(&file_ptr);
+      digipeater_data[0] = 0x53; // TODO: save data with callsign to FM
+      // int fd = open(COM_UART, O_WRONLY);
+      for (int i = 1; i < BEACON_DATA_SIZE; i++)
+      {
+        if (i <= 43)
+          digipeater_data[i] = COM_RX_DATA[i];
+        // write(fd, digipeater_data[i],1);
+      }
+      // send_data_uart(COM_UART, &digipeater_data,86);
+      digipeater_data[BEACON_DATA_SIZE - 1] = 0x7e;
+      digipeater_data[BEACON_DATA_SIZE - 2] = 0x7e;
 
-    // TODO: Use storage_manager instead
-    send_data_uart(COM_UART, digipeater_data, sizeof(digipeater_data));
-    digipeating = 0;
+      // TODO: Use storage_manager instead
+      send_data_uart(COM_UART, digipeater_data, sizeof(digipeater_data));
+      digipeating = 0;
+    }
     return;
   }
   else if (COM_RX_DATA[0] == 0x72)
@@ -1171,21 +1174,20 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
             {
               sleep(1);
               send_data_uart(COM_UART, ack, sizeof(ack));
-             
 
               syslog(LOG_DEBUG, "---------kill switch command received\n");
 
               if (0 == receive_command(&kill_sw))
               // store_flag_data(1,&critic_flags);
               {
-                  critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
-                  gpio_write(GPIO_KILL_SW1_NEG, true);
-                  gpio_write(GPIO_KILL_SW1_POS, false);
-                  gpio_write(GPIO_KILL_SW_EN, true);
+                critic_flags.KILL_SWITCH_STAT = KILL_SW_ON;
+                gpio_write(GPIO_KILL_SW1_NEG, true);
+                gpio_write(GPIO_KILL_SW1_POS, false);
+                gpio_write(GPIO_KILL_SW_EN, true);
 
-                  gpio_write(GPIO_KILL_SW1_NEG, true);
-                  gpio_write(GPIO_KILL_SW1_POS, false);
-                  gpio_write(GPIO_KILL_SW_EN, true);
+                gpio_write(GPIO_KILL_SW1_NEG, true);
+                gpio_write(GPIO_KILL_SW1_POS, false);
+                gpio_write(GPIO_KILL_SW_EN, true);
                 syslog(LOG_DEBUG, "---------kill switch activated\n");
               }
             }
@@ -1228,6 +1230,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               else
                 data2[4] = 0x02;
               mission_operation(1, data2);
+
               syslog(LOG_DEBUG, "------------  ADCS mission turned off (command received using radio frequency) --------------\n");
             }
             else
@@ -1285,7 +1288,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
           // Command to ENABLE/DISABLE or run epdm(MSN3) mission
           {
             syslog(LOG_DEBUG, "EPDM MCU ID has been received\n");
-            if (cmds[0] == 0xEC && cmds[1] == 0xCF && cmds[2] == 0xCF)
+            if (cmds[0] == 0xEC && cmds[1] == 0xCF)
             {
               // sleep(1);
               send_data_uart(COM_UART, ack, sizeof(ack));
@@ -1293,6 +1296,7 @@ void parse_command(uint8_t COM_RX_DATA[COM_DATA_SIZE])
               syslog(LOG_DEBUG, "----------------EPDM  turned on ------------------\n");
               // epdm_operation();
               uint8_t data2[] = {0x53, 0x0e, 0x0d, 0x0e, 0x01, 0x7e};
+              data2[4] = cmds[2];
               mission_operation(3, data2);
               syslog(LOG_DEBUG, "----------------EPDM  turned off -----------------\n");
             }
@@ -1405,8 +1409,8 @@ static int COM_TASK(int argc, char *argv[])
 
   // usleep(2000000);
   sleep(2);
-  ret = handshake_COM(data); // tx rx data is flushed before closing the file
   // ret = handshake_COM(data); // tx rx data is flushed before closing the file
+  ret = handshake_MSN(0, data); // tx rx data is flushed before closing the file
 
   // usleep(PRINT_DELAY * 100);
   sleep(1);
@@ -1414,32 +1418,36 @@ static int COM_TASK(int argc, char *argv[])
   {
     syslog(LOG_DEBUG, "Successful handshake with COM\n");
     COM_HANDSHAKE_STATUS = 1;
-    uint64_t time1;
-    if(time(NULL) <= 1736913451)//TODO check out this functionality
+    uint64_t time1 = time(NULL);
+    if (time1 <= 1736913451) // TODO check out this functionality
     {
       time1 = get_time_data();
-      if(time1 <= 1736913451){
+      if (time1 <= 1736913451)
+      {
         struct timespec ts;
         ts.tv_sec = 1736913451;
         ts.tv_nsec = 0; // Set nanoseconds to zero
         int ret = clock_settime(CLOCK_REALTIME, &ts);
       }
     }
-    // else time1 = 
-    printf("\nThe received timestamp is : %d\n", time1);
-    set_time(time1);
+    else
+    {
+
+      printf("\nThe received timestamp is : %d\n", time1);
+      // set_time(time1);
+    }
     // wdog_fd = open(DEVNAME, O_RDONLY);
   }
-  if (ret != 0)
-  {
-    syslog(LOG_DEBUG, "Unable to handshake with COM\n");
-    // ret = handshake_COM(data);
-    ret = handshake_MSN(0, data);
-    if (ret == 0)
-    {
-      COM_HANDSHAKE_STATUS = 1;
-    }
-  }
+  // if (ret != 0)
+  // {
+  //   syslog(LOG_DEBUG, "Unable to handshake with COM\n");
+  //   // ret = handshake_COM(data);
+  //   ret = handshake_MSN(0, data);
+  //   if (ret == 0)
+  //   {
+  //     COM_HANDSHAKE_STATUS = 1;
+  //   }
+  // }
   if (COM_HANDSHAKE_STATUS == 1)
   {
     if (g_wdog_task_started)
@@ -1484,15 +1492,16 @@ static int COM_TASK(int argc, char *argv[])
 
   time_t current_time;
   uint32_t temp_timer = 0;
-  if(critic_flags.KILL_SWITCH_STAT == KILL_SW_ON ){
-        gpio_write(GPIO_KILL_SW1_NEG, true);
-        gpio_write(GPIO_KILL_SW1_POS, false);
-        gpio_write(GPIO_KILL_SW_EN, true);
+  if (critic_flags.KILL_SWITCH_STAT == KILL_SW_ON)
+  {
+    gpio_write(GPIO_KILL_SW1_NEG, true);
+    gpio_write(GPIO_KILL_SW1_POS, false);
+    gpio_write(GPIO_KILL_SW_EN, true);
 
-        gpio_write(GPIO_KILL_SW1_NEG, true);
-        gpio_write(GPIO_KILL_SW1_POS, false);
-        gpio_write(GPIO_KILL_SW_EN, true);
-    }
+    gpio_write(GPIO_KILL_SW1_NEG, true);
+    gpio_write(GPIO_KILL_SW1_POS, false);
+    gpio_write(GPIO_KILL_SW_EN, true);
+  }
   // bool co
   for (;;)
   {
@@ -1506,17 +1515,18 @@ static int COM_TASK(int argc, char *argv[])
       {
         critic_flags.OPER_MODE = SAFE_MODE;
       }
-      if(critic_flags.KILL_SWITCH_STAT == KILL_SW_ON){
-        
-      gpio_write(GPIO_KILL_SW1_NEG, true);
-      gpio_write(GPIO_KILL_SW1_POS, false);
-      gpio_write(GPIO_KILL_SW_EN, true);
+      if (critic_flags.KILL_SWITCH_STAT == KILL_SW_ON)
+      {
 
-      gpio_write(GPIO_KILL_SW1_NEG, true);
-      gpio_write(GPIO_KILL_SW1_POS, false);
-      gpio_write(GPIO_KILL_SW_EN, true);
+        gpio_write(GPIO_KILL_SW1_NEG, true);
+        gpio_write(GPIO_KILL_SW1_POS, false);
+        gpio_write(GPIO_KILL_SW_EN, true);
+
+        gpio_write(GPIO_KILL_SW1_NEG, true);
+        gpio_write(GPIO_KILL_SW1_POS, false);
+        gpio_write(GPIO_KILL_SW_EN, true);
       }
-     
+
       receive_telecommand_rx(rx_data);
       // if(TO_EXECUTE.mcu_id >= 0x03 && TO_EXECUTE.mcu_id <= 0x05)
       {
@@ -1625,95 +1635,6 @@ int handshake_COM(uint8_t *ack)
   return 0;
 }
 
-// int handshake_MSN_ADCS(uint8_t subsystem, uint8_t *ack)
-// {
-//   int fd;
-//   char devpath[15];
-//   uint8_t data1[7] = {'\0'};
-//   int i;
-//   ssize_t wr1, ret;
-//   uint8_t counter = 0;
-
-//   switch (subsystem)
-//   {
-//   case 1:
-//     strcpy(devpath, ADCS_UART);
-//     printf("Turned on power line for ADCS\n");
-//     break;
-//   case 2:
-//     strcpy(devpath, CAM_UART);
-//     printf("Turned on power line for CAM\n");
-//     break;
-//   case 3:
-//     strcpy(devpath, EPDM_UART);
-//     printf("Turned on power line for EPDM\n");
-//     break;
-//   default:
-//     printf("Unknown MSN subsystem selected\n");
-//     return -1;
-//   }
-
-//   printf("Opening UART dev path: %s\n", devpath);
-//   usleep(PRINT_DELAY);
-//   fd = open(devpath, O_WRONLY); // Open in non-blocking mode
-//   if (fd < 0)
-//   {
-//     printf("Error opening %s\n", devpath);
-//     usleep(PRINT_DELAY);
-//     return -1;
-//   }
-
-//   // Writing handshake data
-//   ret = write(fd, ack, 7);
-//   close(fd);
-//   // sleep(1);
-//   fd = open(devpath, O_RDWR | O_NONBLOCK); // Open in non-blocking mode
-
-//   printf("6 bytes written\n");
-//   int loop = 0;
-//   close(fd);
-//   fd = open(ADCS_UART, O_RDONLY);
-//   for (int i = 0; i < 7; i++)
-//   {
-//     ret = read(fd, &data1[i], 7);
-//   }
-//   printf("Data received from %s:\n", devpath);
-//   usleep(PRINT_DELAY);
-//   for (int j = 0; j < 7; j++)
-//   {
-//     printf(" %x ", data1[j]);
-//   }
-//   printf("\n");
-//   usleep(PRINT_DELAY);
-
-//   if (data1[0] == ack[0] && data1[5] == ack[5])
-//   {
-//     printf("\n******Acknowledgement received******\n");
-//     usleep(PRINT_DELAY);
-//   }
-//   else
-//   {
-//     if (close(fd) < 0)
-//     {
-//       if (close(fd) < 0)
-//         printf("Failed to close COM uART: %s\n", strerror(errno));
-//     }
-//     return 1;
-//   }
-
-//   printf("Handshake complete\n");
-//   usleep(PRINT_DELAY);
-//   printf("\n");
-//   ioctl(fd, TCFLSH, 2);
-//   ioctl(fd, TCDRN, NULL);
-//   printf("Flushed TX/RX buffer\n");
-//   if (close(fd) < 0)
-//   {
-//     printf("Failed to close COM UART %s\n", strerror(errno));
-//   }
-//   return 0;
-// }
-
 #define HANDSHAKE_ATTEMPTS 3
 #define HANDSHAKE_INTERVAL 20 // seconds
 #define UART_READ_TIMEOUT 3   // seconds
@@ -1730,9 +1651,10 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
 
   switch (subsystem)
   {
-  case 0 : strcpy(devpath, COM_UART);
-            printf("Handshake operation for COM started");
-            break;
+  case 0:
+    strcpy(devpath, COM_UART);
+    printf("Handshake operation for COM started");
+    break;
   case 1:
     strcpy(devpath, ADCS_UART);
     printf("Turned on power line for ADCS\n");
@@ -1806,7 +1728,7 @@ int handshake_MSN(uint8_t subsystem, uint8_t *ack)
       printf("\n");
       usleep(PRINT_DELAY);
 
-      if (data1[0] == ack[0] || data1[1] == ack[0])
+      // if (data1[0] == ack[0] || data1[1] == ack[0])
       {
         printf("\n******Acknowledgement received******\n");
         usleep(PRINT_DELAY);
@@ -2169,9 +2091,10 @@ void truncate_text_file(struct FILE_OPERATIONS *file_operations)
   struct file truncate_ptr;
   int fd;
   // syslog(LOG_SYSLOG, "File named %s has been truncated successfully.\n", file_operations->filepath);
-  char file_path[100] = {'\0'};
+  char file_path[100] = {'\0'}, same_file_logs[100] = {'\0'};
   strcpy(file_path, "/mnt/");
   strcat(file_path, file_operations->filepath);
+
   fd = open(file_path, O_TRUNC);
   if (fd >= 0)
   {
@@ -2187,6 +2110,39 @@ void truncate_text_file(struct FILE_OPERATIONS *file_operations)
     close(fd);
   }
   // file_close(&truncate_ptr);
+  if (strcmp(file_path, "/mnt/fs/mfm/mtd_mission/epdm.txt" == 0))
+  {
+    strcpy(same_file_logs, "/mnt/fs/mfm/mtd_mission/epdm_logs.txt");
+  }
+  else if (strcmp(file_path, "/mnt/fs/mfm/mtd_mission/cam_nir.txt" == 0))
+  {
+    strcpy(same_file_logs, "/mnt/fs/mfm/mtd_mission/cam_nir_logs.txt");
+  }
+  else if (strcmp(file_path, "/mnt/fs/mfm/mtd_mission/cam_rgb.txt" == 0))
+  {
+    strcpy(same_file_logs, "/mnt/fs/mfm/mtd_mission/cam_rgb_logs.txt");
+  }
+  else if (strcmp(file_path, "/mnt/fs/mfm/mtd_mission/adcs.txt" == 0))
+  {
+    strcpy(same_file_logs, "/mnt/fs/mfm/mtd_mission/adcs_logs.txt");
+  }
+  if (strlen(same_file_logs) < 10)
+  {
+    fd = open(same_file_logs, O_TRUNC);
+    if (fd >= 0)
+    {
+      syslog(LOG_SYSLOG, "File named %s has been truncated successfully.\n", same_file_logs);
+    }
+    else
+    {
+      syslog(LOG_SYSLOG, "Error opening file: %s %d\n", same_file_logs, fd);
+    }
+    if (close(fd) < 0)
+    {
+      printf("Failed to close UART: %s\n", strerror(errno));
+      close(fd);
+    }
+  }
 
   return 0;
 }
@@ -2640,6 +2596,25 @@ int main(int argc, FAR char *argv[])
 
     // printf("********ANtenna deployement starting************\n");
 
+    bool g_watchdog_task_started = false;
+    bool g_reset_task_started = false;
+    if (g_watchdog_task_started)
+    {
+      printf("[WDG TASK] Task already started.\n");
+    }
+    else
+    {
+      int retval = create_task("RESET_TASK_APP", 100, 1000, global_reset);
+      if (retval >= 0)
+      {
+        g_reset_task_started = true;
+        printf("[Reset TASK] Task started.\n");
+      }
+      else
+      {
+        printf("Unable to create RESET_TASK_APP task\n");
+      }
+    }
     Antenna_Deployment(argc, argv);
     print_critical_flag_data(&critic_flags);
     // sleep(10);
@@ -2650,27 +2625,6 @@ int main(int argc, FAR char *argv[])
     else
     {
       {
-        bool g_watchdog_task_started = false;
-        bool g_reset_task_started = false;
-
-        if (g_watchdog_task_started)
-        {
-          printf("[WDG TASK] Task already started.\n");
-        }
-        else
-        {
-          int retval = create_task("RESET_TASK_APP", 100, 1000, global_reset);
-          if (retval >= 0)
-          {
-            g_reset_task_started = true;
-            printf("[Reset TASK] Task started.\n");
-          }
-          else
-          {
-            printf("Unable to create RESET_TASK_APP task\n");
-          }
-        }
-
         if (g_commander_task_started)
         {
           printf("[COMMANDER TASK] Task already started.\n");
@@ -2764,6 +2718,7 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
 
   switch (subsystem)
   {
+
   case 1:
     printf("turning ADCS mission state: %d\n", state);
     gpio_write(GPIO_MSN1_EM_EN, state);
@@ -2793,6 +2748,17 @@ int turn_msn_on_off(uint8_t subsystem, uint8_t state)
   }
 
   gpio_write(GPIO_SFM_MODE, state);
+  if ((state == true || state == 1) && (subsystem != 1))
+  {
+    cubus_mtd_unmount(board_sfm_get_manifest(), "/mnt/fs/sfm/mtd_mainstorage"); //"/mnt/fs/sfm/mtd_mission"
+    cubus_mtd_unmount(board_sfm_get_manifest(), "/mnt/fs/sfm/mtd_mission");     //""
+  }
+  if ((state == false || state == 0) && (subsystem != 1))
+  {
+    cubus_mft_configure(board_sfm_get_manifest(), 2);
+    // if(subsystem != 1)
+    maintain_data_consistency();
+  }
 }
 // #include
 
@@ -2965,7 +2931,7 @@ void Antenna_Deployment(int argc, char *argv[])
 
   printf("\n----------------Antenna Deployment Flag: %d------------\n", rd_flags_int.ANT_DEP_STAT);
 
-  if (rd_flags_int.ANT_DEP_STAT != DEPLOYED || rd_flags_int.UL_STATE != UL_RX)
+  if ((rd_flags_int.ANT_DEP_STAT != DEPLOYED || rd_flags_int.UL_STATE != UL_RX) || (rd_flags_int.ANT_DEP_STAT == DEPLOYED && rd_flags_int.UL_STATE == UL_RX && rd_flags_int.RST_COUNT <= 3))
   {
     printf("****************************************\n");
     printf("ANtenna not deployed\n-----------------Antenna deployment starting-----------------\n");
@@ -3011,6 +2977,55 @@ void Antenna_Deployment(int argc, char *argv[])
     sat_health.ul_state = critic_flags.UL_STATE;
     printf("Updated flag data...\n");
   }
+  // if (rd_flags_int.ANT_DEP_STAT == DEPLOYED && rd_flags_int.UL_STATE == UL_RX && rd_flags_int.RST_COUNT <= 3)
+  // {
+  //   // if (rd_flags_int.ANT_DEP_STAT != DEPLOYED || rd_flags_int.UL_STATE != UL_RX)
+  //   {
+  //     printf("****************************************\n");
+  //     printf("----------------Antenna deployment starting for %d days-----------------\n",rd_flags_int.RST_COUNT);
+  //     printf("****************************************\n");
+
+  //     do
+  //     {
+  //       sleep(1);
+  //       i++;
+  //       if (0 == i % 60)
+  //       {
+  //         printf("------------Antenna flag deploying in %d minutes-----------\n", (ANT_DEPLOY_TIME - i) / 60);
+  //       }
+  //     } while (i < ANT_DEPLOY_TIME);
+
+  //     printf("Entering antenna deployment sequence\n");
+  //     for (int j = 0; j <= 2; j++)
+  //     {
+  //       printf("Turning on burner circuit\nAttempt: %d\n", j + 1);
+  //       retval = gpio_write(GPIO_BURNER_EN, true);
+  //       retval1 = gpio_write(GPIO_UNREG_EN, true);
+  //       sleep(8);
+  //       printf("\nTurning off burner circuit\n");
+  //       gpio_write(GPIO_UNREG_EN, false);
+  //       gpio_write(GPIO_BURNER_EN, false);
+  //       sleep(10);
+  //       printf("%d Antenna deployment sequence completed\n", j);
+  //     }
+
+  //     // critic_flags.ANT_DEP_STAT = DEPLOYED;
+  //     // critic_flags.UL_STATE = UL_RX;
+  //     rd_flags_int.ANT_DEP_STAT = DEPLOYED;
+  //     rd_flags_int.UL_STATE = UL_RX;
+
+  //     critic_flags.ANT_DEP_STAT = DEPLOYED;
+  //     critic_flags.KILL_SWITCH_STAT = KILL_SW_OFF;
+  //     critic_flags.OPER_MODE = NRML_MODE;
+  //     critic_flags.RSV_FLAG = RSV_NOT_RUNNING;
+  //     critic_flags.UL_STATE = UL_RX;
+  //     critic_flags.RST_COUNT = 0;
+
+  //     sat_health.ant_dep_stat = critic_flags.ANT_DEP_STAT;
+  //     sat_health.ul_state = critic_flags.UL_STATE;
+  //     printf("Updated flag data...\n");
+  //   }
+  // }
 
   rd_flags_int.RST_COUNT += 1;
   critic_flags.RST_COUNT += 1;
@@ -3210,7 +3225,7 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
               syslog(LOG_DEBUG, "COUNTER : %d\n pet_counter: %d", counter1, pet_counter);
               pet_counter = 0;
             }
-            data_received[counter1] = data3;
+            data_received[counter1 % 37001] = data3;
             counter1++;
 
             if (counter1 == 37000)
@@ -3231,18 +3246,27 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                     }
                     file_close(&file_pointer2);
                   }
+                  memset(data_received, '\0', sizeof(data_received));
                 }
               }
               file_close(&file_pointer);
-              counter1 = 0;
+              // counter1 = 0;
             }
             if (data4 == 0xff && data3 == 0xd9)
             {
               stop_time = time(NULL);
               int32_t t1 = stop_time - start_time;
-              syslog(LOG_DEBUG, "\n-----------------\nValue of counter1 is %d %d\n", counter1, t1);
+              syslog(LOG_DEBUG, "\n-----------------\nValue of counter1 is %d time in seconds%d\n", counter1, t1);
+              if (handshake_data[4] < 1 || handshake_data[4] > 5)
+              {
+                t1 = 5;
+              }
+              else
+              {
+                t1 = handshake_data[4];
+              }
 
-              if ((mission == 3 && counter1 >34000) | (mission == 1 && counter1 > 179 && handshake_data[4] == 0x01) | (mission == 1 && counter1 > 39 && handshake_data[4] == 0x02))
+              if ((mission == 3 && counter1 > 8300 * t1) | (mission == 1 && counter1 > 179 && handshake_data[4] == 0x01) | (mission == 1 && counter1 > 39 && handshake_data[4] == 0x02))
               {
                 fd = open_file_flash(&file_pointer, MFM_MSN_STRPATH, file_name, O_RDWR | O_APPEND);
                 if (fd >= 0)
@@ -3250,7 +3274,45 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                   final_count = file_seek(&file_pointer, 0, SEEK_END);
                   if ((final_count - initial_count > 100 && initial_count > 0) | (initial_count <= 0))
                   {
-                    ssize_t write_bytes = file_write(&file_pointer, data_received, counter1);
+                    ssize_t write_bytes; //= file_write(&file_pointer, data_received, counter1);
+                    if (counter1 > 37000)
+                    {
+                      write_bytes = file_write(&file_pointer, data_received, counter1 - 37000);
+                    }
+                    else
+                    {
+                      write_bytes = file_write(&file_pointer, data_received, counter1);
+                      if (mission == 1)
+                      {
+                        struct file fp;
+                        int fd = file_open(&fp, "/mnt/fs/sfm/mtd_mission/adcs.txt", O_RDWR);
+                        if (fd < 0)
+                        {
+                          printf("Error: Failed to open adcs file from sfm\n");
+                        }
+                        else
+                        {
+                          ssize_t writeBytes = file_write(&fp, data_received, counter1);
+                          if (writeBytes > 10)
+                          {
+                            printf("ADCS data of size %d has been written to shared flash memory.\n", writeBytes);
+                          }
+                        }
+                      }
+                    }
+                    // if (mission == 3)
+                    // {
+                    //   printf("--------------------------------------------------------------------------------------\n");
+                    //   printf("--------------------------------------------------------------------------------------\n");
+
+                    //   for (int ii = 0; ii < counter1; ii++)
+                    //   {
+                    //     printf("%02x ", data_received[ii]);
+                    //   }
+                    //   printf("--------------------------------------------------------------------------------------\n");
+                    //   printf("--------------------------------------------------------------------------------------\n");
+                    // }
+
                     if (write_bytes > 10)
                     {
                       printf("Data has been written to %s%s path with size %d\n", MFM_MSN_STRPATH, file_name, counter1);
@@ -3278,6 +3340,16 @@ void mission_operation(uint8_t mission, uint8_t handshake_data[7])
                         printf("the data written is %d %d", final_count, sizeof(final_count));
                       }
                       file_close(&msn_flag_pointer);
+                      if (mission == 1)
+                      {
+                        fd_seek = open_file_flash(&msn_flag_pointer, SFM_MSN_STRPATH, new_path, O_CREAT | O_RDWR | O_APPEND);
+                        if (fd_seek >= 0)
+                        {
+                          file_write(&msn_flag_pointer, temp_var, sizeof(temp_var));
+                          printf("the data written is %d %d", final_count, sizeof(final_count));
+                        }
+                        file_close(&msn_flag_pointer);
+                      }
                     }
                   }
                 }
@@ -3487,11 +3559,10 @@ void make_satellite_health()
   sat_health.rst_counter = critic_flags.RST_COUNT;
   sat_health.rsv_flag = critic_flags.RSV_FLAG;
   sat_health.ul_state = critic_flags.UL_STATE;
-  // if(critic_flags.RST_COUNT <2000 ) 
+  // if(critic_flags.RST_COUNT <2000 )
   // critic_flags.RST_COUNT = critic_flags.RST_COUNT +2000;
-  // else 
+  // else
   sat_health.rst_counter = critic_flags.RST_COUNT;
-
 }
 
 void ADC_Temp_Conv(float *adc_conv_buf, float *temp_buf, int channel)
@@ -3989,13 +4060,15 @@ void save_64_bit()
   time_t now = time(NULL);
   test = now;
   struct file file1;
-  file_open(&file1, "/mnt/fs/mfm/mtd_mainstorage/time.txt", O_CREAT | O_WRONLY);
-  int tt = file_write(&file1, &test, sizeof(test));
-  if (tt > 0)
+  if (file_open(&file1, "/mnt/fs/mfm/mtd_mainstorage/time.txt", O_CREAT | O_WRONLY) >= 0)
   {
-    printf("The time data has been updated accprdingly. %d\n", tt);
+    int tt = file_write(&file1, &test, sizeof(test));
+    if (tt > 0)
+    {
+      printf("The time data has been updated accprdingly. %d\n", tt);
+    }
+    file_close(&file1);
   }
-  file_close(&file1);
 }
 
 uint64_t get_time_data()
@@ -4004,10 +4077,15 @@ uint64_t get_time_data()
   uint64_t test = 0, t;
   t = file_open(&file1, "/mnt/fs/mfm/mtd_mainstorage/time.txt", O_RDONLY);
   // ssize_t t = file_seek(&file1, 0, SEEK_END);
-  file_read(&file1, &test, sizeof(test));
+  if (t >= 0)
+  {
+    file_read(&file1, &test, sizeof(test));
+    printf("the latest size is %d data is %d\n", t, test);
+    return test;
+  }
   file_close(&file1);
-  printf("the latest size is %d data is %d\n", t, test);
-  return test;
+
+  return 0;
 }
 
 void flash_read_operation_uorb()
@@ -4106,8 +4184,11 @@ void operation_log(char data[10])
 {
   struct file fp;
   int fs = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/operation_log.txt", O_CREAT | O_APPEND | O_WRONLY);
-  if (file_write(&fp, data, strlen(data)) > 0)
+  if (fs >= 0)
   {
+    if (file_write(&fp, data, strlen(data)) > 0)
+    {
+    }
   }
 }
 
