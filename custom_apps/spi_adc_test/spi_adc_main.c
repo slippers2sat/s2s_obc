@@ -696,36 +696,7 @@
 
 int main(int argc, char *argv[])
 {
-  int fd;
-  int ret;
-  struct rtc_time rtctime;
-  char timbuf[MAX_TIME_STRING];
-
-  fd = open("/dev/rtc0", O_RDONLY);
-  if (fd < 0)
-  {
-    fprintf(stderr, "Failed to open RTC device: %s\n", strerror(errno));
-    return 1;
-  }
-
-  ret = ioctl(fd, RTC_RD_TIME, &rtctime);
-  if (ret < 0)
-  {
-    fprintf(stderr, "Failed to read RTC time: %s\n", strerror(errno));
-    close(fd);
-    return 1;
-  }
-
-  close(fd);
-
-  /* Show the current time in the requested format */
-  ret = strftime(timbuf, MAX_TIME_STRING, "%a, %b %d %H:%M:%S %Y", (struct tm *)&rtctime);
-  if (ret == 0)
-  {
-    fprintf(stderr, "Failed to format time\n");
-    return 1;
-  }
-
-  printf("RTC time: %s\n", timbuf);
-  return 0;
+  enter_critical_section();
+  while(1)
+  {}
 }

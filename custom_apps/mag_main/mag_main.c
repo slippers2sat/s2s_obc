@@ -115,23 +115,10 @@ static void print_orb_mag_scaled_msg(FAR const struct orb_metadata *meta,
  ****************************************************************************/
 
 ORB_DEFINE(orb_mag_scaled, struct orb_mag_scaled_s, print_orb_mag_scaled_msg);
-static struct work_s my_work;
-int counter1=0;
+
 /****************************************************************************
  * custom_hello_main
  ****************************************************************************/
-void my_worker()
-{
-  counter1++;
-    // Perform the task (e.g., toggle GPIO for watchdog)
-    toggle_wdg();
-    printf("My worker called magmain\n");
-    // usleep(3000); // 100 ms
-
-    // Re-queue the work for periodic execution
-   if(counter1 <20)
-    work_queue(LPWORK, &my_work, my_worker, NULL, MSEC2TICK(1)); // 200ms period
-}
 
 int  mag_daemon(int argc, FAR char *argv[])
 {
@@ -156,7 +143,6 @@ int  mag_daemon(int argc, FAR char *argv[])
   {
     syslog(LOG_ERR, "Orb advertise failed.\n");
   }
-  toggle_wdg();
   
 
   fd = orb_subscribe_multi(ORB_ID(sensor_mag), 0);
@@ -177,14 +163,9 @@ int  mag_daemon(int argc, FAR char *argv[])
     }
 
   //
-  // toggle_wdg();
-   my_worker();
-  int count =0;
+
   for(;;)
   {
-    // count++;
-    toggle_wdg();
-   
     read_mpu6500_2(fd1, &imu_acc_data, &imu_gyro_data, &raw_imu);
 
     // printf(
@@ -194,7 +175,6 @@ int  mag_daemon(int argc, FAR char *argv[])
     //       //  imu_acc_data.timestamp, imu_acc_data.temperature,
     //          raw_imu.acc_x,   raw_imu.acc_y,   raw_imu.acc_z,
     //        raw_imu.gyro_x, raw_imu.gyro_y, raw_imu.gyro_z);
-    
     
     if (poll(&fds, 1, 3000) > 0)
     {
@@ -211,7 +191,7 @@ int  mag_daemon(int argc, FAR char *argv[])
 
         // printf("Timestamp: %lli \t", mag0.timestamp);
         // printf("Temperature: %0.02f \t", mag0.temperature);
-
+       
       }
       mag_scaled.mag_x = mag0.mag_x * 0.058f;
       mag_scaled.mag_y = mag0.mag_y * 0.058f;
@@ -249,13 +229,6 @@ int  mag_daemon(int argc, FAR char *argv[])
   
   return 0;
 }
-void tg(){
-  while(1){
-    toggle_wdg();
-    printf("---------------------THread of magmain\n");
-    usleep(2000);
-  }
-}
 
 
 
@@ -272,15 +245,10 @@ int main(int argc, FAR char *argv[])
     printf("[mag] Task already started.\n");
   return EXIT_SUCCESS;
   }
-  toggle_wdg();
-  //  ret = task_create("mag_daemon",1zzzzzzzzzzzzzzz,
-  //                   CONFIG_CUSTOM_APPS_MAG_MAIN_STACKSIZE, tg,
-  //                   NULL);zzzzzzzz
- 
+ toggle_wdg();
   ret = task_create("mag_daemon",100,
                     CONFIG_CUSTOM_APPS_MAG_MAIN_STACKSIZE, mag_daemon,
                     NULL);
-  toggle_wdg();
 
   if (ret < 0)
   {

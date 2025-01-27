@@ -235,8 +235,6 @@ mtd_instance_s **cubus_mtd_get_instances(unsigned int *count)
 int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
 {
     // stm32_gpiowrite();
- toggle_wdg();
-
     int rv = -EINVAL;
     total_blocks = block_number;
 
@@ -261,7 +259,6 @@ int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
         syslog(LOG_ERR, "reached limit of max %u mtd instances", MAX_MTD_INSTANCES);
         return rv;
     }
- toggle_wdg();
 
     for (uint8_t i = num_instances, num_entry = 0u; i < total_new_instances; ++i, ++num_entry)
     {
@@ -276,7 +273,6 @@ int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
         }
 
         num_instances++;
-        toggle_wdg();
 
         uint32_t nparts = mtd_list->entries[num_entry]->npart;
         instances[i]->devid = mtd_list->entries[num_entry]->device->devid;
@@ -312,7 +308,6 @@ int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
         {
             goto memoryout;
         }
- toggle_wdg();
 
         for (uint32_t p = 0; p < nparts; p++)
         {
@@ -336,7 +331,6 @@ int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
         {
             goto errout;
         }
- toggle_wdg();
 
         unsigned long blocksize;
         unsigned long erasesize;
@@ -362,8 +356,6 @@ int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
 
         for (offset = 0, part = 0; rv == 0 && part < nparts; offset += instances[i]->partition_block_counts[part], part++)
         {
- toggle_wdg();
-
 
             /* Create the partition */
 
@@ -383,7 +375,6 @@ int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
 
             syslog(LOG_INFO, "blockname: %s, type: %d, name: %s\n", blockname, instances[i]->partition_types[part],
                    instances[i]->partition_names[part]);
- toggle_wdg();
 
             rv = register_mtddriver(blockname, instances[i]->part_dev[part], 0755, NULL);
 
@@ -392,7 +383,6 @@ int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
                 syslog(LOG_ERR, "MTD driver %s failed: %d\n", blockname, rv);
                 goto errout;
             }
- toggle_wdg();
 
             // snprintf(mount_point, sizeof(mount_point), "/mnt%s", instances[i]->partition_names[part]);
             memset(mount_point, '\n', sizeof(mount_point));
@@ -400,8 +390,6 @@ int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
             printf("nx_mount: blockname: %s partition: %s mount_point: %s\n", blockname, instances[i]->partition_names[part],
                    mount_point);
             rv = nx_mount(blockname, mount_point, "littlefs", 0, "");
- toggle_wdg();
-
             if (rv < 0)
             {
                 syslog(LOG_ERR, "NX_Mount %s on mount point: %s failed: %d\n", instances[i]->partition_names[part], mount_point, rv);
@@ -412,8 +400,6 @@ int cubus_mtd_config(const cubus_mtd_manifest_t *mft_mtd, int block_number)
                     syslog(LOG_ERR, "remount with autoformat failed.\n");
                     goto errout;
                 }
- toggle_wdg();
-
             }
             else
             {

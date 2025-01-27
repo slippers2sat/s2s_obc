@@ -37,6 +37,7 @@
 #include <arch/board/board.h>
 bool wdog_task_started = false;
 
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -52,15 +53,18 @@ void wdt_toggle_task(void *arg)
   static bool gpio_state = true;
   stm32_gpiowrite(GPIO_WD_WDI, gpio_state);
   stm32_gpiowrite(GPIO_WD_WDI, !gpio_state);
-
+  irqstate_t flags;
   while (1)
   {
     // Toggle GPIO state every 500ms
+    // flags = enter_critical_section();
     stm32_gpiowrite(GPIO_WD_WDI, gpio_state);
-    syslog(LOG_DEBUG,"\nGPio toggle state is %d\n", gpio_state);
+    // syslog(LOG_DEBUG,"\nGPio toggle state is %d\n", gpio_state);
     gpio_state = !gpio_state;
-up_mdelay(200);
-    // usleep(4500); // 500ms delay
+    // leave_critical_section(flags);
+    usleep(500000);
+
+    // sleep(1); // 500ms delay
   }
 }
 /****************************************************************************
@@ -71,30 +75,33 @@ up_mdelay(200);
  *
  ****************************************************************************/
 int toggle_wdg(){
-    stm32_gpiowrite(GPIO_WD_WDI, true);
-  usleep(10);
+  stm32_configgpio(GPIO_WD_WDI);
+  stm32_gpiowrite(GPIO_WD_WDI, true);
+  usleep(500000);
   stm32_gpiowrite(GPIO_WD_WDI, false);
   syslog(LOG_DEBUG, "TOggled wdg");
 }
 
 int stm32_wdg_setup(void)
 {
+  stm32_configgpio(GPIO_WD_WDI);
+
   stm32_gpiowrite(GPIO_WD_WDI, true);
-  usleep(10);
+  usleep(10000);
   stm32_gpiowrite(GPIO_WD_WDI, false);
   // syslog(LOG_DEBUG,"GPio setup");
 
 
   if (wdog_task_started == false)
   {
-    pid_t pid = task_create("[WDT_toggle_task]", 1, 904, wdt_toggle_task, NULL);
-    // pid_t pid = kthread_create(
-    // "WDT TOggle thread",      // Thread name
-    // 1,  // Highest priority
-    // 905,                  // Stack size
-    // wdt_toggle_task,     // Entry function
-    // NULL                 // Argument
-// );
+    // pid_t pid = task_create("[WDT_toggle_task]", 1, 904, wdt_toggle_task, NULL);
+    pid_t pid = kthread_create(
+    "WDT TOggle thread",      // Thread name
+    50,  // Highest priority
+    905,                  // Stack size
+    wdt_toggle_task,     // Entry function
+    NULL                 // Argument
+    );
 
     if (pid < 0)
     {
@@ -112,7 +119,7 @@ int stm32_wdg_setup(void)
   }
   else
   {
-    // printf("[WDT_Toggle_Task]WDT toggle task already created\n");
+    printf("[WDT_Toggle_Task]WDT toggle task already created\n");
   }
   return OK;
 }

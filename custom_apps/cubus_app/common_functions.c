@@ -67,50 +67,74 @@ int clear_int_flag(){
 
 }
 
+
 int store_flag_data(CRITICAL_FLAGS *flag_data)
 {
-  struct file fp;
-  int bwr;
+    struct file fp;
+    int bwr, ret = 0;
 
-  printf("\n**************SToring flag data*********\n");
-  print_critical_flag_data(flag_data);
-  pthread_mutex_lock(&flash_mutex); // Lock the mutex
-  
-  int fd = open("/dev/intflash", O_RDWR);
-  if (fd >= 0)
-  {
-    up_progmem_eraseblock(22);
-    up_progmem_write(FLAG_DATA_INT_ADDR, flag_data, sizeof(CRITICAL_FLAGS));
-    close(fd);
-  }
-  else
-  {
-    syslog(LOG_ERR, "Error opening internal flash to store new flag data ... \n");
-    return -1;
-  }
-  print_critical_flag_data(flag_data);
-  pthread_mutex_unlock(&flash_mutex); // Lock the mutex
-  
-  int fd1 = open_file_flash(&fp, MFM_MAIN_STRPATH, file_name_flag, O_RDWR);
-  if (fd1 >= 0)
-  {
-    file_truncate(&fp, sizeof(CRITICAL_FLAGS));
-    bwr = file_write(&fp, flag_data, sizeof(CRITICAL_FLAGS));
-    if (bwr != sizeof(CRITICAL_FLAGS))
+    printf("\n************** Storing flag data *********\n");
+    print_critical_flag_data(flag_data);
+    toggle_wdg();
+
+    // Enter critical section
+    irqstate_t flags = enter_critical_section();
+
+    int fd = open("/dev/intflash", O_RDWR);
+    if (fd >= 0)
     {
-      syslog(LOG_ERR, "Error in writing flag data to MFM\n");
+        if (up_progmem_eraseblock(22) < 0)
+        {
+            syslog(LOG_ERR, "Error erasing flash block\n");
+            ret = -1;
+        }
+        else if (up_progmem_write(FLAG_DATA_INT_ADDR, flag_data, sizeof(CRITICAL_FLAGS)) < 0)
+        {
+            syslog(LOG_ERR, "Error writing to flash memory\n");
+            ret = -1;
+        }
+        close(fd);
     }
-    file_close(&fp);
-  }
-  else
-  {
-    syslog(LOG_ERR, "Unable to open %s%s for writing critical flash data\n", MFM_MAIN_STRPATH, file_name_flag);
-    return -1;
-  }
-  
-  syslog(LOG_DEBUG, "\n-----Storing data to flash-----\n");
-  return 0;
+    else
+    {
+        syslog(LOG_ERR, "Error opening internal flash to store new flag data\n");
+        ret = -1;
+    }
+
+    // Exit critical section
+    leave_critical_section(flags);
+
+    if (ret == 0)
+    {
+        int fd1 = open_file_flash(&fp, MFM_MAIN_STRPATH, file_name_flag, O_RDWR);
+        if (fd1 >= 0)
+        {
+            if (file_truncate(&fp, sizeof(CRITICAL_FLAGS)) < 0)
+            {
+                syslog(LOG_ERR, "Error truncating file\n");
+                ret = -1;
+            }
+            else
+            {
+                bwr = file_write(&fp, flag_data, sizeof(CRITICAL_FLAGS));
+                if (bwr != sizeof(CRITICAL_FLAGS))
+                {
+                    syslog(LOG_ERR, "Error writing flag data to MFM\n");
+                    ret = -1;
+                }
+            }
+            file_close(&fp);
+        }
+        else
+        {
+            syslog(LOG_ERR, "Unable to open %s%s for writing critical flash data\n", MFM_MAIN_STRPATH, file_name_flag);
+            ret = -1;
+        }
+    }
+
+    return ret;
 }
+
 
 
 int check_flag_data(CRITICAL_FLAGS *flags)

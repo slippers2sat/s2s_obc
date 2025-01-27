@@ -32,7 +32,7 @@
 #include <nuttx/spi/spi.h>
 #include <stm32_spi.h>
 
-#include <stdio.h>
+// #include <stdio.h>
 #include <string.h>
 #include <syslog.h>
 
@@ -44,7 +44,7 @@
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
+void test();
 /************************************************************************************
  * Name: board_peripheral_reset
  *
@@ -54,90 +54,45 @@
  void board_peripheral_reset(int ms)
 {
 	// Setting the kill switch control gpio
-	stm32_configgpio(GPIO_WD_WDI);
-    
-    stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
 
 	stm32_gpiowrite(GPIO_KILL_SW_EN, 0);
 	stm32_gpiowrite(GPIO_KILL_SW1_NEG, 0);
 	stm32_gpiowrite(GPIO_KILL_SW1_POS, 0);
-
-	
-    stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_gpiowrite(GPIO_KILL_SW2_NEG, 0);
 	stm32_gpiowrite(GPIO_KILL_SW2_POS, 0);
-
-	
-    stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
 
 	// setting watchdog and reset GPIOs
 	stm32_gpiowrite(GPIO_GBL_RST, 0);
 	stm32_gpiowrite(GPIO_WD_WDI, 0); // setting initial watchdog pin status
 
-
-    stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-	
 	// setting power contorl pins
 	stm32_gpiowrite(GPIO_DCDC_MSN_3V3_2_EN, 0); 	// enable MSN regulator
 	stm32_gpiowrite(GPIO_DCDC_4V_EN, 0);		// Disable RF Power Amp regualtor
-
-	
-    stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_gpiowrite(GPIO_DCDC_5V_EN, 0);		// Enable 5V regulator
 
 	stm32_gpiowrite(GPIO_COM_4V_EN, 0);	// Disable RF Power Amp
-	
-    stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_gpiowrite(GPIO_3V3_COM_EN, 0); 	// Enable COM systems
 	stm32_gpiowrite(GPIO_MSN_3V3_EN, 0);	// Enable MSN Power
 	stm32_gpiowrite(GPIO_MSN_5V_EN, 0);	// enable 5V Power Rail
-	
-    stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_gpiowrite(GPIO_BURNER_EN, 0);	// Disable Burner enable
 	stm32_gpiowrite(GPIO_UNREG_EN, 0);	// Disable UNREG power line
-
-	
-    stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
 
 	// setting MSN control Pin
 	stm32_gpiowrite(GPIO_MSN1_EN, 0);	//Disable MSN 1 activation
 	stm32_gpiowrite(GPIO_MSN2_EN, 0);	//Disable MSN 2 activation
-
-	
-    stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_gpiowrite(GPIO_MSN3_EN, 0);	//Disable MSN 3 activation
 
 	// setting flash control pins
 	stm32_gpiowrite(GPIO_SFM_CS, 0);
-	
-    stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_gpiowrite(GPIO_SFM_MODE, 0);
 	stm32_gpiowrite(GPIO_MUX_EN, 0);
-	
-    stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
 
 
 	usleep(ms * 1000);
-	// syslog(LOG_DEBUG, "reset done, %d ms\n", ms);
-  	// syslog(LOG_DEBUG,"Reset Done.\n");
-	
+	syslog(LOG_DEBUG, "reset done, %d ms\n", ms);
+  	printf("Reset Done.\n");
+	stm32_gpiowrite(GPIO_WD_WDI, true);
+    stm32_gpiowrite(GPIO_WD_WDI, false);
 }
 
 /****************************************************************************
@@ -155,126 +110,56 @@ void stm32_boardinitialize(void)
 {
    	// Configure Watchdog and Reset control pins.
 	stm32_configgpio(GPIO_WD_WDI);
-
-	stm32_gpiowrite(GPIO_WD_WDI,true);
-   stm32_gpiowrite(GPIO_WD_WDI,false);
-
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
+	
+   stm32_gpiowrite(GPIO_WD_WDI, true);
 
 	stm32_configgpio(GPIO_GBL_RST);
 
 	// Configure KILL Switch Control and Monitoring GPIOs
 	stm32_configgpio(GPIO_KILL_SW_EN);
 	stm32_configgpio(GPIO_KILL_SW1_STAT); //input
-
-   stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-	
 	stm32_configgpio(GPIO_KILL_SW1_NEG);
 	stm32_configgpio(GPIO_KILL_SW1_POS);
-
-	
-   stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_configgpio(GPIO_KILL_SW2_STAT); //input
 	stm32_configgpio(GPIO_KILL_SW2_NEG);
-
-	
-   stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_configgpio(GPIO_KILL_SW2_POS);
 
 	// Configure power supply control pins
 	stm32_configgpio(GPIO_DCDC_MSN_3V3_2_EN);
-
-	
-   stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_configgpio(GPIO_DCDC_4V_EN);
 	stm32_configgpio(GPIO_DCDC_5V_EN);
 
-	
-   stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_configgpio(GPIO_3V3_COM_EN);
 	stm32_configgpio(GPIO_MSN_3V3_EN);
-
-	
-   stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_configgpio(GPIO_COM_4V_EN);
 	stm32_configgpio(GPIO_MSN_5V_EN);
-
-	
-   stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_configgpio(GPIO_BURNER_EN);
 	stm32_configgpio(GPIO_UNREG_EN);
-
-
-   stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
 
 	// Configure MSN Control Pins
 	stm32_configgpio(GPIO_MSN1_EN);
 	stm32_configgpio(GPIO_MSN2_EN);
-
-	
-   stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_configgpio(GPIO_MSN3_EN);
 
 	// Configure Flash control pins
 	stm32_configgpio(GPIO_SFM_MODE);
-
-	stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_configgpio(GPIO_MUX_EN);
 
 	//configure MAG DRDY and MPU INT
 	stm32_configgpio(GPIO_LIS3MDL_DRDY);
-
-	
-   stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
   stm32_configgpio(GPIO_LIS3MDL_CS);
 
   stm32_configgpio(GPIO_MPU_CS);
-
-  
-   stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
   stm32_configgpio(GPIO_LIS3MDL_INT);
   stm32_configgpio(GPIO_EXT_ADC1_CS);
-  
-   stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
 	stm32_configgpio(GPIO_MPU_INT);
   
   stm32_configgpio(GPIO_MFM_CS);
   stm32_configgpio(GPIO_SFM_CS);
-
-  
-   stm32_gpiowrite(GPIO_WD_WDI,false);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
   stm32_configgpio(GPIO_MUX_EN);
   stm32_configgpio(GPIO_SFM_MODE);
-  
-   stm32_gpiowrite(GPIO_WD_WDI,true);
-	// syslog(LOG_DEBUG,"GPIO toggled\n");
-
+//   stm32_wdg_setup();
+   stm32_gpiowrite(GPIO_WD_WDI, false);
 
 
 
@@ -344,11 +229,14 @@ int board_app_initialize(uintptr_t arg)
 {
   stm32_configgpio(GPIO_WD_WDI);
 
-  stm32_wdg_setup();
-  // syslog(LOG_DEBUG,"Initializing board applications.\n");
-  
+//   stm32_wdg_setup();
+  printf("Initializing board applications.\n");
+  stm32_configgpio(GPIO_WD_WDI);
 
-  board_peripheral_reset(0);
+//   stm32_wdg_setup();
+	toggle_wdg();	
+
+  board_peripheral_reset(10);
   
 
 #if defined(CONFIG_STM32_SPI1) || defined(CONFIG_STM32_SPI2) || \
