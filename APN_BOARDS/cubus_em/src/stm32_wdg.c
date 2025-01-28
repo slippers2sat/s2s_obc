@@ -53,13 +53,12 @@ void wdt_toggle_task(void *arg)
   static bool gpio_state = true;
   stm32_gpiowrite(GPIO_WD_WDI, gpio_state);
   stm32_gpiowrite(GPIO_WD_WDI, !gpio_state);
-  irqstate_t flags;
   while (1)
   {
     // Toggle GPIO state every 500ms
     // flags = enter_critical_section();
     stm32_gpiowrite(GPIO_WD_WDI, gpio_state);
-    // syslog(LOG_DEBUG,"\nGPio toggle state is %d\n", gpio_state);
+    syslog(LOG_DEBUG,"\nGPio toggle state is %d\n", gpio_state);
     gpio_state = !gpio_state;
     // leave_critical_section(flags);
     usleep(500000);
@@ -79,7 +78,7 @@ int toggle_wdg(){
   stm32_gpiowrite(GPIO_WD_WDI, true);
   usleep(500000);
   stm32_gpiowrite(GPIO_WD_WDI, false);
-  syslog(LOG_DEBUG, "TOggled wdg");
+  // syslog(LOG_DEBUG, "TOggled wdg");
 }
 
 int stm32_wdg_setup(void)

@@ -35,7 +35,6 @@
 #include "adc.h"
 #include "common_functions.h"
 #include <nuttx/fs/fs.h>
-#include "imu_mag.h"
 #include "gpio_definitions.h"
 #include "mission_operations.h"
 // #include "com_app_main.h"
@@ -48,6 +47,23 @@
 
 #include "common_functions.h"
 
+#include <nuttx/sensors/sensor.h>
+#include <nuttx/sensors/lis3mdl.h>
+#include "file_operations.h"
+
+struct mpu6500_imu_msg
+{
+  int16_t acc_x;
+  int16_t acc_y;
+  int16_t acc_z;
+  int16_t temp;
+  int16_t gyro_x;
+  int16_t gyro_y;
+  int16_t gyro_z;
+  int16_t mag_x;
+  int16_t mag_y;
+  int16_t mag_z;
+};
 
 
 struct orb_mag_s

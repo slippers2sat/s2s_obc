@@ -563,7 +563,7 @@ void flash_operations()
         switch (command_ops.command)
         {
         case 0xca:
-          truncate_text_file(command_ops.path);
+          truncate_text_file(command_ops.path); //TODO need to reform this
           printf("-----Trucate text file called \n");
           break;
         case 0x1d:

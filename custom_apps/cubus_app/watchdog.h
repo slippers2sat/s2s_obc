@@ -70,7 +70,7 @@ static int watchdog_task(int argc, char *argv[])
       // usleep(PING_INTERVAL * 1000); // Sleep for 1 second
 
       // Pet the watchdog
-      if (pet_counter <= 160)
+      if (pet_counter <= 200)
       {
         if (ioctl(fd, WDIOC_KEEPALIVE, 0) < 0)
         {
@@ -89,7 +89,7 @@ static int watchdog_task(int argc, char *argv[])
       {
         printf("WDOG timeout reached!!!!!!!Reset soon!");
         {
-          sleep(2);
+          sleep(3);
         }
       }
     }

@@ -55,12 +55,15 @@ int clear_int_flag(){
   struct file fp;
   int fd;
   pthread_mutex_lock(&flash_mutex); // Lock the mutex
-
+  irqstate_t flags = enter_critical_section();
+  
   fd = open("/dev/intflash", O_WRONLY);
   up_progmem_eraseblock(22);
   up_progmem_write(FLAG_DATA_INT_ADDR, c, sizeof(CRITICAL_FLAGS));
 
   close(fd);
+  leave_critical_section(flags);
+
   // fd = file_open(&fp, "/mnt/fs/mfm/mtd_mainstorage/flags.txt", O_TRUNC);
   // file_close(&fp);
   pthread_mutex_unlock(&flash_mutex); // Lock the mutex
@@ -145,6 +148,7 @@ int check_flag_data(CRITICAL_FLAGS *flags)
   struct file fp;
   printf("*********Checking flag data**********\n");
   pthread_mutex_lock(&flash_mutex); // Lock the mutex
+   flags = enter_critical_section();
   
   int fd = open("/dev/intflash", O_RDWR);
   if (fd >= 0)
@@ -159,6 +163,8 @@ int check_flag_data(CRITICAL_FLAGS *flags)
     syslog(LOG_ERR, "Error opening internal flash\n");
     return -1;
   }
+  leave_critical_section(flags);
+
   pthread_mutex_unlock(&flash_mutex); // Lock the mutex
 
 
@@ -242,6 +248,8 @@ int load_critics_flags(CRITICAL_FLAGS *flags)
     printf("*********load_critics flags Loading critical flags data from int flash started**********\n");
 
     memset(flags, 0, sizeof(CRITICAL_FLAGS));
+    flags = enter_critical_section();
+
     pthread_mutex_lock(&flash_mutex); // Lock the mutex
 
     int fd = open("/dev/intflash", O_RDONLY);
@@ -252,6 +260,7 @@ int load_critics_flags(CRITICAL_FLAGS *flags)
     }
     ssize_t bytesRead = read(fd, flags, sizeof(CRITICAL_FLAGS));
     close(fd);
+    leave_critical_section(flags);
     pthread_mutex_unlock(&flash_mutex); // Unlock the mutex
 
     if (bytesRead != sizeof(CRITICAL_FLAGS))

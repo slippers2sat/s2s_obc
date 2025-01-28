@@ -53,6 +53,8 @@
 #define file_name_test_msn          "/test_msn.txt"
 
 
+
+
 struct SEEK_POINTER
 {
   uint16_t SAT_HEALTH;
